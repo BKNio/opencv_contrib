@@ -76,8 +76,8 @@ bool CV_LatentSVMDetectorCaskadeTest::isEqual(CvRect r1, CvRect r2, int eps)
 
 void CV_LatentSVMDetectorCaskadeTest::run( int /* start_from */)
 {
-    string img_path = string(ts->get_data_path()) + "latentsvmdetector/cat.png";
-    string model_path = string(ts->get_data_path()) + "latentsvmdetector/models_VOC2007_caskad/cat.xml";
+    string img_path = string(ts->get_data_path()) + "cat.png";
+    string model_path = string(ts->get_data_path()) + "models_VOC2007_caskade/cat.xml";
 
 #ifdef HAVE_TBB
     int numThreads = 2;
@@ -203,13 +203,13 @@ bool compareResults( const vector<lsvmc::LatentSvmDetector::ObjectDetection>& ca
 
 void LatentSVMDetectorCaskadeTest::run( int /* start_from */)
 {
-    string img_path_cat = string(ts->get_data_path()) + "latentsvmdetector/cat.png";
-    string img_path_cars = string(ts->get_data_path()) + "latentsvmdetector/cars.png";
+    string img_path_cat = string(ts->get_data_path()) + "cat.png";
+    string img_path_cars = string(ts->get_data_path()) + "cars.png";
 
-    string model_path_cat = string(ts->get_data_path()) + "latentsvmdetector/models_VOC2007_caskad/cat.xml";
-    string model_path_car = string(ts->get_data_path()) + "latentsvmdetector/models_VOC2007_caskad/car.xml";
+    string model_path_cat = string(ts->get_data_path()) + "models_VOC2007_caskade/cat.xml";
+    string model_path_car = string(ts->get_data_path()) + "models_VOC2007_caskade/car.xml";
 
-    string true_res_path = string(ts->get_data_path()) + "latentsvmdetector/results_caskad.xml";
+    string true_res_path = string(ts->get_data_path()) + "results_caskad.xml";
 
 
 #ifdef HAVE_TBB
@@ -306,4 +306,4 @@ void LatentSVMDetectorCaskadeTest::run( int /* start_from */)
 }
 
 TEST(Objdetect_LatentSVMDetectorCaskade_c, DISABLED_regression) { CV_LatentSVMDetectorCaskadeTest test; test.safe_run(); }
-TEST(Objdetect_LatentSVMDetectorCaskade_cpp, DISABLED_regression) { LatentSVMDetectorCaskadeTest test; test.safe_run(); }
+TEST(Objdetect_LatentSVMDetectorCaskade_cpp, regression) { LatentSVMDetectorCaskadeTest test; test.safe_run(); }
