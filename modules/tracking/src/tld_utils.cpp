@@ -159,9 +159,17 @@ void getClosestN(std::vector<Rect2d>& scanGrid, Rect2d bBox, int n, std::vector<
     for (int i = 1; i < n; i++)
     {
         int j = i;
-        while (j > 0 && overlaps[j - 1] > overlaps[j]) {
-            otmp = overlaps[j]; overlaps[j] = overlaps[j - 1]; overlaps[j - 1] = otmp;
-            rtmp = res[j]; res[j] = res[j - 1]; res[j - 1] = rtmp;
+        while (j > 0 && overlaps[j - 1] > overlaps[j]) //FIXME std::swap
+        {
+            otmp = overlaps[j];
+
+            overlaps[j] = overlaps[j - 1];
+            overlaps[j - 1] = otmp;
+
+            rtmp = res[j];
+            res[j] = res[j - 1];
+            res[j - 1] = rtmp;
+
             j--;
         }
     }
@@ -250,13 +258,29 @@ void resample(const Mat& img, const RotatedRect& r2, Mat_<uchar>& samples)
     A.copyTo(M.colRange(Range(0, 2)));
     b.copyTo(M.colRange(Range(2, 3)));
     warpAffine(img, samples, M, samples.size());
+
+//    cv::imshow("resampleR_img", img);
+//    cv::imshow("resampleR_dst", samples);
+//    cv::waitKey(0);
+
 }
 void resample(const Mat& img, const Rect2d& r2, Mat_<uchar>& samples)
 {
     Mat_<float> M(2, 3);
-    M(0, 0) = (float)(samples.cols / r2.width); M(0, 1) = 0.0f; M(0, 2) = (float)(-r2.x * samples.cols / r2.width);
-    M(1, 0) = 0.0f; M(1, 1) = (float)(samples.rows / r2.height); M(1, 2) = (float)(-r2.y * samples.rows / r2.height);
+    M(0, 1) = 0.0f;
+    M(1, 0) = 0.0f;
+
+    M(0, 0) = (float)(samples.cols / r2.width);
+    M(1, 1) = (float)(samples.rows / r2.height);
+
+    M(0, 2) = (float)(-r2.x * samples.cols / r2.width);
+    M(1, 2) = (float)(-r2.y * samples.rows / r2.height);
+
     warpAffine(img, samples, M, samples.size());
+
+//    cv::imshow("resample_img", img);
+//    cv::imshow("resample_dst", samples);
+//    cv::waitKey(0);
 }
 
 //other stuff
@@ -307,18 +331,20 @@ void TLDEnsembleClassifier::prepareClassifier(int rowstep)
         }
     }
 }
-TLDEnsembleClassifier::TLDEnsembleClassifier(const std::vector<Vec4b>& meas, int beg, int end):lastStep_(-1)
+TLDEnsembleClassifier::TLDEnsembleClassifier(const std::vector<Vec4b>& meas, int beg, int end) : lastStep_(-1)
 {
     int posSize = 1, mpc = end - beg;
-    for( int i = 0; i < mpc; i++ )
-        posSize *= 2;
+
+    posSize <<= mpc;
+
     posAndNeg.assign(posSize, Point2i(0, 0));
     measurements.assign(meas.begin() + beg, meas.begin() + end);
     offset.assign(mpc, Point2i(0, 0));
 }
 void TLDEnsembleClassifier::integrate(const Mat_<uchar>& patch, bool isPositive)
 {
-    int position = code(patch.data, (int)patch.step[0]);
+    int position = code(patch.data, patch.step[0]);
+
     if( isPositive )
         posAndNeg[position].x++;
     else
@@ -328,6 +354,7 @@ double TLDEnsembleClassifier::posteriorProbability(const uchar* data, int rowste
 {
     int position = code(data, rowstep);
     double posNum = (double)posAndNeg[position].x, negNum = (double)posAndNeg[position].y;
+
     if( posNum == 0.0 && negNum == 0.0 )
         return 0.0;
     else
@@ -345,20 +372,20 @@ double TLDEnsembleClassifier::posteriorProbabilityFast(const uchar* data) const
 int TLDEnsembleClassifier::codeFast(const uchar* data) const
 {
     int position = 0;
-    for( int i = 0; i < (int)measurements.size(); i++ )
+    for( size_t i = 0; i < measurements.size(); i++ )
     {
-        position = position << 1;
+        position <<= 1;
         if( data[offset[i].x] < data[offset[i].y] )
             position++;
     }
     return position;
 }
-int TLDEnsembleClassifier::code(const uchar* data, int rowstep) const
+int TLDEnsembleClassifier::code(const uchar* data, size_t rowstep) const
 {
     int position = 0;
-    for( int i = 0; i < (int)measurements.size(); i++ )
+    for( size_t i = 0; i < measurements.size(); i++ )
     {
-        position = position << 1;
+        position <<= 1;
         if( *(data + rowstep * measurements[i].val[0] + measurements[i].val[1]) <
                 *(data + rowstep * measurements[i].val[2] + measurements[i].val[3]) )
         {
@@ -367,7 +394,7 @@ int TLDEnsembleClassifier::code(const uchar* data, int rowstep) const
     }
     return position;
 }
-int TLDEnsembleClassifier::makeClassifiers(Size size, int measurePerClassifier, int gridSize,
+size_t TLDEnsembleClassifier::makeClassifiers(Size size, int measurePerClassifier, int gridSize,
         std::vector<TLDEnsembleClassifier>& classifiers)
 {
 
@@ -377,18 +404,25 @@ int TLDEnsembleClassifier::makeClassifiers(Size size, int measurePerClassifier, 
     {
         for( int j = 0; j < gridSize; j++ )
         {
-            for( int k = 0; k < j; k++ )
+            for( int k = 0; k < j; k++ ) //TODO checkme
             {
                 Vec4b m;
-                m.val[0] = m.val[2] = (uchar)i;
-                m.val[1] = (uchar)j; m.val[3] = (uchar)k;
+
+                m.val[0] = (uchar)i;
+                m.val[2] = (uchar)i;
+                m.val[1] = (uchar)j;
+                m.val[3] = (uchar)k;
                 measurements.push_back(m);
-                m.val[1] = m.val[3] = (uchar)i;
-                m.val[0] = (uchar)j; m.val[2] = (uchar)k;
+
+                m.val[0] = (uchar)j;
+                m.val[1] = (uchar)i;
+                m.val[2] = (uchar)k;
+                m.val[3] = (uchar)i;
                 measurements.push_back(m);
             }
         }
     }
+
     random_shuffle(measurements.begin(), measurements.end());
 
     stepPrefSuff(measurements, 0, size.width, gridSize);
@@ -396,9 +430,12 @@ int TLDEnsembleClassifier::makeClassifiers(Size size, int measurePerClassifier, 
     stepPrefSuff(measurements, 2, size.height, gridSize);
     stepPrefSuff(measurements, 3, size.height, gridSize);
 
-    for( int i = 0, howMany = (int)measurements.size() / measurePerClassifier; i < howMany; i++ )
-        classifiers.push_back(TLDEnsembleClassifier(measurements, i * measurePerClassifier, (i + 1) * measurePerClassifier));
-    return (int)classifiers.size();
+    for( size_t i = 0, howMany = measurements.size() / measurePerClassifier; i < howMany; i++ )
+        classifiers.push_back(
+                    TLDEnsembleClassifier(measurements, i * measurePerClassifier, (i + 1) * measurePerClassifier)
+                    );
+
+    return classifiers.size();
 }
 
 }}

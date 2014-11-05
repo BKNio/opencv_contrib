@@ -144,23 +144,36 @@ Ptr<TrackerMedianFlow> TrackerMedianFlow::createTracker(const TrackerMedianFlow:
     return Ptr<TrackerMedianFlowImpl>(new TrackerMedianFlowImpl(parameters));
 }
 
-bool TrackerMedianFlowImpl::initImpl( const Mat& image, const Rect2d& boundingBox ){
-    model=Ptr<TrackerMedianFlowModel>(new TrackerMedianFlowModel(params));
-    ((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->setImage(image);
-    ((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->setBoudingBox(boundingBox);
+bool TrackerMedianFlowImpl::initImpl( const Mat& image, const Rect2d& boundingBox )
+{
+
+    TrackerMedianFlowModel *pModel = new TrackerMedianFlowModel(params);
+
+    pModel->setImage(image);
+    pModel->setBoudingBox(boundingBox);
+
+    model = Ptr<TrackerMedianFlowModel>(pModel);
+
     return true;
 }
 
-bool TrackerMedianFlowImpl::updateImpl( const Mat& image, Rect2d& boundingBox ){
-    Mat oldImage=((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->getImage();
+bool TrackerMedianFlowImpl::updateImpl( const Mat& image, Rect2d& boundingBox )
+{
 
-    Rect2d oldBox=((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->getBoundingBox();
-    if(!medianFlowImpl(oldImage,image,oldBox)){
+    Ptr<TrackerMedianFlowModel> pModel = model.dynamicCast<TrackerMedianFlowModel>();
+
+    Mat oldImage= pModel->getImage();
+
+    Rect2d oldBox = pModel->getBoundingBox();
+
+    if(!medianFlowImpl(oldImage,image,oldBox))
         return false;
-    }
+
     boundingBox=oldBox;
-    ((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->setImage(image);
-    ((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->setBoudingBox(oldBox);
+
+    pModel->setImage(image);
+    pModel->setBoudingBox(oldBox);
+
     return true;
 }
 
@@ -194,11 +207,16 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
     cvtColor( newImage, newImage_gray, COLOR_BGR2GRAY );
 
     //"open ended" grid
-    for(int i=0;i<params.pointsInGrid;i++){
-        for(int j=0;j<params.pointsInGrid;j++){
+    for(int i=0;i<params.pointsInGrid;i++)
+    {
+        for(int j=0;j<params.pointsInGrid;j++)
+        {
                 pointsToTrackOld.push_back(
-                        Point2f((float)(oldBox.x+((1.0*oldBox.width)/params.pointsInGrid)*j+.5*oldBox.width/params.pointsInGrid),
-                        (float)(oldBox.y+((1.0*oldBox.height)/params.pointsInGrid)*i+.5*oldBox.height/params.pointsInGrid)));
+                        Point2f(
+                        (float)(oldBox.x+((1.0*oldBox.width)/params.pointsInGrid)*j+.5*oldBox.width/params.pointsInGrid),
+                        (float)(oldBox.y+((1.0*oldBox.height)/params.pointsInGrid)*i+.5*oldBox.height/params.pointsInGrid)
+                                )
+                            );
         }
     }
 
@@ -208,19 +226,25 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
     dprintf(("\t%d after LK forward\n",(int)pointsToTrackOld.size()));
 
     std::vector<Point2f> di;
-    for(int i=0;i<(int)pointsToTrackOld.size();i++){
-        if(status[i]==1){
+    for(int i=0;i<(int)pointsToTrackOld.size();i++)
+    {
+        if(status[i]==1)
+        {
             di.push_back(pointsToTrackNew[i]-pointsToTrackOld[i]);
         }
     }
 
     std::vector<bool> filter_status;
+
     check_FB(oldImage_gray,newImage_gray,pointsToTrackOld,pointsToTrackNew,filter_status);
+
     check_NCC(oldImage_gray,newImage_gray,pointsToTrackOld,pointsToTrackNew,filter_status);
 
     // filter
-    for(int i=0;i<(int)pointsToTrackOld.size();i++){
-        if(!filter_status[i]){
+    for(int i=0;i<(int)pointsToTrackOld.size();i++) //fixme std::remove_if
+    {
+        if(!filter_status[i])
+        {
             pointsToTrackOld.erase(pointsToTrackOld.begin()+i);
             pointsToTrackNew.erase(pointsToTrackNew.begin()+i);
             filter_status.erase(filter_status.begin()+i);
@@ -229,18 +253,23 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
     }
     dprintf(("\t%d after LK backward\n",(int)pointsToTrackOld.size()));
 
-    if(pointsToTrackOld.size()==0 || di.size()==0){
+    if(pointsToTrackOld.size()==0 || di.size()==0)
+    {
         return false;
     }
+
     Point2f mDisplacement;
+
     oldBox=vote(pointsToTrackOld,pointsToTrackNew,oldBox,mDisplacement);
 
     std::vector<double> displacements;
-    for(int i=0;i<(int)di.size();i++){
+    for(int i=0;i<(int)di.size();i++)
+    {
         di[i]-=mDisplacement;
         displacements.push_back(sqrt(di[i].ddot(di[i])));
     }
-    if(getMedian(displacements,(int)displacements.size())>10){
+    if(getMedian(displacements,(int)displacements.size()) > 10)
+    {
         return false;
     }
 
@@ -248,13 +277,16 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
 }
 
 Rect2d TrackerMedianFlowImpl::vote(const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,const Rect2d& oldRect,Point2f& mD){
-    static int iteration=0;//FIXME -- we don't want this static var in final release
+    static int iteration=0; //FIXME -- we don't want this static var in final release
     Rect2d newRect;
     Point2d newCenter(oldRect.x+oldRect.width/2.0,oldRect.y+oldRect.height/2.0);
+
     int n=(int)oldPoints.size();
+
     std::vector<double> buf(std::max(n*(n-1)/2,3),0.0);
 
-    if(oldPoints.size()==1){
+    if(oldPoints.size()==1)
+    {
         newRect.x=oldRect.x+newPoints[0].x-oldPoints[0].x;
         newRect.y=oldRect.y+newPoints[0].y-oldPoints[0].y;
         newRect.width=oldRect.width;
@@ -263,15 +295,24 @@ Rect2d TrackerMedianFlowImpl::vote(const std::vector<Point2f>& oldPoints,const s
     }
 
     double xshift=0,yshift=0;
-    for(int i=0;i<n;i++){  buf[i]=newPoints[i].x-oldPoints[i].x;  }
+    for(int i=0;i<n;i++)
+    {
+        buf[i]=newPoints[i].x-oldPoints[i].x;
+    }
     xshift=getMedian(buf,n);
     newCenter.x+=xshift;
-    for(int i=0;i<n;i++){  buf[i]=newPoints[i].y-oldPoints[i].y;  }
+
+    for(int i=0;i<n;i++)
+    {
+        buf[i]=newPoints[i].y-oldPoints[i].y;
+    }
     yshift=getMedian(buf,n);
     newCenter.y+=yshift;
+
     mD=Point2f((float)xshift,(float)yshift);
 
-    if(oldPoints.size()==1){
+    if(oldPoints.size()==1)
+    {
         newRect.x=newCenter.x-oldRect.width/2.0;
         newRect.y=newCenter.y-oldRect.height/2.0;
         newRect.width=oldRect.width;
@@ -280,11 +321,13 @@ Rect2d TrackerMedianFlowImpl::vote(const std::vector<Point2f>& oldPoints,const s
     }
 
     double nd,od;
-    for(int i=0,ctr=0;i<n;i++){
-        for(int j=0;j<i;j++){
+    for(int i=0,ctr=0;i<n;i++)
+    {
+        for(int j=0;j<i;j++)
+        {
             nd=l2distance(newPoints[i],newPoints[j]);
             od=l2distance(oldPoints[i],oldPoints[j]);
-            buf[ctr]=(od==0.0)?0.0:(nd/od);
+            buf[ctr] = (od==0.0) ? 0.0 : (nd/od);
             ctr++;
         }
     }
@@ -333,14 +376,17 @@ void TrackerMedianFlowImpl::computeStatistics(std::vector<float>& data,int size)
         dprintf(("[%4f,%4f] -- %4d\n",mini+(maxi-mini)/binnum*i,mini+(maxi-mini)/binnum*(i+1),bins[i]));
     }
 }
-double TrackerMedianFlowImpl::l2distance(Point2f p1,Point2f p2){
+double TrackerMedianFlowImpl::l2distance(Point2f p1,Point2f p2) //TODO remove
+{
     double dx=p1.x-p2.x, dy=p1.y-p2.y;
     return sqrt(dx*dx+dy*dy);
 }
 void TrackerMedianFlowImpl::check_FB(const Mat& oldImage,const Mat& newImage,
-        const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status){
+        const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status)
+{
 
-    if(status.size()==0){
+    if(status.size()==0)
+    {
         status=std::vector<bool>(oldPoints.size(),true);
     }
 
@@ -350,38 +396,43 @@ void TrackerMedianFlowImpl::check_FB(const Mat& oldImage,const Mat& newImage,
     std::vector<Point2f> pointsToTrackReprojection;
     calcOpticalFlowPyrLK(newImage, oldImage,newPoints,pointsToTrackReprojection,LKstatus,errors,Size(3,3),5,termcrit,0);
 
-    for(int i=0;i<(int)oldPoints.size();i++){
+    for(int i=0;i<(int)oldPoints.size();i++)
+    {
         FBerror[i]=l2distance(oldPoints[i],pointsToTrackReprojection[i]);
     }
     double FBerrorMedian=getMedian(FBerror);
     dprintf(("point median=%f\n",FBerrorMedian));
     dprintf(("FBerrorMedian=%f\n",FBerrorMedian));
-    for(int i=0;i<(int)oldPoints.size();i++){
+    for(int i=0;i<(int)oldPoints.size();i++)
+    {
         status[i]=(FBerror[i]<FBerrorMedian);
     }
 }
 void TrackerMedianFlowImpl::check_NCC(const Mat& oldImage,const Mat& newImage,
-        const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status){
+        const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status)
+{
 
     std::vector<float> NCC(oldPoints.size(),0.0);
     Size patch(30,30);
     Mat p1,p2;
 
-	for (int i = 0; i < (int)oldPoints.size(); i++) {
-		getRectSubPix( oldImage, patch, oldPoints[i],p1);
-		getRectSubPix( newImage, patch, newPoints[i],p2);
+    for (int i = 0; i < (int)oldPoints.size(); i++)
+    {
+        getRectSubPix( oldImage, patch, oldPoints[i], p1);
+        getRectSubPix( newImage, patch, newPoints[i], p2);
 
-        const int N=900;
-        double s1=sum(p1)(0),s2=sum(p2)(0);
-        double n1=norm(p1),n2=norm(p2);
-        double prod=p1.dot(p2);
-        double sq1=sqrt(n1*n1-s1*s1/N),sq2=sqrt(n2*n2-s2*s2/N);
-        double ares=(sq2==0)?sq1/abs(sq1):(prod-s1*s2/N)/sq1/sq2;
+        const int N = 900;
+        double s1 = sum(p1)(0), s2=sum(p2)(0);
+        double n1 = norm(p1), n2=norm(p2);
+        double prod = p1.dot(p2);
+        double sq1 = sqrt(n1*n1-s1*s1/N), sq2=sqrt(n2*n2-s2*s2/N);
+        double ares = (sq2==0) ? sq1 / abs(sq1) : (prod-s1*s2/N)/sq1/sq2;
 
 		NCC[i] = (float)ares;
 	}
 	float median = getMedian(NCC);
-	for(int i = 0; i < (int)oldPoints.size(); i++) {
+    for(int i = 0; i < (int)oldPoints.size(); i++)
+    {
         status[i] = status[i] && (NCC[i]>median);
 	}
 }

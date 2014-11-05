@@ -98,7 +98,7 @@ int getMedian(const std::vector<int>& values, int size = -1);
 class TLDEnsembleClassifier
 {
 public:
-    static int makeClassifiers(Size size, int measurePerClassifier, int gridSize, std::vector<TLDEnsembleClassifier>& classifiers);
+    static size_t makeClassifiers(Size size, int measurePerClassifier, int gridSize, std::vector<TLDEnsembleClassifier>& classifiers);
     void integrate(const Mat_<uchar>& patch, bool isPositive);
     double posteriorProbability(const uchar* data, int rowstep) const;
     double posteriorProbabilityFast(const uchar* data) const;
@@ -106,7 +106,7 @@ public:
 private:
     TLDEnsembleClassifier(const std::vector<Vec4b>& meas, int beg, int end);
     static void stepPrefSuff(std::vector<Vec4b> & arr, int pos, int len, int gridSize);
-    int code(const uchar* data, int rowstep) const;
+    int code(const uchar* data, size_t rowstep) const;
     int codeFast(const uchar* data) const;
     std::vector<Point2i> posAndNeg;
     std::vector<Vec4b> measurements;

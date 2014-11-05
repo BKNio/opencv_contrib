@@ -76,7 +76,7 @@ bool Tracker::init( const Mat& image, const Rect2d& boundingBox )
   bool initTracker = initImpl( image, boundingBox );
 
   //check if the model component is initialized
-  if( model == 0 )
+  if( model.empty() )
   {
     CV_Error( -1, "The model is not initialized" );
     return false;
