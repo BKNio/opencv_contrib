@@ -174,6 +174,7 @@ public:
   Rect2d getBoundingBox(){ return boundingBox_; }
   void setBoudingBox(Rect2d boundingBox){ boundingBox_ = boundingBox; }
   double getOriginalVariance(){ return originalVariance_; }
+  void setVariance(double variance) { originalVariance_  = variance; }
   inline double ensembleClassifierNum(const uchar* data);
   inline void prepareClassifiers(int rowstep);
   double Sr(const Mat_<uchar>& patch);
@@ -335,24 +336,37 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
 
     Ptr<TrackerTLDModel> tldModel = model.dynamicCast<TrackerTLDModel>();
 
-    for( int i = 0; i < 2; i++ )
+    Rect2d trackerCandid = boundingBox;
+    if( !data->failedLastTime && trackerProxy->update(image, trackerCandid) )
     {
-        Rect2d tmpCandid = boundingBox;
-        if( ( (i == 0) && !data->failedLastTime && trackerProxy->update(image, tmpCandid) ) || 
-                ( (i == 1) && detector->detect(imageForDetector, image_blurred, tmpCandid, detectorResults) ) )
-        {
-            candidates.push_back(tmpCandid);
-            if( i == 0 )
-                resample(image_gray, tmpCandid, standardPatch);
-            else
-                resample(imageForDetector, tmpCandid, standardPatch);
-            candidatesRes.push_back(tldModel->Sc(standardPatch));
-        }
-        else
-        {
-            if( i == 0 )
-                trackerNeedsReInit = true;
-        }
+        candidates.push_back(trackerCandid);
+
+        resample(image_gray, trackerCandid, standardPatch);
+        candidatesRes.push_back(tldModel->Sc(standardPatch));
+
+        ////////////////////////
+        cv::Mat copy; image_gray.copyTo(copy);
+        cv::rectangle(copy, trackerCandid, cv::Scalar(0,0,0));
+        cv::imshow("tracker", copy);
+        ////////////////////////
+
+    }
+    else
+        trackerNeedsReInit = true;
+
+    Rect2d detectorCandid = boundingBox;
+    if(detector->detect(imageForDetector, image_blurred, detectorCandid, detectorResults))
+    {
+        candidates.push_back(detectorCandid);
+        resample(imageForDetector, detectorCandid, standardPatch);
+        candidatesRes.push_back(tldModel->Sc(standardPatch));
+
+        ///////////////////////////
+        cv::Mat copy; imageForDetector.copyTo(copy);
+        cv::rectangle(copy, detectorCandid, cv::Scalar(0,0,0));
+        cv::imshow("detector", copy);
+        //////////////////////////
+
     }
 
     std::vector<double>::iterator it = std::max_element(candidatesRes.begin(), candidatesRes.end());
@@ -360,7 +374,9 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
     dfprintf((stdout, "scale = %f\n", log(1.0 * boundingBox.width / (data->getMinSize()).width) / log(SCALE_STEP)));
     for( int i = 0; i < (int)candidatesRes.size(); i++ )
         dprintf(("\tcandidatesRes[%d] = %f\n", i, candidatesRes[i]));
+
     data->printme();
+
     tldModel->printme(stdout);
 
     if( it == candidatesRes.end() )
@@ -436,6 +452,8 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
         tldModel->integrateRelabeled(imageForDetector, image_blurred, detectorResults);
 #endif
     }
+
+   tldModel->setVariance(variance(image_gray(boundingBox)));
 
     return true;
 }
@@ -572,7 +590,8 @@ void TLDDetector::generateScanGrid(int rows, int cols, Size initBox, std::vector
 
 bool TLDDetector::detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std::vector<LabeledPatch>& patches)
 {
-    TrackerTLDModel* tldModel = ((TrackerTLDModel*)static_cast<TrackerModel*>(model));
+    Ptr<TrackerTLDModel> tldModel = model.dynamicCast<TrackerTLDModel>();
+
     Size initSize = tldModel->getMinSize();
     patches.clear();
 
@@ -590,22 +609,43 @@ bool TLDDetector::detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std
     Rect2d maxScRect;
 
     START_TICK("detector");
+
     do
     {
         Mat_<double> intImgP, intImgP2;
         computeIntegralImages(resized_img, intImgP, intImgP2);
 
         tldModel->prepareClassifiers((int)blurred_img.step[0]);
+
+        //
+        cv::Mat copy;
+        resized_img.copyTo(copy);
+        double min = 1., max = 0.;
+        std::vector< std::pair<cv::Point, double> > measures;
+        //
+
         for( int i = 0, imax = cvFloor((0.0 + resized_img.cols - initSize.width) / dx); i < imax; i++ )
         {
             for( int j = 0, jmax = cvFloor((0.0 + resized_img.rows - initSize.height) / dy); j < jmax; j++ )
             {
                 LabeledPatch labPatch;
                 total++;
+
                 if( !patchVariance(intImgP, intImgP2, originalVariance, Point(dx * i, dy * j), initSize) )
                     continue;
-                if( tldModel->ensembleClassifierNum(&blurred_img.at<uchar>(dy * j, dx * i)) <= ENSEMBLE_THRESHOLD )
+
+
+                double val = tldModel->ensembleClassifierNum(&blurred_img.at<uchar>(dy * j, dx * i));
+
+                min = std::min(min, val);
+                max = std::max(max, val);
+
+                measures.push_back(std::make_pair(cv::Point(dx * i, dy * j), val));
+
+
+                if( val <= ENSEMBLE_THRESHOLD )
                     continue;
+
 
                 pass++;
 
@@ -633,6 +673,12 @@ bool TLDDetector::detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std
                 }
             }
         }
+
+        for(size_t index = 0 ; index < measures.size(); ++index)
+            cv::circle(copy, measures[index].first, 1, cv::Scalar::all((measures[index].second - min) * 255 / max), 2);
+
+        cv::imshow("ensebmle test", copy);
+        cv::waitKey();
 
         size.width /= SCALE_STEP;
         size.height /= SCALE_STEP;
@@ -662,6 +708,7 @@ bool TLDDetector::detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std
     if( maxSc < 0 )
         return false;
     res = maxScRect;
+
     return true;
 }
 
