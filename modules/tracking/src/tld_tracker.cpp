@@ -47,6 +47,8 @@
 #include<limits.h>
 #include "tld_tracker.hpp"
 #include "opencv2/highgui.hpp"
+#include <sstream>
+
 
 /*
  * FIXME(optimize):
@@ -345,9 +347,9 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
         candidatesRes.push_back(tldModel->Sc(standardPatch));
 
         ////////////////////////
-        cv::Mat copy; image_gray.copyTo(copy);
-        cv::rectangle(copy, trackerCandid, cv::Scalar(0,0,0));
-        cv::imshow("tracker", copy);
+        //cv::Mat copy; image_gray.copyTo(copy);
+        //cv::rectangle(copy, trackerCandid, cv::Scalar(0,0,0));
+        //cv::imshow("tracker", copy);
         ////////////////////////
 
     }
@@ -362,9 +364,9 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
         candidatesRes.push_back(tldModel->Sc(standardPatch));
 
         ///////////////////////////
-        cv::Mat copy; imageForDetector.copyTo(copy);
-        cv::rectangle(copy, detectorCandid, cv::Scalar(0,0,0));
-        cv::imshow("detector", copy);
+        //cv::Mat copy; imageForDetector.copyTo(copy);
+        //cv::rectangle(copy, detectorCandid, cv::Scalar(0,0,0));
+        //cv::imshow("detector", copy);
         //////////////////////////
 
     }
@@ -479,6 +481,19 @@ timeStampPositiveNext(0), timeStampNegativeNext(0), params_(params), boundingBox
     std::vector<Rect2d> closest;
     getClosestN(scanGrid4Positive, Rect2d(boundingBox.x / scale, boundingBox.y / scale, boundingBox.width / scale, boundingBox.height / scale), 10, closest); //TODO checkme
 
+
+//    {
+//        cv::Mat copy; scaledImg.copyTo(copy);
+//        for(size_t i = closest.size() - 1; i>0 ; --i)
+//            cv::rectangle(copy, closest[i], cv::Scalar::all(0));
+
+//        //cv:imshow("positive grid", copy);
+//        //cv::waitKey();
+//    }
+
+
+    //cv::Mat_<uchar> copy(50,50);// scaledImg.copyTo(copy);
+
     TLDEnsembleClassifier::makeClassifiers(minSize, MEASURES_PER_CLASSIFIER, GRIDSIZE, classifiers);
 
     for( size_t i = 0; i < closest.size(); i++ )
@@ -487,25 +502,29 @@ timeStampPositiveNext(0), timeStampNegativeNext(0), params_(params), boundingBox
         {
             Point2f center;
             Size2f size;
-            Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
 
-            center.x = (float)(closest[i].x + closest[i].width * (0.5 + rng.uniform(-0.01, 0.01)));
-            center.y = (float)(closest[i].y + closest[i].height * (0.5 + rng.uniform(-0.01, 0.01)));
+            center.x = (float)(closest[i].x + closest[i].width *(0.5 + rng.uniform(-0.01, 0.01)));
+            center.y = (float)(closest[i].y + closest[i].height *(0.5 + rng.uniform(-0.01, 0.01)));
 
             size.width = (float)(closest[i].width * rng.uniform((double)0.99, (double)1.01));
             size.height = (float)(closest[i].height * rng.uniform((double)0.99, (double)1.01));
 
             float angle = (float)rng.uniform(-10.0, 10.0);
 
+            Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
             resample(scaledImg, RotatedRect(center, size, angle), standardPatch);
+            //resample(scaledImg, RotatedRect(center, size, angle), copy);
+            //cv::imshow("std patch", copy);
+
+            //cv::rectangle(copy, cv::Rect())
             
-            for( int y = 0; y < standardPatch.rows; y++ )
-            {
-                for( int x = 0; x < standardPatch.cols; x++ )
-                {
-                    standardPatch(x, y) += (uchar)rng.gaussian(5.0);
-                }
-            }
+//            for( int y = 0; y < standardPatch.rows; y++ )
+//            {
+//                for( int x = 0; x < standardPatch.cols; x++ )
+//                {
+//                    standardPatch(x, y) += (uchar)rng.gaussian(5.0);
+//                }
+//            }
 
             Mat_<uchar> blurredPatch;
 #ifdef BLUR_AS_VADIM
@@ -516,8 +535,13 @@ timeStampPositiveNext(0), timeStampNegativeNext(0), params_(params), boundingBox
 #endif
             pushIntoModel(standardPatch, true);
 
+            //cv::imshow("before train positive", blurredPatch);
+
             for( size_t k = 0; k < classifiers.size(); k++ )
                 classifiers[k].integrate(blurredPatch, true);
+
+            //cv::imshow("train positive", blurredPatch);
+            //cv::waitKey(100);
         }
     }
 
@@ -587,6 +611,11 @@ void TLDDetector::generateScanGrid(int rows, int cols, Size initBox, std::vector
     }
     dprintf(("%d rects in res\n", (int)res.size()));
 }
+bool comp(std::pair<cv::Point, double> const &item1, std::pair<cv::Point, double> const &item2);
+bool comp(std::pair<cv::Point, double> const &item1, std::pair<cv::Point, double> const &item2)
+{
+    return item1.second < item2.second;
+}
 
 bool TLDDetector::detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std::vector<LabeledPatch>& patches)
 {
@@ -617,12 +646,12 @@ bool TLDDetector::detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std
 
         tldModel->prepareClassifiers((int)blurred_img.step[0]);
 
-        //
+
         cv::Mat copy;
-        resized_img.copyTo(copy);
+        blurred_img.copyTo(copy);
         double min = 1., max = 0.;
         std::vector< std::pair<cv::Point, double> > measures;
-        //
+
 
         for( int i = 0, imax = cvFloor((0.0 + resized_img.cols - initSize.width) / dx); i < imax; i++ )
         {
@@ -634,27 +663,43 @@ bool TLDDetector::detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std
                 if( !patchVariance(intImgP, intImgP2, originalVariance, Point(dx * i, dy * j), initSize) )
                     continue;
 
-
+#if 1
                 double val = tldModel->ensembleClassifierNum(&blurred_img.at<uchar>(dy * j, dx * i));
+#else
+
+                cv::Mat copy; blurred_img.copyTo(copy);
+                double val = tldModel->ensembleClassifierNum(&copy.at<uchar>(dy * j, dx * i));
+                cv::imshow("mpoints", copy);
+                cv::waitKey(1);
+#endif
 
                 min = std::min(min, val);
                 max = std::max(max, val);
-
                 measures.push_back(std::make_pair(cv::Point(dx * i, dy * j), val));
 
 
-                if( val <= ENSEMBLE_THRESHOLD )
+                if(val <= ENSEMBLE_THRESHOLD)
                     continue;
-
 
                 pass++;
 
                 labPatch.rect = Rect2d(dx * i * scale, dy * j * scale, initSize.width * scale, initSize.height * scale);
+
                 resample(resized_img, Rect2d(Point(dx * i, dy * j), initSize), standardPatch);
+
                 tmp = tldModel->Sr(standardPatch);
+
+                cv::Mat copy2; resized_img.copyTo(copy2);
+                cv::rectangle(copy2, Rect2d(Point(dx * i, dy * j), initSize), cv::Scalar::all(0));
+                std::ostringstream ss; ss << tmp;
+                std::string str = ss.str();
+                cv::putText(copy2, str.c_str(), cv::Point(1, 15), FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar::all(0));
+                cv::imshow("candidate", copy2);
+
                 labPatch.isObject = tmp > THETA_NN;
                 labPatch.shouldBeIntegrated = abs(tmp - THETA_NN) < 0.1;
                 patches.push_back(labPatch);
+
 
                 if( !labPatch.isObject )
                 {
@@ -665,18 +710,33 @@ bool TLDDetector::detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std
                 {
                     npos++;
                 }
-                tmp = tldModel->Sc(standardPatch);
+
+                //tmp = tldModel->Sr(standardPatch);
+
                 if( tmp > maxSc )
                 {
+                    //
+                    cv::Mat copy2; resized_img.copyTo(copy2);
+                    cv::rectangle(copy2, Rect2d(Point(dx * i, dy * j), initSize), cv::Scalar::all(0));
+                    cv::imshow("best candidate", copy2);
+                    //
                     maxSc = tmp;
                     maxScRect = labPatch.rect;
                 }
+
+                cv::waitKey();
+
             }
         }
 
+
+
+        std::sort(measures.begin(), measures.end(), comp);
         for(size_t index = 0 ; index < measures.size(); ++index)
             cv::circle(copy, measures[index].first, 1, cv::Scalar::all((measures[index].second - min) * 255 / max), 2);
-
+        std::ostringstream ss; ss << " max " << max;
+        std::string str = ss.str();
+        cv::putText(copy, str.c_str(), cv::Point(1,15), FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar::all(255));
         cv::imshow("ensebmle test", copy);
         cv::waitKey();
 
@@ -689,24 +749,9 @@ bool TLDDetector::detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std
     while( size.width >= initSize.width && size.height >= initSize.height );
     END_TICK("detector");
 
-    dfprintf((stdout, "after NCC: nneg = %d npos = %d\n", nneg, npos));
-#if !1
-        std::vector<Rect2d> poss, negs;
-
-        for( int i = 0; i < (int)patches.size(); i++ )
-        {
-            if( patches[i].isObject )
-                poss.push_back(patches[i].rect);
-            else
-                negs.push_back(patches[i].rect);
-        }
-        dfprintf((stdout, "%d pos and %d neg\n", (int)poss.size(), (int)negs.size()));
-        drawWithRects(img, negs, poss, "tech");
-#endif
-
-    dfprintf((stdout, "%d after ensemble\n", pass));
     if( maxSc < 0 )
         return false;
+
     res = maxScRect;
 
     return true;
@@ -740,7 +785,7 @@ bool TLDDetector::patchVariance(Mat_<double>& intImgP, Mat_<double>& intImgP2, d
 double TrackerTLDModel::ensembleClassifierNum(const uchar* data)
 {
     double p = 0;
-    for( int k = 0; k < (int)classifiers.size(); k++ )
+    for( size_t k = 0; k < classifiers.size(); k++ )
         p += classifiers[k].posteriorProbabilityFast(data);
     p /= classifiers.size();
     return p;

@@ -142,6 +142,31 @@ double scaleAndBlur(const Mat& originalImg, int scale, Mat& scaledImg, Mat& blur
     GaussianBlur(scaledImg, blurredImg, GaussBlurKernelSize, 0.0);
     return dScale;
 }
+
+struct RectCmp
+{
+
+    RectCmp(Rect2d const &refRect) : m_refRect(refRect) { m_area = m_refRect.area(); }
+
+    bool operator()(Rect2d const &item_1, Rect2d const &item_2) const
+    {
+        double a1 = item_1.area();
+        double a2 = item_2.area();
+
+        cv::Rect2d const &intercep_1 = item_1 & m_refRect;
+        double a_i1 = intercep_1.area();
+
+        cv::Rect2d const &intercep_2 = item_2 & m_refRect;
+        double a_i2 = intercep_2.area();
+
+        return (a_i1 / (a1 + m_area - a_i1)) > (a_i2 / (a2 + m_area - a_i2));
+
+    }
+private:
+    cv::Rect2d const &m_refRect;
+    double m_area;
+};
+
 void getClosestN(std::vector<Rect2d>& scanGrid, Rect2d bBox, int n, std::vector<Rect2d>& res)
 {
     if( n >= (int)scanGrid.size() )
@@ -149,43 +174,11 @@ void getClosestN(std::vector<Rect2d>& scanGrid, Rect2d bBox, int n, std::vector<
         res.assign(scanGrid.begin(), scanGrid.end());
         return;
     }
-    std::vector<double> overlaps;
-    overlaps.assign(n, 0.0);
+
+    std::sort(scanGrid.begin(), scanGrid.end(), RectCmp(bBox));
+
     res.assign(scanGrid.begin(), scanGrid.begin() + n);
-    for( int i = 0; i < n; i++ )
-        overlaps[i] = overlap(res[i], bBox);
-    double otmp;
-    Rect2d rtmp;
-    for (int i = 1; i < n; i++)
-    {
-        int j = i;
-        while (j > 0 && overlaps[j - 1] > overlaps[j]) //FIXME std::swap
-        {
-            otmp = overlaps[j];
 
-            overlaps[j] = overlaps[j - 1];
-            overlaps[j - 1] = otmp;
-
-            rtmp = res[j];
-            res[j] = res[j - 1];
-            res[j - 1] = rtmp;
-
-            j--;
-        }
-    }
-
-    for( int i = n; i < (int)scanGrid.size(); i++ )
-    {
-        double o = 0.0;
-        if( (o = overlap(scanGrid[i], bBox)) <= overlaps[0] )
-            continue;
-        int j = 0;
-        while( j < n && overlaps[j] < o )
-            j++;
-        j--;
-        for( int k = 0; k < j; overlaps[k] = overlaps[k + 1], res[k] = res[k + 1], k++ );
-        overlaps[j] = o; res[j] = scanGrid[i];
-    }
 }
 
 double variance(const Mat& img)
@@ -324,7 +317,7 @@ void TLDEnsembleClassifier::prepareClassifier(int rowstep)
     if( lastStep_ != rowstep )
     {
         lastStep_ = rowstep;
-        for( int i = 0; i < (int)offset.size(); i++ )
+        for( size_t i = 0; i < offset.size(); i++ )
         {
             offset[i].x = rowstep * measurements[i].val[0] + measurements[i].val[1];
             offset[i].y = rowstep * measurements[i].val[2] + measurements[i].val[3];
@@ -371,17 +364,24 @@ double TLDEnsembleClassifier::posteriorProbabilityFast(const uchar* data) const
 }
 int TLDEnsembleClassifier::codeFast(const uchar* data) const
 {
+
+    uchar* nonconst = const_cast<uchar*>(data);
+
     int position = 0;
     for( size_t i = 0; i < measurements.size(); i++ )
     {
         position <<= 1;
         if( data[offset[i].x] < data[offset[i].y] )
             position++;
+
+        //nonconst[offset[i].x] = nonconst[offset[i].y] = 0;
+
     }
     return position;
 }
 int TLDEnsembleClassifier::code(const uchar* data, size_t rowstep) const
 {
+    //uchar* nonconst = const_cast<uchar*>(data);
     int position = 0;
     for( size_t i = 0; i < measurements.size(); i++ )
     {
@@ -390,6 +390,10 @@ int TLDEnsembleClassifier::code(const uchar* data, size_t rowstep) const
                 *(data + rowstep * measurements[i].val[2] + measurements[i].val[3]) )
         {
             position++;
+
+            //*(nonconst + rowstep * measurements[i].val[0] + measurements[i].val[1]) = 0;
+            //*(nonconst + rowstep * measurements[i].val[2] + measurements[i].val[3]) = 0;
+
         }
     }
     return position;
@@ -400,6 +404,9 @@ size_t TLDEnsembleClassifier::makeClassifiers(Size size, int measurePerClassifie
 
     std::vector<Vec4b> measurements;
 
+    RNG rng(0xFFFFFFFF);
+    rng.uniform(0, gridSize);
+
     for( int i = 0; i < gridSize; i++ )
     {
         for( int j = 0; j < gridSize; j++ )
@@ -407,6 +414,8 @@ size_t TLDEnsembleClassifier::makeClassifiers(Size size, int measurePerClassifie
             for( int k = 0; k < j; k++ ) //TODO checkme
             {
                 Vec4b m;
+
+#if 0
 
                 m.val[0] = (uchar)i;
                 m.val[2] = (uchar)i;
@@ -419,16 +428,30 @@ size_t TLDEnsembleClassifier::makeClassifiers(Size size, int measurePerClassifie
                 m.val[2] = (uchar)k;
                 m.val[3] = (uchar)i;
                 measurements.push_back(m);
+#else
+                m.val[0] = rng.uniform(0, gridSize);
+                m.val[2] = rng.uniform(0, gridSize);
+                m.val[1] = rng.uniform(0, gridSize);
+                m.val[3] = rng.uniform(0, gridSize);
+                measurements.push_back(m);
+
+                m.val[0] = rng.uniform(0, gridSize);
+                m.val[1] = rng.uniform(0, gridSize);
+                m.val[2] = rng.uniform(0, gridSize);
+                m.val[3] = rng.uniform(0, gridSize);
+                measurements.push_back(m);
+#endif
+
             }
         }
     }
 
     random_shuffle(measurements.begin(), measurements.end());
 
-    stepPrefSuff(measurements, 0, size.width, gridSize);
-    stepPrefSuff(measurements, 1, size.width, gridSize);
-    stepPrefSuff(measurements, 2, size.height, gridSize);
-    stepPrefSuff(measurements, 3, size.height, gridSize);
+//    stepPrefSuff(measurements, 0, size.width, gridSize);
+//    stepPrefSuff(measurements, 1, size.width, gridSize);
+//    stepPrefSuff(measurements, 2, size.height, gridSize);
+//    stepPrefSuff(measurements, 3, size.height, gridSize);
 
     for( size_t i = 0, howMany = measurements.size() / measurePerClassifier; i < howMany; i++ )
         classifiers.push_back(
