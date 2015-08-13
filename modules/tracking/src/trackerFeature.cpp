@@ -48,10 +48,7 @@ namespace cv
  *  TrackerFeature
  */
 
-TrackerFeature::~TrackerFeature()
-{
-
-}
+TrackerFeature::~TrackerFeature() {}
 
 void TrackerFeature::compute( const std::vector<Mat>& images, Mat& response )
 {

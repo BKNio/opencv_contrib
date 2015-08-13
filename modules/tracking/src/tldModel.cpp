@@ -41,19 +41,23 @@
 
 #include "tldModel.hpp"
 
+
+
 namespace cv
 {
 	namespace tld
 	{
 		//Constructor
-		TrackerTLDModel::TrackerTLDModel(TrackerTLD::Params params, const Mat& image, const Rect2d& boundingBox, Size minSize):
-			timeStampPositiveNext(0), timeStampNegativeNext(0), minSize_(minSize), params_(params), boundingBox_(boundingBox)
+        TrackerTLDModel::TrackerTLDModel(TrackerTLD::Params params, const Mat& image, const Rect &boundingBox):
+            timeStampPositiveNext(0), timeStampNegativeNext(0), minSize_(boundingBox.size()), params_(params), boundingBox_(boundingBox)
 		{
 			std::vector<Rect2d> closest, scanGrid;
-			Mat scaledImg, blurredImg, image_blurred;
+            //Mat scaledImg, blurredImg, image_blurred;
+
+            Mat blurredWapedPatch;
 
 			//Create Detector
-			detector = Ptr<TLDDetector>(new TLDDetector());
+            detector = makePtr<TLDDetector>();
 
 			//Propagate data to Detector
 			posNum = 0;
@@ -69,21 +73,48 @@ namespace cv
 			detector->negativeExamples = &negativeExamples;
 			detector->timeStampsPositive = &timeStampsPositive;
 			detector->timeStampsNegative = &timeStampsNegative;
-			detector->originalVariancePtr = &originalVariance_;
 
-			//Calculate the variance in initial BB
-			originalVariance_ = variance(image(boundingBox));
+            //Calculate the variance in initial BB
+            originalVariance_ = variance(image(boundingBox));
+            detector->originalVariance = originalVariance_;
+
+            ////////////////////////////////
+
+//            Mat qq; image.copyTo(qq);
+
+//            rectangle(qq, boundingBox, Scalar::all(255));
+//            imshow("ctor TLDModel", qq);
+//            imshow("bb TLDModel", qq(boundingBox));
+//            waitKey();
+            ////////////////////////////////
+
 			//Find the scale
-			double scale = scaleAndBlur(image, cvRound(log(1.0 * boundingBox.width / (minSize.width)) / log(SCALE_STEP)),
-				scaledImg, blurredImg, GaussBlurKernelSize, SCALE_STEP);
-			GaussianBlur(image, image_blurred, GaussBlurKernelSize, 0.0);
+
+//            double scale = scaleAndBlur(image, cvRound(log(1.0 * boundingBox.width / (minSize_.width)) / log(SCALE_STEP)),
+//                scaledImg, blurredImg, GaussBlurKernelSize, SCALE_STEP);
+
+            //GaussianBlur(image, image_blurred, GaussBlurKernelSize, 0.0);
+
 			TLDDetector::generateScanGrid(image.rows, image.cols, minSize_, scanGrid);
-			getClosestN(scanGrid, Rect2d(boundingBox.x / scale, boundingBox.y / scale, boundingBox.width / scale, boundingBox.height / scale), 10, closest);
-			Mat_<uchar> blurredPatch(minSize);
-			TLDEnsembleClassifier::makeClassifiers(minSize, MEASURES_PER_CLASSIFIER, GRIDSIZE, detector->classifiers);
+
+            ///////////////////////////
+            //TLDDetector::outputScanningGrid(image, scanGrid);
+            ///////////////////////////
+
+            getClosestN(scanGrid, boundingBox, 10, closest);
+            ///////////////////////////
+            //TLDDetector::outputScanningGrid(image, closest);
+            ///////////////////////////
+
+            TLDEnsembleClassifier::makeClassifiers(minSize_, MEASURES_PER_CLASSIFIER, GRIDSIZE, detector->classifiers);
+
+            ///////////////////////////
+            //TLDEnsembleClassifier::printClassifier(cv::Size(256, 256), minSize, detector->classifiers);
+            ///////////////////////////
 
 			//Generate initial positive samples and put them to the model
 			positiveExamples.reserve(200);
+            Mat_<uchar> warpedPatch(minSize_);
 
 			for (int i = 0; i < (int)closest.size(); i++)
 			{
@@ -91,37 +122,34 @@ namespace cv
 				{
 					Point2f center;
 					Size2f size;
-					Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-					center.x = (float)(closest[i].x + closest[i].width * (0.5 + rng.uniform(-0.01, 0.01)));
-					center.y = (float)(closest[i].y + closest[i].height * (0.5 + rng.uniform(-0.01, 0.01)));
-					size.width = (float)(closest[i].width * rng.uniform((double)0.99, (double)1.01));
-					size.height = (float)(closest[i].height * rng.uniform((double)0.99, (double)1.01));
-					float angle = (float)rng.uniform(-10.0, 10.0);
 
-					resample(scaledImg, RotatedRect(center, size, angle), standardPatch);
+                    center.x = (float)(closest[i].x + closest[i].width * (0.5 + rng.uniform(-0.01, 0.01)));
+                    center.y = (float)(closest[i].y + closest[i].height * (0.5 + rng.uniform(-0.01, 0.01)));
 
-					for (int y = 0; y < standardPatch.rows; y++)
-					{
-						for (int x = 0; x < standardPatch.cols; x++)
-						{
-							standardPatch(x, y) += (uchar)rng.gaussian(5.0);
-						}
-					}
+                    size.width = (float)(closest[i].width * rng.uniform((double)0.99, (double)1.01));
+                    size.height = (float)(closest[i].height * rng.uniform((double)0.99, (double)1.01));
 
-#ifdef BLUR_AS_VADIM
-					GaussianBlur(standardPatch, blurredPatch, GaussBlurKernelSize, 0.0);
-					resize(blurredPatch, blurredPatch, minSize);
-#else
-					resample(blurredImg, RotatedRect(center, size, angle), blurredPatch);
-#endif
-					pushIntoModel(standardPatch, true);
-					for (int k = 0; k < (int)detector->classifiers.size(); k++)
-						detector->classifiers[k].integrate(blurredPatch, true);
+                    float angle = (float)rng.uniform(-10.0, 10.0);
+
+                    resample(image, RotatedRect(center, size, angle), warpedPatch);
+                    GaussianBlur(warpedPatch, blurredWapedPatch, GaussBlurKernelSize, 0.0);
+                    for (int k = 0; k < (int)detector->classifiers.size(); k++)
+                        detector->classifiers[k].integrate(blurredWapedPatch, true);
+
+                    Mat_<uchar> stdPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
+                    resample(image, RotatedRect(center, size, angle), stdPatch);
+                    pushIntoModel(stdPatch, true);
+                    /////////////////////////////////////////////////////
+                    //imshow("blurredWapedPatch", blurredWapedPatch);
+                    //imshow("stdPatch", stdPatch);
+                    //waitKey();
+                    /////////////////////////////////////////////////////
+
 				}
 			}
 
 			//Generate initial negative samples and put them to the model
-			TLDDetector::generateScanGrid(image.rows, image.cols, minSize, scanGrid, true);
+            TLDDetector::generateScanGrid(image.rows, image.cols, minSize_, scanGrid, true);
 			negativeExamples.clear();
 			negativeExamples.reserve(NEG_EXAMPLES_IN_INIT_MODEL);
 			std::vector<int> indices;
@@ -135,9 +163,9 @@ namespace cv
 					resample(image, scanGrid[i], standardPatch);
 					pushIntoModel(standardPatch, false);
 
-					resample(image_blurred, scanGrid[i], blurredPatch);
+                    resample(image, scanGrid[i], warpedPatch);
 					for (int k = 0; k < (int)detector->classifiers.size(); k++)
-						detector->classifiers[k].integrate(blurredPatch, false);
+                        detector->classifiers[k].integrate(warpedPatch, false);
 				}
 			}
 			//dprintf(("positive patches: %d\nnegative patches: %d\n", (int)positiveExamples.size(), (int)negativeExamples.size()));

@@ -137,7 +137,7 @@ double scaleAndBlur(const Mat& originalImg, int scale, Mat& scaledImg, Mat& blur
 }
 
 //Find N-closest BB to the target
-void getClosestN(std::vector<Rect2d>& scanGrid, Rect2d bBox, int n, std::vector<Rect2d>& res)
+void getClosestN(const std::vector<Rect2d>& scanGrid, const Rect2d &bBox, int n, std::vector<Rect2d>& res)
 {
     if( n >= (int)scanGrid.size() )
     {
@@ -149,14 +149,21 @@ void getClosestN(std::vector<Rect2d>& scanGrid, Rect2d bBox, int n, std::vector<
     res.assign(scanGrid.begin(), scanGrid.begin() + n);
     for( int i = 0; i < n; i++ )
         overlaps[i] = overlap(res[i], bBox);
+
     double otmp;
     Rect2d rtmp;
     for (int i = 1; i < n; i++)
     {
         int j = i;
-        while (j > 0 && overlaps[j - 1] > overlaps[j]) {
-            otmp = overlaps[j]; overlaps[j] = overlaps[j - 1]; overlaps[j - 1] = otmp;
-            rtmp = res[j]; res[j] = res[j - 1]; res[j - 1] = rtmp;
+        while (j > 0 && overlaps[j - 1] > overlaps[j])
+        {
+            otmp = overlaps[j];
+            overlaps[j] = overlaps[j - 1];
+            overlaps[j - 1] = otmp;
+
+            rtmp = res[j];
+            res[j] = res[j - 1];
+            res[j - 1] = rtmp;
             j--;
         }
     }
@@ -237,18 +244,39 @@ double overlap(const Rect2d& r1, const Rect2d& r2)
 void resample(const Mat& img, const RotatedRect& r2, Mat_<uchar>& samples)
 {
     Mat_<float> M(2, 3), R(2, 2), Si(2, 2), s(2, 1), o(2, 1);
-    R(0, 0) = (float)cos(r2.angle * CV_PI / 180); R(0, 1) = (float)(-sin(r2.angle * CV_PI / 180));
-    R(1, 0) = (float)sin(r2.angle * CV_PI / 180); R(1, 1) = (float)cos(r2.angle * CV_PI / 180);
-    Si(0, 0) = (float)(samples.cols / r2.size.width); Si(0, 1) = 0.0f;
-    Si(1, 0) = 0.0f; Si(1, 1) = (float)(samples.rows / r2.size.height);
-    s(0, 0) = (float)samples.cols; s(1, 0) = (float)samples.rows;
-    o(0, 0) = r2.center.x; o(1, 0) = r2.center.y;
+
+    R(0, 0) = (float)cos(r2.angle * CV_PI / 180);
+    R(0, 1) = (float)(-sin(r2.angle * CV_PI / 180));
+    R(1, 0) = (float)sin(r2.angle * CV_PI / 180);
+    R(1, 1) = (float)cos(r2.angle * CV_PI / 180);
+
+    Si(0, 0) = (float)(samples.cols / r2.size.width);
+    Si(0, 1) = 0.0f;
+
+    Si(1, 0) = 0.0f;
+    Si(1, 1) = (float)(samples.rows / r2.size.height);
+
+    s(0, 0) = (float)samples.cols;
+    s(1, 0) = (float)samples.rows;
+
+    o(0, 0) = r2.center.x;
+    o(1, 0) = r2.center.y;
+
     Mat_<float> A(2, 2), b(2, 1);
+
     A = Si * R;
     b = s / 2.0 - Si * R * o;
+
     A.copyTo(M.colRange(Range(0, 2)));
     b.copyTo(M.colRange(Range(2, 3)));
+
     warpAffine(img, samples, M, samples.size());
+
+    //////
+    //imwrite("/tmp/1.png", samples);
+    //imshow("resample", samples);
+    //waitKey();
+    //////
 }
 
 void resample(const Mat& img, const Rect2d& r2, Mat_<uchar>& samples)
@@ -257,6 +285,11 @@ void resample(const Mat& img, const Rect2d& r2, Mat_<uchar>& samples)
     M(0, 0) = (float)(samples.cols / r2.width); M(0, 1) = 0.0f; M(0, 2) = (float)(-r2.x * samples.cols / r2.width);
     M(1, 0) = 0.0f; M(1, 1) = (float)(samples.rows / r2.height); M(1, 2) = (float)(-r2.y * samples.rows / r2.height);
     warpAffine(img, samples, M, samples.size());
+}
+
+std::pair<double, Rect2d> augmentedOverlap(const Rect2d rect, const Rect2d bb)
+{
+    return std::make_pair(overlap(rect,bb), bb);
 }
 
 

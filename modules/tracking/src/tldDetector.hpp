@@ -46,63 +46,65 @@
 #include "opencl_kernels_tracking.hpp"
 #include "tldEnsembleClassifier.hpp"
 #include "tldUtils.hpp"
+#include <opencv2/core.hpp>
 
 namespace cv
 {
-	namespace tld
-	{
-		const int STANDARD_PATCH_SIZE = 15;
-		const int NEG_EXAMPLES_IN_INIT_MODEL = 300;
-		const int MAX_EXAMPLES_IN_MODEL = 500;
-		const int MEASURES_PER_CLASSIFIER = 13;
-		const int GRIDSIZE = 15;
-		const int DOWNSCALE_MODE = cv::INTER_LINEAR;
-		const double THETA_NN = 0.50;
-		const double CORE_THRESHOLD = 0.5;
-		const double SCALE_STEP = 1.2;
-		const double ENSEMBLE_THRESHOLD = 0.5;
-		const double VARIANCE_THRESHOLD = 0.5;
-		const double NEXPERT_THRESHOLD = 0.2;
+namespace tld
+{
+const int STANDARD_PATCH_SIZE = 15;
+const int NEG_EXAMPLES_IN_INIT_MODEL = 300;
+const int MAX_EXAMPLES_IN_MODEL = 500;
+const int MEASURES_PER_CLASSIFIER = 13;
+const int GRIDSIZE = STANDARD_PATCH_SIZE;
+const int DOWNSCALE_MODE = cv::INTER_LINEAR;
+const double THETA_NN = 0.50;
+const double CORE_THRESHOLD = 0.5;
+const double SCALE_STEP = 1.2;
+const double ENSEMBLE_THRESHOLD = 0.5;
+const double VARIANCE_THRESHOLD = 0.5;
+const double NEXPERT_THRESHOLD = 0.2;
 
-		static const cv::Size GaussBlurKernelSize(3, 3);
+static const cv::Size GaussBlurKernelSize(3, 3);
 
-		class TLDDetector
-		{
-		public:
-			TLDDetector(){}
-			~TLDDetector(){}
-			inline double ensembleClassifierNum(const uchar* data);
-			inline void prepareClassifiers(int rowstep);
-			double Sr(const Mat_<uchar>& patch);
-			double ocl_Sr(const Mat_<uchar>& patch);
-			double Sc(const Mat_<uchar>& patch);
-			double ocl_Sc(const Mat_<uchar>& patch);
-			void ocl_batchSrSc(const Mat_<uchar>& patches, double *resultSr, double *resultSc, int numOfPatches);
+class TLDDetector
+{
+public:
+    TLDDetector(){}
+    ~TLDDetector(){}
+    inline double ensembleClassifierNum(const uchar* data);
+    inline void prepareClassifiers(int rowstep);
+    double Sr(const Mat_<uchar>& patch);
+    double ocl_Sr(const Mat_<uchar>& patch);
+    double Sc(const Mat_<uchar>& patch);
+    double ocl_Sc(const Mat_<uchar>& patch);
+    void ocl_batchSrSc(const Mat_<uchar>& patches, double *resultSr, double *resultSc, int numOfPatches);
 
-			std::vector<TLDEnsembleClassifier> classifiers;
-			Mat *posExp, *negExp;
-			int *posNum, *negNum;
-			std::vector<Mat_<uchar> > *positiveExamples, *negativeExamples;
-			std::vector<int> *timeStampsPositive, *timeStampsNegative;
-			double *originalVariancePtr;
+    std::vector<TLDEnsembleClassifier> classifiers;
+    Mat *posExp, *negExp;
+    int *posNum, *negNum;
+    std::vector<Mat_<uchar> > *positiveExamples, *negativeExamples;
+    std::vector<int> *timeStampsPositive, *timeStampsNegative;
+    double originalVariance;
 
-			static void generateScanGrid(int rows, int cols, Size initBox, std::vector<Rect2d>& res, bool withScaling = false);
-			struct LabeledPatch
-			{
-				Rect2d rect;
-				bool isObject, shouldBeIntegrated;
-			};
-			bool detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std::vector<LabeledPatch>& patches, Size initSize);
-			bool ocl_detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std::vector<LabeledPatch>& patches, Size initSize);
-		protected:
+    static void generateScanGrid(int rows, int cols, Size initBox, std::vector<Rect2d>& res, bool withScaling = false);
+    struct LabeledPatch
+    {
+        Rect2d rect;
+        bool isObject, shouldBeIntegrated;
+    };
+    bool detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std::vector<LabeledPatch>& patches, Size initSize);
+    bool ocl_detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std::vector<LabeledPatch>& patches, Size initSize);
 
+    ////////////////////////////////////////////////
+    static void printRect(cv::Mat &image, const Rect2d rect);
+    static void outputScanningGrid(const cv::Mat &image, const std::vector<cv::Rect2d> &scanGrid);
+    ////////////////////////////////////////////////
 
-
-			friend class MyMouseCallbackDEBUG;
-			void computeIntegralImages(const Mat& img, Mat_<double>& intImgP, Mat_<double>& intImgP2){ integral(img, intImgP, intImgP2, CV_64F); }
-			inline bool patchVariance(Mat_<double>& intImgP, Mat_<double>& intImgP2, double *originalVariance, Point pt, Size size);
-		};
-	}
+    inline bool patchVariance(Mat_<double>& intImgP, Mat_<double>& intImgP2, Point pt, Size size);
+    void computeIntegralImages(const Mat& img, Mat_<double>& intImgP, Mat_<double>& intImgP2){ integral(img, intImgP, intImgP2, CV_64F); }
+};
+}
 }
 
 #endif

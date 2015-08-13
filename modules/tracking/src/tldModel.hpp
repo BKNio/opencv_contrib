@@ -53,7 +53,7 @@ namespace cv
 		class TrackerTLDModel : public TrackerModel
 		{
 		public:
-			TrackerTLDModel(TrackerTLD::Params params, const Mat& image, const Rect2d& boundingBox, Size minSize);
+            TrackerTLDModel(TrackerTLD::Params params, const Mat& image, const Rect& boundingBox);
 			Rect2d getBoundingBox(){ return boundingBox_; }
 			void setBoudingBox(Rect2d boundingBox){ boundingBox_ = boundingBox; }
 			void integrateRelabeled(Mat& img, Mat& imgBlurred, const std::vector<TLDDetector::LabeledPatch>& patches);

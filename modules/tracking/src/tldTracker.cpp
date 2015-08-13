@@ -75,21 +75,17 @@ bool TrackerTLDImpl::initImpl(const Mat& image, const Rect2d& boundingBox)
 {
     Mat image_gray;
     trackerProxy->init(image, boundingBox);
-    cvtColor( image, image_gray, COLOR_BGR2GRAY );
-    data = Ptr<Data>(new Data(boundingBox));
+    cvtColor( image, image_gray, COLOR_BGR2GRAY ); //FIXME what if color is already gray?
+    data = makePtr<Data>(boundingBox);
     double scale = data->getScale();
-    Rect2d myBoundingBox = boundingBox;
-    if( scale > 1.0 )
+
+    if( scale != 1. )
     {
         Mat image_proxy;
         resize(image_gray, image_proxy, Size(cvRound(image.cols * scale), cvRound(image.rows * scale)), 0, 0, DOWNSCALE_MODE);
         image_proxy.copyTo(image_gray);
-        myBoundingBox.x *= scale;
-        myBoundingBox.y *= scale;
-        myBoundingBox.width *= scale;
-        myBoundingBox.height *= scale;
     }
-    model = Ptr<TrackerTLDModel>(new TrackerTLDModel(params, image_gray, myBoundingBox, data->getMinSize()));
+    model = makePtr<TrackerTLDModel>(params, image_gray, data->getInternalBB());
 
     data->confident = false;
     data->failedLastTime = false;
@@ -186,7 +182,7 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
 
     if( data->confident )
     {
-        Pexpert pExpert(imageForDetector, image_blurred, boundingBox, tldModel->detector, params, data->getMinSize());
+        Pexpert pExpert(imageForDetector, image_blurred, boundingBox, tldModel->detector, params, data->getInternalBB().size());
 		Nexpert nExpert(imageForDetector, boundingBox, tldModel->detector, params);
         std::vector<Mat_<uchar> > examplesForModel, examplesForEnsemble;
         examplesForModel.reserve(100); examplesForEnsemble.reserve(100);
@@ -292,9 +288,13 @@ bool TrackerTLDImpl::Nexpert::operator()(Rect2d box)
 Data::Data(Rect2d initBox)
 {
     double minDim = std::min(initBox.width, initBox.height);
-    scale = 20.0 / minDim;
-    minSize.width = (int)(initBox.width * 20.0 / minDim);
-    minSize.height = (int)(initBox.height * 20.0 / minDim);
+    scale = 20. / minDim;
+
+    internalBB.x = cvRound(initBox.x * scale);
+    internalBB.y = cvRound(initBox.y * scale);
+    internalBB.width = cvRound(initBox.width * scale);
+    internalBB.height = cvRound(initBox.height * scale);
+
     frameNum = 0;
     //dprintf(("minSize = %dx%d\n", minSize.width, minSize.height));
 }
@@ -305,7 +305,7 @@ void Data::printme(FILE*  port)
     dfprintf((port, "\tframeNum = %d\n", frameNum));
     dfprintf((port, "\tconfident = %s\n", confident?"true":"false"));
     dfprintf((port, "\tfailedLastTime = %s\n", failedLastTime?"true":"false"));
-    dfprintf((port, "\tminSize = %dx%d\n", minSize.width, minSize.height));
+    dfprintf((port, "\tminSize = %dx%d\n", internalBB.width, internalBB.height));
 }
 
 }

@@ -45,23 +45,29 @@ namespace cv
 {
 	namespace tld
 	{
-		// Constructor
-		TLDEnsembleClassifier::TLDEnsembleClassifier(const std::vector<Vec4b>& meas, int beg, int end) :lastStep_(-1)
+
+
+        // Constructor
+        TLDEnsembleClassifier::TLDEnsembleClassifier(const std::vector<Vec4b>& meas, int beg, int end) :lastStep_(-1)
 		{
-			int posSize = 1, mpc = end - beg;
-			for (int i = 0; i < mpc; i++)
-				posSize *= 2;
-			posAndNeg.assign(posSize, Point2i(0, 0));
-			measurements.assign(meas.begin() + beg, meas.begin() + end);
-			offset.assign(mpc, Point2i(0, 0));
+            int posSize = 1, mpc = end - beg;
+
+            posSize <<= mpc;
+            /*for (int i = 0; i < mpc; i++)
+                posSize *= 2;*/
+
+            posAndNeg.assign(posSize, Point2i(0, 0));
+            measurements.assign(meas.begin() + beg, meas.begin() + end);
+            offset.assign(mpc, Point2i(0, 0));
 		}
+
 		// Calculate measure locations from 15x15 grid on minSize patches
 		void TLDEnsembleClassifier::stepPrefSuff(std::vector<Vec4b>& arr, int pos, int len, int gridSize)
 		{
-		#if 0
+        #if 0
 			int step = len / (gridSize - 1), pref = (len - step * (gridSize - 1)) / 2;
 			for (int i = 0; i < (int)(sizeof(x1) / sizeof(x1[0])); i++)
-				arr[i] = pref + arr[i] * step;
+                arr[i] = pref + arr[i] * step;
 		#else
 			int total = len - gridSize;
 			int quo = total / (gridSize - 1), rem = total % (gridSize - 1);
@@ -103,8 +109,8 @@ namespace cv
 					offset[i].x = rowstep * measurements[i].val[2] + measurements[i].val[0];
 					offset[i].y = rowstep * measurements[i].val[3] + measurements[i].val[1];
 				}
-			}
-		}
+            }
+        }
 
 		// Integrate patch into the Ensemble Classifier model
 		void TLDEnsembleClassifier::integrate(const Mat_<uchar>& patch, bool isPositive)
@@ -142,7 +148,7 @@ namespace cv
 			int position = 0;
 			for (int i = 0; i < (int)measurements.size(); i++)
 			{
-				position = position << 1;
+                position <<= 1;
 				if (data[offset[i].x] < data[offset[i].y])
 					position++;
 			}
@@ -153,7 +159,7 @@ namespace cv
 			int position = 0;
 			for (int i = 0; i < (int)measurements.size(); i++)
 			{
-				position = position << 1;
+                position <<= 1;
 				if (*(data + rowstep * measurements[i].val[2] + measurements[i].val[0]) <
 					*(data + rowstep * measurements[i].val[3] + measurements[i].val[1]))
 				{
@@ -164,14 +170,15 @@ namespace cv
 		}
 
 		// Create fern classifiers
-		int TLDEnsembleClassifier::makeClassifiers(Size size, int measurePerClassifier, int gridSize,
+        int TLDEnsembleClassifier::makeClassifiers(Size size, int measurePerClassifier, int gridSize,
 			std::vector<TLDEnsembleClassifier>& classifiers)
 		{
 
-			std::vector<Vec4b> measurements;
+            std::vector<Vec4b> measurements;
+            measurements.reserve(size.width * size.height * (size.width + size.height));
 
 			//Generate random measures for 10 ferns x 13 measures
-			for (int i = 0; i < 10*measurePerClassifier; i++)
+            /*for (int i = 0; i < 10*measurePerClassifier; i++)
 			{
 				Vec4b m;
 				m.val[0] = rand() % 15;
@@ -179,20 +186,88 @@ namespace cv
 				m.val[2] = rand() % 15;
 				m.val[3] = rand() % 15;
 				measurements.push_back(m);
-			}
+            }*/
 
 			//Warp measures to minSize patch coordinates
-			stepPrefSuff(measurements, 0, size.width, gridSize);
-			stepPrefSuff(measurements, 1, size.width, gridSize);
-			stepPrefSuff(measurements, 2, size.height, gridSize);
-			stepPrefSuff(measurements, 3, size.height, gridSize);
+            /*stepPrefSuff(measurements, 0, size.width, gridSize);
+            stepPrefSuff(measurements, 1, size.width, gridSize);
+            stepPrefSuff(measurements, 2, size.height, gridSize);
+            stepPrefSuff(measurements, 3, size.height, gridSize);*/
+
+
+            for(int i = 0; i < size.width; ++i) // generating all possible horizontal and vertical pixel comprations
+            {
+                for(int j = 0; j < size.height; ++j)
+                {
+                    Vec4b measure;
+                    measure.val[0] = i;
+                    measure.val[1] = j;
+
+                    for(int kk = 0; kk < size.width; ++kk)
+                    {
+                        if(kk == i)
+                            continue;
+
+
+                        measure.val[2] = kk;
+                        measure.val[3] = j;
+                        measurements.push_back(measure);
+
+                    }
+
+                    for(int kk = 0; kk < size.height; ++kk)
+                    {
+                        if(kk == j)
+                            continue;
+
+                        measure.val[2] = i;
+                        measure.val[3] = kk;
+                        measurements.push_back(measure);
+                    }
+
+                }
+            }
+
+            std::random_shuffle(measurements.begin(), measurements.end());
+
+            const int numberOfFens = 50;
+            CV_Assert( int(measurements.size()) / measurePerClassifier >= numberOfFens);
 
 			//Compile fern classifiers
-			for (int i = 0, howMany = (int)measurements.size() / measurePerClassifier; i < howMany; i++)
-				classifiers.push_back(TLDEnsembleClassifier(measurements, i * measurePerClassifier, (i + 1) * measurePerClassifier));
+            for (int i = 0; i < numberOfFens; ++i)
+                classifiers.push_back(TLDEnsembleClassifier(measurements, i * measurePerClassifier, (i + 1) * measurePerClassifier));
+
 
 			return (int)classifiers.size();
 		}
+
+        void TLDEnsembleClassifier::printClassifier(const Size &displaySize, const Size &internalSize, const std::vector<TLDEnsembleClassifier> &classifiers)
+        {
+
+            static RNG rng;
+
+            const Mat black(displaySize, CV_8UC3, Scalar::all(0));
+
+            for(std::vector<TLDEnsembleClassifier>::const_iterator classifier = classifiers.begin(); classifier != classifiers.end(); ++classifier )
+            {
+                Mat copyBlack; black.copyTo(copyBlack);
+
+                for(std::vector<Vec4b>::const_iterator measure = classifier->measurements.begin(); measure != classifier->measurements.end(); ++measure)
+                {
+                    Scalar color(rng.uniform(0,255), rng.uniform(0,255), rng.uniform(0,255));
+
+                    Point p1(measure->operator[](0) * (double(displaySize.width) / internalSize.width), measure->operator[](1) * (double(displaySize.height) / internalSize.height) );
+                    Point p2(measure->operator[](2) * (double(displaySize.width) / internalSize.width), measure->operator[](3) * (double(displaySize.height) / internalSize.height) );
+
+                    line(copyBlack, p1, p2, color, 4);
+                    //circle(copyBlack, p1, 1, color);
+                    //circle(copyBlack, p2, 1, color);
+                }
+
+                imshow("printClassifier", copyBlack);
+                waitKey();
+            }
+        }
 
 	}
 }

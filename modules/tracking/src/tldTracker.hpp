@@ -42,10 +42,10 @@
 #ifndef OPENCV_TLD_TRACKER
 #define OPENCV_TLD_TRACKER
 
-#include "precomp.hpp"
-#include "opencv2/video/tracking.hpp"
-#include "opencv2/imgproc.hpp"
-#include "tldModel.hpp"
+#include"precomp.hpp"
+#include"opencv2/video/tracking.hpp"
+#include"opencv2/imgproc.hpp"
+#include"tldModel.hpp"
 #include<algorithm>
 #include<limits.h>
 
@@ -86,7 +86,7 @@ class Data
 {
 public:
 	Data(Rect2d initBox);
-	Size getMinSize(){ return minSize; }
+    Rect getInternalBB(){ return internalBB; }
 	double getScale(){ return scale; }
 	bool confident;
 	bool failedLastTime;
@@ -94,7 +94,7 @@ public:
 	void printme(FILE*  port = stdout);
 private:
 	double scale;
-	Size minSize;
+    Rect internalBB;
 };
 
 template<class T, class Tparams>

@@ -74,45 +74,47 @@ namespace cv
  *       bring "out" all the parameters to TrackerMedianFlow::Param
  */
 
-class TrackerMedianFlowImpl : public TrackerMedianFlow{
- public:
-     TrackerMedianFlowImpl(TrackerMedianFlow::Params paramsIn):termcrit(TermCriteria::COUNT|TermCriteria::EPS,20,0.3){params=paramsIn;isInit=false;}
-     void read( const FileNode& fn );
-     void write( FileStorage& fs ) const;
- private:
-     bool initImpl( const Mat& image, const Rect2d& boundingBox );
-     bool updateImpl( const Mat& image, Rect2d& boundingBox );
-     bool medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& oldBox);
-     Rect2d vote(const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,const Rect2d& oldRect,Point2f& mD);
-     //FIXME: this can be optimized: current method uses sort->select approach, there are O(n) selection algo for median; besides
-          //it makes copy all the time
-     template<typename T>
-     T getMedian( std::vector<T>& values,int size=-1);
-     float dist(Point2f p1,Point2f p2);
-     std::string type2str(int type);
-     void computeStatistics(std::vector<float>& data,int size=-1);
-     void check_FB(const Mat& oldImage,const Mat& newImage,
-             const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status);
-     void check_NCC(const Mat& oldImage,const Mat& newImage,
-             const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status);
-     inline double l2distance(Point2f p1,Point2f p2);
+class TrackerMedianFlowImpl : public TrackerMedianFlow
+{
+public:
+    TrackerMedianFlowImpl(TrackerMedianFlow::Params paramsIn):termcrit(TermCriteria::COUNT|TermCriteria::EPS,20,0.3){params=paramsIn;isInit=false;}
+    void read( const FileNode& fn );
+    void write( FileStorage& fs ) const;
+private:
+    bool initImpl( const Mat& image, const Rect2d& boundingBox );
+    bool updateImpl( const Mat& image, Rect2d& boundingBox );
+    bool medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& oldBox);
+    Rect2d vote(const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,const Rect2d& oldRect,Point2f& mD);
+    //FIXME: this can be optimized: current method uses sort->select approach, there are O(n) selection algo for median; besides
+    //it makes copy all the time
+    template<typename T>
+    T getMedian( std::vector<T>& values,int size=-1);
+    float dist(Point2f p1,Point2f p2);
+    std::string type2str(int type);
+    void computeStatistics(std::vector<float>& data,int size=-1);
+    void check_FB(const Mat& oldImage,const Mat& newImage,
+                  const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status);
+    void check_NCC(const Mat& oldImage,const Mat& newImage,
+                   const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status);
+    inline double l2distance(Point2f p1,Point2f p2);
 
-     TrackerMedianFlow::Params params;
-     TermCriteria termcrit;
+    TrackerMedianFlow::Params params;
+    TermCriteria termcrit;
 };
 
-class TrackerMedianFlowModel : public TrackerModel{
- public:
-  TrackerMedianFlowModel(TrackerMedianFlow::Params /*params*/){}
-  Rect2d getBoundingBox(){return boundingBox_;}
-  void setBoudingBox(Rect2d boundingBox){boundingBox_=boundingBox;}
-  Mat getImage(){return image_;}
-  void setImage(const Mat& image){image.copyTo(image_);}
- protected:
-  Rect2d boundingBox_;
-  Mat image_;
-  void modelEstimationImpl( const std::vector<Mat>& /*responses*/ ){}
-  void modelUpdateImpl(){}
+class TrackerMedianFlowModel : public TrackerModel
+{
+public:
+    TrackerMedianFlowModel(TrackerMedianFlow::Params /*params*/){}
+    Rect2d getBoundingBox(){return boundingBox_;}
+    void setBoudingBox(Rect2d boundingBox){boundingBox_=boundingBox;}
+    Mat getImage(){return image_;}
+    void setImage(const Mat& image){image.copyTo(image_);}
+protected:
+    Rect2d boundingBox_;
+    Mat image_;
+    void modelEstimationImpl( const std::vector<Mat>& /*responses*/ ){}
+    void modelUpdateImpl(){}
 };
 
 /*
@@ -123,35 +125,41 @@ TrackerMedianFlow::Params::Params(){
 }
 
 void TrackerMedianFlow::Params::read( const cv::FileNode& fn ){
-  pointsInGrid=fn["pointsInGrid"];
+    pointsInGrid=fn["pointsInGrid"];
 }
 
 void TrackerMedianFlow::Params::write( cv::FileStorage& fs ) const{
-  fs << "pointsInGrid" << pointsInGrid;
+    fs << "pointsInGrid" << pointsInGrid;
 }
 
 void TrackerMedianFlowImpl::read( const cv::FileNode& fn )
 {
-  params.read( fn );
+    params.read( fn );
 }
 
 void TrackerMedianFlowImpl::write( cv::FileStorage& fs ) const
 {
-  params.write( fs );
+    params.write( fs );
 }
 
-Ptr<TrackerMedianFlow> TrackerMedianFlow::createTracker(const TrackerMedianFlow::Params &parameters){
+Ptr<TrackerMedianFlow> TrackerMedianFlow::createTracker(const TrackerMedianFlow::Params &parameters)
+{
     return Ptr<TrackerMedianFlowImpl>(new TrackerMedianFlowImpl(parameters));
 }
 
-bool TrackerMedianFlowImpl::initImpl( const Mat& image, const Rect2d& boundingBox ){
-    model=Ptr<TrackerMedianFlowModel>(new TrackerMedianFlowModel(params));
+bool TrackerMedianFlowImpl::initImpl( const Mat& image, const Rect2d& boundingBox )
+{
+    model = Ptr<TrackerMedianFlowModel>(new TrackerMedianFlowModel(params));
+
     ((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->setImage(image);
+
     ((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->setBoudingBox(boundingBox);
+
     return true;
 }
 
-bool TrackerMedianFlowImpl::updateImpl( const Mat& image, Rect2d& boundingBox ){
+bool TrackerMedianFlowImpl::updateImpl( const Mat& image, Rect2d& boundingBox )
+{
     Mat oldImage=((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->getImage();
 
     Rect2d oldBox=((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->getBoundingBox();
@@ -165,12 +173,12 @@ bool TrackerMedianFlowImpl::updateImpl( const Mat& image, Rect2d& boundingBox ){
 }
 
 std::string TrackerMedianFlowImpl::type2str(int type) {
-  std::string r;
+    std::string r;
 
-  uchar depth = type & CV_MAT_DEPTH_MASK;
-  uchar chans = (uchar)(1 + (type >> CV_CN_SHIFT));
+    uchar depth = type & CV_MAT_DEPTH_MASK;
+    uchar chans = (uchar)(1 + (type >> CV_CN_SHIFT));
 
-  switch ( depth ) {
+    switch ( depth ) {
     case CV_8U:  r = "8U"; break;
     case CV_8S:  r = "8S"; break;
     case CV_16U: r = "16U"; break;
@@ -179,12 +187,12 @@ std::string TrackerMedianFlowImpl::type2str(int type) {
     case CV_32F: r = "32F"; break;
     case CV_64F: r = "64F"; break;
     default:     r = "User"; break;
-  }
+    }
 
-  r += "C";
-  r += (chans+'0');
+    r += "C";
+    r += (chans+'0');
 
-  return r;
+    return r;
 }
 bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& oldBox){
     std::vector<Point2f> pointsToTrackOld,pointsToTrackNew;
@@ -196,9 +204,9 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
     //"open ended" grid
     for(int i=0;i<params.pointsInGrid;i++){
         for(int j=0;j<params.pointsInGrid;j++){
-                pointsToTrackOld.push_back(
+            pointsToTrackOld.push_back(
                         Point2f((float)(oldBox.x+((1.0*oldBox.width)/params.pointsInGrid)*j+.5*oldBox.width/params.pointsInGrid),
-                        (float)(oldBox.y+((1.0*oldBox.height)/params.pointsInGrid)*i+.5*oldBox.height/params.pointsInGrid)));
+                                (float)(oldBox.y+((1.0*oldBox.height)/params.pointsInGrid)*i+.5*oldBox.height/params.pointsInGrid)));
         }
     }
 
@@ -338,7 +346,7 @@ double TrackerMedianFlowImpl::l2distance(Point2f p1,Point2f p2){
     return sqrt(dx*dx+dy*dy);
 }
 void TrackerMedianFlowImpl::check_FB(const Mat& oldImage,const Mat& newImage,
-        const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status){
+                                     const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status){
 
     if(status.size()==0){
         status=std::vector<bool>(oldPoints.size(),true);
@@ -361,15 +369,15 @@ void TrackerMedianFlowImpl::check_FB(const Mat& oldImage,const Mat& newImage,
     }
 }
 void TrackerMedianFlowImpl::check_NCC(const Mat& oldImage,const Mat& newImage,
-        const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status){
+                                      const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status){
 
     std::vector<float> NCC(oldPoints.size(),0.0);
     Size patch(30,30);
     Mat p1,p2;
 
-	for (int i = 0; i < (int)oldPoints.size(); i++) {
-		getRectSubPix( oldImage, patch, oldPoints[i],p1);
-		getRectSubPix( newImage, patch, newPoints[i],p2);
+    for (int i = 0; i < (int)oldPoints.size(); i++) {
+        getRectSubPix( oldImage, patch, oldPoints[i],p1);
+        getRectSubPix( newImage, patch, newPoints[i],p2);
 
         const int N=900;
         double s1=sum(p1)(0),s2=sum(p2)(0);
@@ -378,11 +386,11 @@ void TrackerMedianFlowImpl::check_NCC(const Mat& oldImage,const Mat& newImage,
         double sq1=sqrt(n1*n1-s1*s1/N),sq2=sqrt(n2*n2-s2*s2/N);
         double ares=(sq2==0)?sq1/abs(sq1):(prod-s1*s2/N)/sq1/sq2;
 
-		NCC[i] = (float)ares;
-	}
-	float median = getMedian(NCC);
-	for(int i = 0; i < (int)oldPoints.size(); i++) {
+        NCC[i] = (float)ares;
+    }
+    float median = getMedian(NCC);
+    for(int i = 0; i < (int)oldPoints.size(); i++) {
         status[i] = status[i] && (NCC[i]>median);
-	}
+    }
 }
 } /* namespace cv */

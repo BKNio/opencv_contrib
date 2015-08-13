@@ -432,16 +432,19 @@ namespace cv
 				{
 					if (h <= initBox.height)
 					{
-						h /= SCALE_STEP; w /= SCALE_STEP;
+                        h /= SCALE_STEP;
+                        w /= SCALE_STEP;
 						if (h < 20 || w < 20)
 						{
-							h = initBox.height * SCALE_STEP; w = initBox.width * SCALE_STEP;
+                            h = initBox.height * SCALE_STEP;
+                            w = initBox.width * SCALE_STEP;
 							CV_Assert(h > initBox.height || w > initBox.width);
 						}
 					}
 					else
 					{
-						h *= SCALE_STEP; w *= SCALE_STEP;
+                        h *= SCALE_STEP;
+                        w *= SCALE_STEP;
 					}
 				}
 				else
@@ -479,18 +482,34 @@ namespace cv
 			scaleID = 0;
 			resized_imgs.push_back(img);
 			blurred_imgs.push_back(imgBlurred);
+
+
+
 			do
 			{
-				Mat_<double> intImgP, intImgP2;
-				computeIntegralImages(resized_imgs[scaleID], intImgP, intImgP2);
-				for (int i = 0, imax = cvFloor((0.0 + resized_imgs[scaleID].cols - initSize.width) / dx); i < imax; i++)
+                /////////////////////////////////////////////////
+                //Mat bigVarPoints; resized_imgs[scaleID].copyTo(bigVarPoints);
+                /////////////////////////////////////////////////
+
+
+                Mat_<double> intImgP, intImgP2;
+
+                computeIntegralImages(resized_imgs[scaleID], intImgP, intImgP2);
+
+                for (int i = 0, imax = cvFloor((0.0 + resized_imgs[scaleID].cols - initSize.width) / dx); i < imax; i++)
 				{
 					for (int j = 0, jmax = cvFloor((0.0 + resized_imgs[scaleID].rows - initSize.height) / dy); j < jmax; j++)
 					{
-						if (!patchVariance(intImgP, intImgP2, originalVariancePtr, Point(dx * i, dy * j), initSize))
+                        if (!patchVariance(intImgP, intImgP2, Point(dx * i, dy * j), initSize))
 							continue;
+
+
 						varBuffer.push_back(Point(dx * i, dy * j));
 						varScaleIDs.push_back(scaleID);
+
+                        ///////////////////////////////////////////////////////
+                        //circle(bigVarPoints, *(varBuffer.end() - 1) + Point(initSize.width / 2, initSize.height / 2), 1, cv::Scalar::all(0));
+                        ///////////////////////////////////////////////////////
 					}
 				}
 				scaleID++;
@@ -498,9 +517,18 @@ namespace cv
 				size.height /= SCALE_STEP;
 				scale *= SCALE_STEP;
 				resize(img, tmp, size, 0, 0, DOWNSCALE_MODE);
-				resized_imgs.push_back(tmp);
-				GaussianBlur(resized_imgs[scaleID], tmp, GaussBlurKernelSize, 0.0f);
-				blurred_imgs.push_back(tmp);
+                resized_imgs.push_back(tmp.clone());
+
+                GaussianBlur(resized_imgs[scaleID], tmp, GaussBlurKernelSize, .0f);
+                blurred_imgs.push_back(tmp.clone());
+
+                ///////////////////////////////////////////////////////
+                //imshow("big variance", bigVarPoints);
+                //waitKey();
+                ///////////////////////////////////////////////////////
+
+
+
 			} while (size.width >= initSize.width && size.height >= initSize.height);
 			//e2 = getTickCount();
 			//t = (e2 - e1) / getTickFrequency()*1000.0;
@@ -515,6 +543,14 @@ namespace cv
 					continue;
 				ensBuffer.push_back(varBuffer[i]);
 				ensScaleIDs.push_back(varScaleIDs[i]);
+
+                //////////////////////////////////////////////////////
+                Mat ensembleOutPut; blurred_imgs[varScaleIDs[i]].copyTo(ensembleOutPut);
+                rectangle(ensembleOutPut, Rect(varBuffer[i], initSize), Scalar::all(0));
+                imshow("ensembleOutPut", ensembleOutPut);
+                waitKey();
+                //////////////////////////////////////////////////////
+
 			}
 			//e2 = getTickCount();
 			//t = (e2 - e1) / getTickFrequency()*1000.0;
@@ -522,12 +558,16 @@ namespace cv
 
 			//NN classification
 			//e1 = getTickCount();
+
+
 			for (int i = 0; i < (int)ensBuffer.size(); i++)
 			{
 				LabeledPatch labPatch;
 				double curScale = pow(SCALE_STEP, ensScaleIDs[i]);
-				labPatch.rect = Rect2d(ensBuffer[i].x*curScale, ensBuffer[i].y*curScale, initSize.width * curScale, initSize.height * curScale);
-				resample(resized_imgs[ensScaleIDs[i]], Rect2d(ensBuffer[i], initSize), standardPatch);
+
+                labPatch.rect = Rect2d(ensBuffer[i].x*curScale, ensBuffer[i].y*curScale, initSize.width * curScale, initSize.height * curScale);
+
+                resample(resized_imgs[ensScaleIDs[i]], Rect2d(ensBuffer[i], initSize), standardPatch);
 
 				double srValue, scValue;
 				srValue = Sr(standardPatch);
@@ -535,7 +575,8 @@ namespace cv
 				////To fix: Check the paper, probably this cause wrong learning
 				//
 				labPatch.isObject = srValue > THETA_NN;
-				labPatch.shouldBeIntegrated = abs(srValue - THETA_NN) < 0.1;
+
+                labPatch.shouldBeIntegrated = abs(srValue - THETA_NN) < 0.1;
 				patches.push_back(labPatch);
 				//
 
@@ -597,7 +638,7 @@ namespace cv
 				{
 					for (int j = 0, jmax = cvFloor((0.0 + resized_imgs[scaleID].rows - initSize.height) / dy); j < jmax; j++)
 					{
-						if (!patchVariance(intImgP, intImgP2, originalVariancePtr, Point(dx * i, dy * j), initSize))
+                        if (!patchVariance(intImgP, intImgP2, Point(dx * i, dy * j), initSize))
 							continue;
 						varBuffer.push_back(Point(dx * i, dy * j));
 						varScaleIDs.push_back(scaleID);
@@ -694,12 +735,39 @@ namespace cv
 			if (maxSc < 0)
 				return false;
 			res = maxScRect;
-			return true;
-		}
+            return true;
+        }
+
+        void TLDDetector::printRect(Mat &image, const Rect2d rect)
+        {
+            rectangle(image, rect, Scalar::all(255));
+        }
+
+        void TLDDetector::outputScanningGrid(const Mat &image, const std::vector<Rect2d> &scanGrid)
+        {
+            cv::Mat imageCopy; image.copyTo(imageCopy);
+
+            std::vector<Rect2d> copyScanGrid(scanGrid);
+
+            if(copyScanGrid.size() > 100)
+            {
+                std::random_shuffle(copyScanGrid.begin(), copyScanGrid.end());
+                std::for_each(copyScanGrid.begin(), copyScanGrid.begin() + 100, std::bind1st(std::ptr_fun(printRect), imageCopy));
+            }
+            else
+            {
+                std::for_each(copyScanGrid.begin(), copyScanGrid.end(), std::bind1st(std::ptr_fun(printRect), imageCopy));
+            }
+
+
+            cv::imshow("outputScanningGrid",imageCopy);
+            cv::waitKey();
+        }
+
 
 		// Computes the variance of subimage given by box, with the help of two integral
 		// images intImgP and intImgP2 (sum of squares), which should be also provided.
-		bool TLDDetector::patchVariance(Mat_<double>& intImgP, Mat_<double>& intImgP2, double *originalVariance, Point pt, Size size)
+        bool TLDDetector::patchVariance(Mat_<double>& intImgP, Mat_<double>& intImgP2, Point pt, Size size)
 		{
 			int x = (pt.x), y = (pt.y), width = (size.width), height = (size.height);
 			CV_Assert(0 <= x && (x + width) < intImgP.cols && (x + width) < intImgP2.cols);
@@ -719,7 +787,7 @@ namespace cv
 			D = intImgP2(y + height, x + width);
 			p2 = (A + D - B - C) / (width * height);
 
-			return ((p2 - p * p) > VARIANCE_THRESHOLD * *originalVariance);
+            return ((p2 - p * p) > VARIANCE_THRESHOLD * originalVariance);
 		}
 
 	}
