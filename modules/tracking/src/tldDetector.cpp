@@ -43,752 +43,303 @@
 
 namespace cv
 {
-	namespace tld
-	{
-		// Calculate offsets for classifiers
-		void TLDDetector::prepareClassifiers(int rowstep)
-		{
-			for (int i = 0; i < (int)classifiers.size(); i++)
-				classifiers[i].prepareClassifier(rowstep);
-		}
-
-		// Calculate posterior probability, that the patch belongs to the current EC model
-		double TLDDetector::ensembleClassifierNum(const uchar* data)
-		{
-			double p = 0;
-			for (int k = 0; k < (int)classifiers.size(); k++)
-				p += classifiers[k].posteriorProbabilityFast(data);
-			p /= classifiers.size();
-			return p;
-		}
-
-		// Calculate Relative similarity of the patch (NN-Model)
-		double TLDDetector::Sr(const Mat_<uchar>& patch)
-		{
-			/*
-			int64 e1, e2;
-			float t;
-			e1 = getTickCount();
-			double splus = 0.0, sminus = 0.0;
-			for (int i = 0; i < (int)(*positiveExamples).size(); i++)
-				splus = std::max(splus, 0.5 * (NCC((*positiveExamples)[i], patch) + 1.0));
-			for (int i = 0; i < (int)(*negativeExamples).size(); i++)
-				sminus = std::max(sminus, 0.5 * (NCC((*negativeExamples)[i], patch) + 1.0));
-			e2 = getTickCount();
-			t = (e2 - e1) / getTickFrequency()*1000.0;
-			printf("Sr: %f\n", t);
-			if (splus + sminus == 0.0)
-				return 0.0;
-			return splus / (sminus + splus);
-			*/
-			//int64 e1, e2;
-			//float t;
-			//e1 = getTickCount();
-			double splus = 0.0, sminus = 0.0;
-			Mat_<uchar> modelSample(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-			for (int i = 0; i < *posNum; i++)
-			{
-				modelSample.data = &(posExp->data[i * 225]);
-				splus = std::max(splus, 0.5 * (NCC(modelSample, patch) + 1.0));
-			}
-			for (int i = 0; i < *negNum; i++)
-			{
-				modelSample.data = &(negExp->data[i * 225]);
-				sminus = std::max(sminus, 0.5 * (NCC(modelSample, patch) + 1.0));
-			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Sr CPU: %f\n", t);
-			if (splus + sminus == 0.0)
-				return 0.0;
-			return splus / (sminus + splus);
-		}
-
-		double TLDDetector::ocl_Sr(const Mat_<uchar>& patch)
-		{
-			//int64 e1, e2, e3, e4;
-			//double t;
-			//e1 = getTickCount();
-			//e3 = getTickCount();
-			double splus = 0.0, sminus = 0.0;
-
-
-			UMat devPatch = patch.getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
-			UMat devPositiveSamples = posExp->getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
-			UMat devNegativeSamples = negExp->getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
-			UMat devNCC(1, 2*MAX_EXAMPLES_IN_MODEL, CV_32FC1, ACCESS_RW, USAGE_ALLOCATE_DEVICE_MEMORY);
-
-
-			ocl::Kernel k;
-			ocl::ProgramSource src = ocl::tracking::tldDetector_oclsrc;
-			String error;
-			ocl::Program prog(src, NULL, error);
-			k.create("NCC", prog);
-			if (k.empty())
-				printf("Kernel create failed!!!\n");
-			k.args(
-				ocl::KernelArg::PtrReadOnly(devPatch),
-				ocl::KernelArg::PtrReadOnly(devPositiveSamples),
-				ocl::KernelArg::PtrReadOnly(devNegativeSamples),
-				ocl::KernelArg::PtrWriteOnly(devNCC),
-				posNum,
-				negNum);
-
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Mem Cpy GPU: %f\n", t);
-
-			size_t globSize = 1000;
-			//e3 = getTickCount();
-			if (!k.run(1, &globSize, NULL, false))
-				printf("Kernel Run Error!!!");
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Kernel Run GPU: %f\n", t);
-
-			//e3 = getTickCount();
-			Mat resNCC = devNCC.getMat(ACCESS_READ);
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Read Mem GPU: %f\n", t);
-
-			////Compare
-			//Mat_<uchar> modelSample(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-			//for (int i = 0; i < 200; i+=17)
-			//{
-			//	modelSample.data = &(posExp->data[i * 225]);
-			//	printf("%f\t%f\n\n", resNCC.at<float>(i), NCC(modelSample, patch));
-			//}
-
-			//for (int i = 0; i < 200; i+=23)
-			//{
-			//	modelSample.data = &(negExp->data[i * 225]);
-			//	printf("%f\t%f\n", resNCC.at<float>(500+i), NCC(modelSample, patch));
-			//}
-
-
-			for (int i = 0; i < *posNum; i++)
-				splus = std::max(splus, 0.5 * (resNCC.at<float>(i) + 1.0));
-
-			for (int i = 0; i < *negNum; i++)
-				sminus = std::max(sminus, 0.5 * (resNCC.at<float>(i+500) +1.0));
-
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Sr GPU: %f\n\n", t);
-
-			if (splus + sminus == 0.0)
-				return 0.0;
-			return splus / (sminus + splus);
-		}
-
-		void TLDDetector::ocl_batchSrSc(const Mat_<uchar>& patches, double *resultSr, double *resultSc, int numOfPatches)
-		{
-			//int64 e1, e2, e3, e4;
-			//double t;
-			//e1 = getTickCount();
-			//e3 = getTickCount();
-
-			UMat devPatches = patches.getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
-			UMat devPositiveSamples = posExp->getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
-			UMat devNegativeSamples = negExp->getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
-			UMat devPosNCC(MAX_EXAMPLES_IN_MODEL, numOfPatches, CV_32FC1, ACCESS_RW, USAGE_ALLOCATE_DEVICE_MEMORY);
-			UMat devNegNCC(MAX_EXAMPLES_IN_MODEL, numOfPatches, CV_32FC1, ACCESS_RW, USAGE_ALLOCATE_DEVICE_MEMORY);
-
-			ocl::Kernel k;
-			ocl::ProgramSource src = ocl::tracking::tldDetector_oclsrc;
-			String error;
-			ocl::Program prog(src, NULL, error);
-			k.create("batchNCC", prog);
-			if (k.empty())
-				printf("Kernel create failed!!!\n");
-			k.args(
-				ocl::KernelArg::PtrReadOnly(devPatches),
-				ocl::KernelArg::PtrReadOnly(devPositiveSamples),
-				ocl::KernelArg::PtrReadOnly(devNegativeSamples),
-				ocl::KernelArg::PtrWriteOnly(devPosNCC),
-				ocl::KernelArg::PtrWriteOnly(devNegNCC),
-				posNum,
-				negNum,
-				numOfPatches);
-
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Mem Cpy GPU: %f\n", t);
-
-			// 2 -> Pos&Neg
-			size_t globSize = 2 * numOfPatches*MAX_EXAMPLES_IN_MODEL;
-			//e3 = getTickCount();
-			if (!k.run(1, &globSize, NULL, false))
-				printf("Kernel Run Error!!!");
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Kernel Run GPU: %f\n", t);
-
-			//e3 = getTickCount();
-			Mat posNCC = devPosNCC.getMat(ACCESS_READ);
-			Mat negNCC = devNegNCC.getMat(ACCESS_READ);
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Read Mem GPU: %f\n", t);
-
-			//Calculate Srs
-			for (int id = 0; id < numOfPatches; id++)
-			{
-				double spr = 0.0, smr = 0.0, spc = 0.0, smc = 0;
-				int med = getMedian((*timeStampsPositive));
-				for (int i = 0; i < *posNum; i++)
-				{
-					spr = std::max(spr, 0.5 * (posNCC.at<float>(id * 500 + i) + 1.0));
-					if ((int)(*timeStampsPositive)[i] <= med)
-						spc = std::max(spr, 0.5 * (posNCC.at<float>(id * 500 + i) + 1.0));
-				}
-				for (int i = 0; i < *negNum; i++)
-					smc = smr = std::max(smr, 0.5 * (negNCC.at<float>(id * 500 + i) + 1.0));
-
-				if (spr + smr == 0.0)
-					resultSr[id] = 0.0;
-				else
-					resultSr[id] = spr / (smr + spr);
-
-				if (spc + smc == 0.0)
-					resultSc[id] = 0.0;
-				else
-					resultSc[id] = spc / (smc + spc);
-			}
-
-			////Compare positive NCCs
-			/*Mat_<uchar> modelSample(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-			Mat_<uchar> patch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-			for (int j = 0; j < numOfPatches; j++)
-			{
-				for (int i = 0; i < 1; i++)
-				{
-					modelSample.data = &(posExp->data[i * 225]);
-					patch.data = &(patches.data[j * 225]);
-					printf("%f\t%f\n", resultSr[j], Sr(patch));
-					printf("%f\t%f\n", resultSc[j], Sc(patch));
-				}
-			}*/
-
-			//for (int i = 0; i < 200; i+=23)
-			//{
-			//	modelSample.data = &(negExp->data[i * 225]);
-			//	printf("%f\t%f\n", resNCC.at<float>(500+i), NCC(modelSample, patch));
-			//}
-
-
-
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Sr GPU: %f\n\n", t);
-		}
-
-		// Calculate Conservative similarity of the patch (NN-Model)
-		double TLDDetector::Sc(const Mat_<uchar>& patch)
-		{
-			/*
-			int64 e1, e2;
-			float t;
-			e1 = getTickCount();
-			double splus = 0.0, sminus = 0.0;
-			int med = getMedian((*timeStampsPositive));
-			for (int i = 0; i < (int)(*positiveExamples).size(); i++)
-			{
-				if ((int)(*timeStampsPositive)[i] <= med)
-					splus = std::max(splus, 0.5 * (NCC((*positiveExamples)[i], patch) + 1.0));
-			}
-			for (int i = 0; i < (int)(*negativeExamples).size(); i++)
-				sminus = std::max(sminus, 0.5 * (NCC((*negativeExamples)[i], patch) + 1.0));
-			e2 = getTickCount();
-			t = (e2 - e1) / getTickFrequency()*1000.0;
-			printf("Sc: %f\n", t);
-			if (splus + sminus == 0.0)
-				return 0.0;
-
-			return splus / (sminus + splus);
-			*/
-
-			//int64 e1, e2;
-			//double t;
-			//e1 = getTickCount();
-			double splus = 0.0, sminus = 0.0;
-			Mat_<uchar> modelSample(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-			int med = getMedian((*timeStampsPositive));
-			for (int i = 0; i < *posNum; i++)
-			{
-				if ((int)(*timeStampsPositive)[i] <= med)
-				{
-					modelSample.data = &(posExp->data[i * 225]);
-					splus = std::max(splus, 0.5 * (NCC(modelSample, patch) + 1.0));
-				}
-			}
-			for (int i = 0; i < *negNum; i++)
-			{
-				modelSample.data = &(negExp->data[i * 225]);
-				sminus = std::max(sminus, 0.5 * (NCC(modelSample, patch) + 1.0));
-			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Sc: %f\n", t);
-			if (splus + sminus == 0.0)
-				return 0.0;
-
-			return splus / (sminus + splus);
-		}
-
-		double TLDDetector::ocl_Sc(const Mat_<uchar>& patch)
-		{
-			//int64 e1, e2, e3, e4;
-			//float t;
-			//e1 = getTickCount();
-			double splus = 0.0, sminus = 0.0;
-
-			//e3 = getTickCount();
-
-			UMat devPatch = patch.getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
-			UMat devPositiveSamples = posExp->getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
-			UMat devNegativeSamples = negExp->getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
-			UMat devNCC(1, 2 * MAX_EXAMPLES_IN_MODEL, CV_32FC1, ACCESS_RW, USAGE_ALLOCATE_DEVICE_MEMORY);
-
-
-			ocl::Kernel k;
-			ocl::ProgramSource src = ocl::tracking::tldDetector_oclsrc;
-			String error;
-			ocl::Program prog(src, NULL, error);
-			k.create("NCC", prog);
-			if (k.empty())
-				printf("Kernel create failed!!!\n");
-			k.args(
-				ocl::KernelArg::PtrReadOnly(devPatch),
-				ocl::KernelArg::PtrReadOnly(devPositiveSamples),
-				ocl::KernelArg::PtrReadOnly(devNegativeSamples),
-				ocl::KernelArg::PtrWriteOnly(devNCC),
-				posNum,
-				negNum);
-
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Mem Cpy GPU: %f\n", t);
-
-			size_t globSize = 1000;
-			//e3 = getTickCount();
-			if (!k.run(1, &globSize, NULL, false))
-				printf("Kernel Run Error!!!");
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Kernel Run GPU: %f\n", t);
-
-			//e3 = getTickCount();
-			Mat resNCC = devNCC.getMat(ACCESS_READ);
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Read Mem GPU: %f\n", t);
-
-			////Compare
-			//Mat_<uchar> modelSample(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-			//for (int i = 0; i < 200; i+=17)
-			//{
-			//	modelSample.data = &(posExp->data[i * 225]);
-			//	printf("%f\t%f\n\n", resNCC.at<float>(i), NCC(modelSample, patch));
-			//}
-
-			//for (int i = 0; i < 200; i+=23)
-			//{
-			//	modelSample.data = &(negExp->data[i * 225]);
-			//	printf("%f\t%f\n", resNCC.at<float>(500+i), NCC(modelSample, patch));
-			//}
-
-			int med = getMedian((*timeStampsPositive));
-			for (int i = 0; i < *posNum; i++)
-				if ((int)(*timeStampsPositive)[i] <= med)
-					splus = std::max(splus, 0.5 * (resNCC.at<float>(i) +1.0));
-
-			for (int i = 0; i < *negNum; i++)
-				sminus = std::max(sminus, 0.5 * (resNCC.at<float>(i + 500) + 1.0));
-
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Sc GPU: %f\n\n", t);
-
-			if (splus + sminus == 0.0)
-				return 0.0;
-			return splus / (sminus + splus);
-		}
-
-		// Generate Search Windows for detector from aspect ratio of initial BBs
-		void TLDDetector::generateScanGrid(int rows, int cols, Size initBox, std::vector<Rect2d>& res, bool withScaling)
-		{
-			res.clear();
-			//Scales step: SCALE_STEP; Translation steps: 10% of width & 10% of height; minSize: 20pix
-			for (double h = initBox.height, w = initBox.width; h < cols && w < rows;)
-			{
-				for (double x = 0; (x + w + 1.0) <= cols; x += (0.1 * w))
-				{
-					for (double y = 0; (y + h + 1.0) <= rows; y += (0.1 * h))
-						res.push_back(Rect2d(x, y, w, h));
-				}
-				if (withScaling)
-				{
-					if (h <= initBox.height)
-					{
-                        h /= SCALE_STEP;
-                        w /= SCALE_STEP;
-						if (h < 20 || w < 20)
-						{
-                            h = initBox.height * SCALE_STEP;
-                            w = initBox.width * SCALE_STEP;
-							CV_Assert(h > initBox.height || w > initBox.width);
-						}
-					}
-					else
-					{
-                        h *= SCALE_STEP;
-                        w *= SCALE_STEP;
-					}
-				}
-				else
-				{
-					break;
-				}
-			}
-			//dprintf(("%d rects in res\n", (int)res.size()));
-		}
-
-		//Detection - returns most probable new target location (Max Sc)
-
-		bool TLDDetector::detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std::vector<LabeledPatch>& patches, Size initSize)
-		{
-			patches.clear();
-			Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-			Mat tmp;
-			int dx = initSize.width / 10, dy = initSize.height / 10;
-			Size2d size = img.size();
-			double scale = 1.0;
-			int npos = 0, nneg = 0;
-			double maxSc = -5.0;
-			Rect2d maxScRect;
-			int scaleID;
-			std::vector <Mat> resized_imgs, blurred_imgs;
-			std::vector <Point> varBuffer, ensBuffer;
-			std::vector <int> varScaleIDs, ensScaleIDs;
-			//int64 e1, e2;
-			//double t;
-
-			//e1 = getTickCount();
-
-			//Detection part
-			//Generate windows and filter by variance
-			scaleID = 0;
-			resized_imgs.push_back(img);
-			blurred_imgs.push_back(imgBlurred);
-
-
-
-			do
-			{
-                /////////////////////////////////////////////////
-                //Mat bigVarPoints; resized_imgs[scaleID].copyTo(bigVarPoints);
-                /////////////////////////////////////////////////
-
-
-                Mat_<double> intImgP, intImgP2;
-
-                computeIntegralImages(resized_imgs[scaleID], intImgP, intImgP2);
-
-                for (int i = 0, imax = cvFloor((0.0 + resized_imgs[scaleID].cols - initSize.width) / dx); i < imax; i++)
-				{
-					for (int j = 0, jmax = cvFloor((0.0 + resized_imgs[scaleID].rows - initSize.height) / dy); j < jmax; j++)
-					{
-                        if (!patchVariance(intImgP, intImgP2, Point(dx * i, dy * j), initSize))
-							continue;
-
-
-						varBuffer.push_back(Point(dx * i, dy * j));
-						varScaleIDs.push_back(scaleID);
-
-                        ///////////////////////////////////////////////////////
-                        //circle(bigVarPoints, *(varBuffer.end() - 1) + Point(initSize.width / 2, initSize.height / 2), 1, cv::Scalar::all(0));
-                        ///////////////////////////////////////////////////////
-					}
-				}
-				scaleID++;
-				size.width /= SCALE_STEP;
-				size.height /= SCALE_STEP;
-				scale *= SCALE_STEP;
-				resize(img, tmp, size, 0, 0, DOWNSCALE_MODE);
-                resized_imgs.push_back(tmp.clone());
-
-                GaussianBlur(resized_imgs[scaleID], tmp, GaussBlurKernelSize, .0f);
-                blurred_imgs.push_back(tmp.clone());
+namespace tld
+{
+
+TLDDetector::TLDDetector(const Mat &image, const Rect &bb, size_t actMaxNumberOfExamples, size_t actNumberOfFerns) : maxNumberOfExamples(actMaxNumberOfExamples)
+{
+    std::vector<Rect2d> closest, scanGrid;
+    Mat blurredWapedPatch;
+
+
+    generateScanGrid(image.rows, image.cols, minSize_, scanGrid);
+
+    ///////////////////////////
+    //TLDDetector::outputScanningGrid(image, scanGrid);
+    ///////////////////////////
+
+    getClosestN(scanGrid, boundingBox, 10, closest);
+
+    ///////////////////////////
+    //TLDDetector::outputScanningGrid(image, closest);
+    ///////////////////////////
+
+    TLDEnsembleClassifier::makeClassifiers(minSize_, MEASURES_PER_CLASSIFIER, GRIDSIZE, detector->classifiers);
+
+    ///////////////////////////
+    //TLDEnsembleClassifier::printClassifier(cv::Size(256, 256), minSize_, detector->classifiers);
+    ///////////////////////////
+
+    Mat_<uchar> warpedPatch(minSize_);
+
+    for (int i = 0; i < (int)closest.size(); i++)
+    {
+        for (int j = 0; j < 20; j++)
+        {
+            Point2f center;
+            Size2f size;
+
+            center.x = (float)(closest[i].x + closest[i].width * (0.5 + rng.uniform(-0.01, 0.01)));
+            center.y = (float)(closest[i].y + closest[i].height * (0.5 + rng.uniform(-0.01, 0.01)));
+
+            size.width = (float)(closest[i].width * rng.uniform((double)0.99, (double)1.01));
+            size.height = (float)(closest[i].height * rng.uniform((double)0.99, (double)1.01));
+
+            float angle = (float)rng.uniform(-10.0, 10.0);
+
+            resample(image, RotatedRect(center, size, angle), warpedPatch);
+            GaussianBlur(warpedPatch, blurredWapedPatch, GaussBlurKernelSize, 0.0);
+            for (int k = 0; k < (int)detector->classifiers.size(); k++)
+                detector->classifiers[k].integrate(blurredWapedPatch, true);
+
+            Mat_<uchar> stdPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
+            resample(image, RotatedRect(center, size, angle), stdPatch);
+            pushIntoModel(stdPatch, true);
+            /////////////////////////////////////////////////////
+            //imshow("blurredWapedPatch", blurredWapedPatch);
+            //imshow("stdPatch", stdPatch);
+            //waitKey();
+            /////////////////////////////////////////////////////
+
+        }
+    }
+
+    TLDDetector::generateScanGrid(image.rows, image.cols, minSize_, scanGrid, true);
+    std::vector<int> indices;
+    indices.reserve(NEG_EXAMPLES_IN_INIT_MODEL);
+    while ((int)indices.size() < NEG_EXAMPLES_IN_INIT_MODEL)
+    {
+        int i = rng.uniform((int)0, (int)scanGrid.size());
+        if (std::find(indices.begin(), indices.end(), i) == indices.end() && overlap(boundingBox, scanGrid[i]) < NEXPERT_THRESHOLD)
+        {
+            indices.push_back(i);
+            Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
+            resample(image, scanGrid[i], standardPatch);
+            pushIntoModel(standardPatch, false);
+
+            resample(image, scanGrid[i], warpedPatch);
+            for (int k = 0; k < (int)detector->classifiers.size(); k++)
+                detector->classifiers[k].integrate(warpedPatch, false);
+        }
+    }
+}
+
+void TLDDetector::prepareClassifiers(int rowstep)
+{
+    for(std::vector<TLDEnsembleClassifier>::iterator it = classifiers.begin(); it != classifiers.end(); ++it)
+        it->prepareClassifier(rowstep);
+}
+
+double TLDDetector::ensembleClassifierNum(const uchar* data)
+{
+    double p = 0.;
+    for(std::vector<TLDEnsembleClassifier>::iterator it = classifiers.begin(); it != classifiers.end(); ++it)
+        p += it->posteriorProbabilityFast(data);
+
+    p /= classifiers.size();
+    return p;
+}
+
+double TLDDetector::Sr(const Mat_<uchar>& patch)
+{
+
+    double splus = 0., sminus = 0.;
+    for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
+        splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
+
+    for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != negativeExamples.end(); ++it)
+        sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
+
+    if (splus + sminus == 0.0)
+        return 0.0;
+
+    return splus / (sminus + splus);
+}
+
+double TLDDetector::Sc(const Mat_<uchar>& patch)
+{
+    double splus = 0., sminus = 0.;
+
+    size_t mediana = positiveExamples.size() / 2 + positiveExamples.size() % 2;
+
+    std::list<Mat_<uchar> >::const_iterator end = positiveExamples.begin();
+    for(size_t i = 0; i < mediana; ++i) ++end;
+
+    for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != end; ++it)
+        splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
+
+    for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != negativeExamples.end(); ++it)
+        sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
+
+    if (splus + sminus == 0.0)
+        return 0.0;
+
+    return splus / (sminus + splus);
+}
+
+void TLDDetector::detect(const Mat& img, const Mat& imgBlurred, std::vector<Response>& patches, Size initSize)
+{
+    patches.clear();
+    Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
+    Mat tmp;
+    int dx = initSize.width / 10, dy = initSize.height / 10;
+    Size2d size = img.size();
+    double scale = 1.0;
+    int scaleID;
+    std::vector <Mat> resized_imgs, blurred_imgs;
+    std::vector <Point> varBuffer, ensBuffer;
+    std::vector <int> varScaleIDs, ensScaleIDs;
+
+    scaleID = 0;
+    resized_imgs.push_back(img);
+    blurred_imgs.push_back(imgBlurred);
+
+    do
+    {
+        /////////////////////////////////////////////////
+        //Mat bigVarPoints; resized_imgs[scaleID].copyTo(bigVarPoints);
+        /////////////////////////////////////////////////
+
+        Mat_<double> intImgP, intImgP2;
+
+        computeIntegralImages(resized_imgs[scaleID], intImgP, intImgP2);
+
+        for (int i = 0, imax = cvFloor((0.0 + resized_imgs[scaleID].cols - initSize.width) / dx); i < imax; i++)
+        {
+            for (int j = 0, jmax = cvFloor((0.0 + resized_imgs[scaleID].rows - initSize.height) / dy); j < jmax; j++)
+            {
+                if (!patchVariance(intImgP, intImgP2, Point(dx * i, dy * j), initSize))
+                    continue;
+
+                varBuffer.push_back(Point(dx * i, dy * j));
+                varScaleIDs.push_back(scaleID);
 
                 ///////////////////////////////////////////////////////
-                //imshow("big variance", bigVarPoints);
-                //waitKey();
+                //circle(bigVarPoints, *(varBuffer.end() - 1) + Point(initSize.width / 2, initSize.height / 2), 1, cv::Scalar::all(0));
                 ///////////////////////////////////////////////////////
-
-
-
-			} while (size.width >= initSize.width && size.height >= initSize.height);
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Variance: %d\t%f\n", varBuffer.size(), t);
-
-			//Encsemble classification
-			//e1 = getTickCount();
-			for (int i = 0; i < (int)varBuffer.size(); i++)
-			{
-				prepareClassifiers(static_cast<int> (blurred_imgs[varScaleIDs[i]].step[0]));
-				if (ensembleClassifierNum(&blurred_imgs[varScaleIDs[i]].at<uchar>(varBuffer[i].y, varBuffer[i].x)) <= ENSEMBLE_THRESHOLD)
-					continue;
-				ensBuffer.push_back(varBuffer[i]);
-				ensScaleIDs.push_back(varScaleIDs[i]);
-
-                //////////////////////////////////////////////////////
-                Mat ensembleOutPut; blurred_imgs[varScaleIDs[i]].copyTo(ensembleOutPut);
-                rectangle(ensembleOutPut, Rect(varBuffer[i], initSize), Scalar::all(0));
-                imshow("ensembleOutPut", ensembleOutPut);
-                waitKey();
-                //////////////////////////////////////////////////////
-
-			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Ensemble: %d\t%f\n", ensBuffer.size(), t);
-
-			//NN classification
-			//e1 = getTickCount();
-
-
-			for (int i = 0; i < (int)ensBuffer.size(); i++)
-			{
-				LabeledPatch labPatch;
-				double curScale = pow(SCALE_STEP, ensScaleIDs[i]);
-
-                labPatch.rect = Rect2d(ensBuffer[i].x*curScale, ensBuffer[i].y*curScale, initSize.width * curScale, initSize.height * curScale);
-
-                resample(resized_imgs[ensScaleIDs[i]], Rect2d(ensBuffer[i], initSize), standardPatch);
-
-				double srValue, scValue;
-				srValue = Sr(standardPatch);
-
-				////To fix: Check the paper, probably this cause wrong learning
-				//
-				labPatch.isObject = srValue > THETA_NN;
-
-                labPatch.shouldBeIntegrated = abs(srValue - THETA_NN) < 0.1;
-				patches.push_back(labPatch);
-				//
-
-				if (!labPatch.isObject)
-				{
-					nneg++;
-					continue;
-				}
-				else
-				{
-					npos++;
-				}
-				scValue = Sc(standardPatch);
-				if (scValue > maxSc)
-				{
-					maxSc = scValue;
-					maxScRect = labPatch.rect;
-				}
-			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("NN: %d\t%f\n", patches.size(), t);
-
-			if (maxSc < 0)
-				return false;
-			res = maxScRect;
-			return true;
-		}
-
-		bool TLDDetector::ocl_detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std::vector<LabeledPatch>& patches, Size initSize)
-		{
-			patches.clear();
-			Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-			Mat tmp;
-			int dx = initSize.width / 10, dy = initSize.height / 10;
-			Size2d size = img.size();
-			double scale = 1.0;
-			int npos = 0, nneg = 0;
-			double maxSc = -5.0;
-			Rect2d maxScRect;
-			int scaleID;
-			std::vector <Mat> resized_imgs, blurred_imgs;
-			std::vector <Point> varBuffer, ensBuffer;
-			std::vector <int> varScaleIDs, ensScaleIDs;
-			//int64 e1, e2;
-			//double t;
-
-			//e1 = getTickCount();
-			//Detection part
-			//Generate windows and filter by variance
-			scaleID = 0;
-			resized_imgs.push_back(img);
-			blurred_imgs.push_back(imgBlurred);
-			do
-			{
-				Mat_<double> intImgP, intImgP2;
-				computeIntegralImages(resized_imgs[scaleID], intImgP, intImgP2);
-				for (int i = 0, imax = cvFloor((0.0 + resized_imgs[scaleID].cols - initSize.width) / dx); i < imax; i++)
-				{
-					for (int j = 0, jmax = cvFloor((0.0 + resized_imgs[scaleID].rows - initSize.height) / dy); j < jmax; j++)
-					{
-                        if (!patchVariance(intImgP, intImgP2, Point(dx * i, dy * j), initSize))
-							continue;
-						varBuffer.push_back(Point(dx * i, dy * j));
-						varScaleIDs.push_back(scaleID);
-					}
-				}
-				scaleID++;
-				size.width /= SCALE_STEP;
-				size.height /= SCALE_STEP;
-				scale *= SCALE_STEP;
-				resize(img, tmp, size, 0, 0, DOWNSCALE_MODE);
-				resized_imgs.push_back(tmp);
-				GaussianBlur(resized_imgs[scaleID], tmp, GaussBlurKernelSize, 0.0f);
-				blurred_imgs.push_back(tmp);
-			} while (size.width >= initSize.width && size.height >= initSize.height);
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Variance: %d\t%f\n", varBuffer.size(), t);
-
-			//Encsemble classification
-			//e1 = getTickCount();
-			for (int i = 0; i < (int)varBuffer.size(); i++)
-			{
-				prepareClassifiers((int)blurred_imgs[varScaleIDs[i]].step[0]);
-				if (ensembleClassifierNum(&blurred_imgs[varScaleIDs[i]].at<uchar>(varBuffer[i].y, varBuffer[i].x)) <= ENSEMBLE_THRESHOLD)
-					continue;
-				ensBuffer.push_back(varBuffer[i]);
-				ensScaleIDs.push_back(varScaleIDs[i]);
-			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Ensemble: %d\t%f\n", ensBuffer.size(), t);
-
-			//NN classification
-			//e1 = getTickCount();
-			//Prepare batch of patches
-			int numOfPatches = (int)ensBuffer.size();
-			Mat_<uchar> stdPatches(numOfPatches, 225);
-			double *resultSr = new double[numOfPatches];
-			double *resultSc = new double[numOfPatches];
-
-			uchar *patchesData = stdPatches.data;
-			for (int i = 0; i < (int)ensBuffer.size(); i++)
-			{
-				resample(resized_imgs[ensScaleIDs[i]], Rect2d(ensBuffer[i], initSize), standardPatch);
-				uchar *stdPatchData = standardPatch.data;
-				for (int j = 0; j < 225; j++)
-					patchesData[225*i+j] = stdPatchData[j];
-			}
-			//Calculate Sr and Sc batches
-			ocl_batchSrSc(stdPatches, resultSr, resultSc, numOfPatches);
-
-
-			for (int i = 0; i < (int)ensBuffer.size(); i++)
-			{
-				LabeledPatch labPatch;
-				standardPatch.data = &stdPatches.data[225 * i];
-				double curScale = pow(SCALE_STEP, ensScaleIDs[i]);
-				labPatch.rect = Rect2d(ensBuffer[i].x*curScale, ensBuffer[i].y*curScale, initSize.width * curScale, initSize.height * curScale);
-
-				double srValue, scValue;
-
-				srValue = resultSr[i];
-
-				//srValue = Sr(standardPatch);
-				//printf("%f\t%f\t\n", srValue, resultSr[i]);
-
-				////To fix: Check the paper, probably this cause wrong learning
-				//
-				labPatch.isObject = srValue > THETA_NN;
-				labPatch.shouldBeIntegrated = abs(srValue - THETA_NN) < 0.1;
-				patches.push_back(labPatch);
-				//
-
-				if (!labPatch.isObject)
-				{
-					nneg++;
-					continue;
-				}
-				else
-				{
-					npos++;
-				}
-				scValue = resultSc[i];
-				if (scValue > maxSc)
-				{
-					maxSc = scValue;
-					maxScRect = labPatch.rect;
-				}
-			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("NN: %d\t%f\n", patches.size(), t);
-
-			if (maxSc < 0)
-				return false;
-			res = maxScRect;
-            return true;
-        }
-
-        void TLDDetector::printRect(Mat &image, const Rect2d rect)
-        {
-            rectangle(image, rect, Scalar::all(255));
-        }
-
-        void TLDDetector::outputScanningGrid(const Mat &image, const std::vector<Rect2d> &scanGrid)
-        {
-            cv::Mat imageCopy; image.copyTo(imageCopy);
-
-            std::vector<Rect2d> copyScanGrid(scanGrid);
-
-            if(copyScanGrid.size() > 100)
-            {
-                std::random_shuffle(copyScanGrid.begin(), copyScanGrid.end());
-                std::for_each(copyScanGrid.begin(), copyScanGrid.begin() + 100, std::bind1st(std::ptr_fun(printRect), imageCopy));
             }
-            else
-            {
-                std::for_each(copyScanGrid.begin(), copyScanGrid.end(), std::bind1st(std::ptr_fun(printRect), imageCopy));
-            }
-
-
-            cv::imshow("outputScanningGrid",imageCopy);
-            cv::waitKey();
         }
+        scaleID++;
+        size.width /= SCALE_STEP;
+        size.height /= SCALE_STEP;
+        scale *= SCALE_STEP;
+        resize(img, tmp, size, 0, 0, DOWNSCALE_MODE);
+        resized_imgs.push_back(tmp.clone());
+
+        GaussianBlur(resized_imgs[scaleID], tmp, GaussBlurKernelSize, .0f);
+        blurred_imgs.push_back(tmp.clone());
+
+        ///////////////////////////////////////////////////////
+        //imshow("big variance", bigVarPoints);
+        //waitKey();
+        ///////////////////////////////////////////////////////
+
+    } while (size.width >= initSize.width && size.height >= initSize.height);
+
+    for (int i = 0; i < (int)varBuffer.size(); i++)
+    {
+        prepareClassifiers(static_cast<int> (blurred_imgs[varScaleIDs[i]].step[0]));
+        if (ensembleClassifierNum(&blurred_imgs[varScaleIDs[i]].at<uchar>(varBuffer[i].y, varBuffer[i].x)) <= ENSEMBLE_THRESHOLD)
+            continue;
+        ensBuffer.push_back(varBuffer[i]);
+        ensScaleIDs.push_back(varScaleIDs[i]);
+
+        //////////////////////////////////////////////////////
+        //Mat ensembleOutPut; blurred_imgs[varScaleIDs[i]].copyTo(ensembleOutPut);
+        //rectangle(ensembleOutPut, Rect(varBuffer[i], initSize), Scalar::all(0));
+        //imshow("ensembleOutPut", ensembleOutPut);
+        //waitKey();
+        //////////////////////////////////////////////////////
+
+    }
 
 
-		// Computes the variance of subimage given by box, with the help of two integral
-		// images intImgP and intImgP2 (sum of squares), which should be also provided.
-        bool TLDDetector::patchVariance(Mat_<double>& intImgP, Mat_<double>& intImgP2, Point pt, Size size)
-		{
-			int x = (pt.x), y = (pt.y), width = (size.width), height = (size.height);
-			CV_Assert(0 <= x && (x + width) < intImgP.cols && (x + width) < intImgP2.cols);
-			CV_Assert(0 <= y && (y + height) < intImgP.rows && (y + height) < intImgP2.rows);
-			double p = 0, p2 = 0;
-			double A, B, C, D;
+    for (int i = 0; i < (int)ensBuffer.size(); i++)
+    {
+        resample(resized_imgs[ensScaleIDs[i]], Rect2d(ensBuffer[i], initSize), standardPatch);
 
-			A = intImgP(y, x);
-			B = intImgP(y, x + width);
-			C = intImgP(y + height, x);
-			D = intImgP(y + height, x + width);
-			p = (A + D - B - C) / (width * height);
+        double srValue = Sr(standardPatch);
 
-			A = intImgP2(y, x);
-			B = intImgP2(y, x + width);
-			C = intImgP2(y + height, x);
-			D = intImgP2(y + height, x + width);
-			p2 = (A + D - B - C) / (width * height);
+        if(srValue > srValue)
+        {
+            Response response;
+            response.confidence = srValue;
+            double curScale = pow(SCALE_STEP, ensScaleIDs[i]);
+            response.bb = Rect2d(ensBuffer[i].x*curScale, ensBuffer[i].y*curScale, initSize.width * curScale, initSize.height * curScale);
+            patches.push_back(response);
+        }
+    }
+}
 
-            return ((p2 - p * p) > VARIANCE_THRESHOLD * originalVariance);
-		}
+void TLDDetector::printRect(Mat &image, const Rect2d rect)
+{
+    rectangle(image, rect, Scalar::all(255));
+}
 
-	}
+void TLDDetector::outputScanningGrid(const Mat &image, const std::vector<Rect2d> &scanGrid)
+{
+    cv::Mat imageCopy; image.copyTo(imageCopy);
+
+    std::vector<Rect2d> copyScanGrid(scanGrid);
+
+    if(copyScanGrid.size() > 100)
+    {
+        std::random_shuffle(copyScanGrid.begin(), copyScanGrid.end());
+        std::for_each(copyScanGrid.begin(), copyScanGrid.begin() + 100, std::bind1st(std::ptr_fun(printRect), imageCopy));
+    }
+    else
+    {
+        std::for_each(copyScanGrid.begin(), copyScanGrid.end(), std::bind1st(std::ptr_fun(printRect), imageCopy));
+    }
+
+
+    cv::imshow("outputScanningGrid",imageCopy);
+    cv::waitKey();
+}
+
+
+// Computes the variance of subimage given by box, with the help of two integral
+// images intImgP and intImgP2 (sum of squares), which should be also provided.
+bool TLDDetector::patchVariance(Mat_<double>& intImgP, Mat_<double>& intImgP2, Point pt, Size size)
+{
+    int x = (pt.x), y = (pt.y), width = (size.width), height = (size.height);
+    CV_Assert(0 <= x && (x + width) < intImgP.cols && (x + width) < intImgP2.cols);
+    CV_Assert(0 <= y && (y + height) < intImgP.rows && (y + height) < intImgP2.rows);
+    double p = 0, p2 = 0;
+    double A, B, C, D;
+
+    A = intImgP(y, x);
+    B = intImgP(y, x + width);
+    C = intImgP(y + height, x);
+    D = intImgP(y + height, x + width);
+    p = (A + D - B - C) / (width * height);
+
+    A = intImgP2(y, x);
+    B = intImgP2(y, x + width);
+    C = intImgP2(y + height, x);
+    D = intImgP2(y + height, x + width);
+    p2 = (A + D - B - C) / (width * height);
+
+    return ((p2 - p * p) > VARIANCE_THRESHOLD * originalVariance);
+}
+
+void TLDDetector::addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage)
+{
+    CV_Assert(storage.size() <= maxNumberOfExamples);
+
+    if(storage.size() == maxNumberOfExamples)
+    {
+        int randomIndex = rng.uniform(0, int(maxNumberOfExamples));
+        std::list<Mat_<uchar> >::iterator it = storage.begin();
+
+        for(int i = 0; i < randomIndex; ++i)
+            ++it;
+
+        storage.erase(it);
+    }
+
+    storage.push_back(example.clone());
+}
+
+}
 }

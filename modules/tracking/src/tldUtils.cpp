@@ -292,5 +292,42 @@ std::pair<double, Rect2d> augmentedOverlap(const Rect2d rect, const Rect2d bb)
     return std::make_pair(overlap(rect,bb), bb);
 }
 
+void generateScanGrid(int rows, int cols, Size initBox, std::vector<Rect2d>& res, bool withScaling)
+{
+    res.clear();
+    for (double h = initBox.height, w = initBox.width; h < cols && w < rows;)
+    {
+        for (double x = 0; (x + w + 1.0) <= cols; x += (0.1 * w))
+        {
+            for (double y = 0; (y + h + 1.0) <= rows; y += (0.1 * h))
+                res.push_back(Rect2d(x, y, w, h));
+        }
+        if (withScaling)
+        {
+            if (h <= initBox.height)
+            {
+                h /= SCALE_STEP;
+                w /= SCALE_STEP;
+                if (h < 20 || w < 20)
+                {
+                    h = initBox.height * SCALE_STEP;
+                    w = initBox.width * SCALE_STEP;
+                    CV_Assert(h > initBox.height || w > initBox.width);
+                }
+            }
+            else
+            {
+                h *= SCALE_STEP;
+                w *= SCALE_STEP;
+            }
+        }
+        else
+        {
+            break;
+        }
+    }
+    //dprintf(("%d rects in res\n", (int)res.size()));
+}
+
 
 }}

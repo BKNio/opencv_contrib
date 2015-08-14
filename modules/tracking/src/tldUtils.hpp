@@ -56,6 +56,7 @@ namespace cv
 		double scaleAndBlur(const Mat& originalImg, int scale, Mat& scaledImg, Mat& blurredImg, Size GaussBlurKernelSize, double scaleStep);
 		int getMedian(const std::vector<int>& values, int size = -1);
 
+        void generateScanGrid(int rows, int cols, Size initBox, std::vector<Rect2d>& res, bool withScaling = false);
 
         ///////////////////////////////////////////////////////////
         std::pair<double, Rect2d> augmentedOverlap(const Rect2d rect, const Rect2d bb);

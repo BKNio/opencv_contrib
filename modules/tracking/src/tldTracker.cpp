@@ -56,19 +56,19 @@ namespace tld
 TrackerTLDImpl::TrackerTLDImpl(const TrackerTLD::Params &parameters) :
     params( parameters )
 {
-  isInit = false;
-  trackerProxy = Ptr<TrackerProxyImpl<TrackerMedianFlow, TrackerMedianFlow::Params> >
-      (new TrackerProxyImpl<TrackerMedianFlow, TrackerMedianFlow::Params>());
+    isInit = false;
+    trackerProxy = Ptr<TrackerProxyImpl<TrackerMedianFlow, TrackerMedianFlow::Params> >
+            (new TrackerProxyImpl<TrackerMedianFlow, TrackerMedianFlow::Params>());
 }
 
 void TrackerTLDImpl::read(const cv::FileNode& fn)
 {
-  params.read( fn );
+    params.read( fn );
 }
 
 void TrackerTLDImpl::write(cv::FileStorage& fs) const
 {
-  params.write( fs );
+    params.write( fs );
 }
 
 bool TrackerTLDImpl::initImpl(const Mat& image, const Rect2d& boundingBox)
@@ -106,24 +106,20 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
     TrackerTLDModel* tldModel = ((TrackerTLDModel*)static_cast<TrackerModel*>(model));
     data->frameNum++;
     Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-    std::vector<TLDDetector::LabeledPatch> detectorResults;
-    //best overlap around 92%
+    std::vector<TLDDetector::Response> detectorResults;
 
     std::vector<Rect2d> candidates;
     std::vector<double> candidatesRes;
     bool trackerNeedsReInit = false;
-	bool DETECT_FLG = false;
+
     for( int i = 0; i < 2; i++ )
     {
         Rect2d tmpCandid = boundingBox;
 
-		if (i == 1)
-		{
-			if (ocl::haveOpenCL())
-				DETECT_FLG = tldModel->detector->ocl_detect(imageForDetector, image_blurred, tmpCandid, detectorResults, tldModel->getMinSize());
-			else
-				DETECT_FLG = tldModel->detector->detect(imageForDetector, image_blurred, tmpCandid, detectorResults, tldModel->getMinSize());
-		}
+        if (i == 1)
+        {
+            tldModel->detector->detect(imageForDetector, image_blurred, tmpCandid, detectorResults, tldModel->getMinSize());
+        }
 
         if( ( (i == 0) && !data->failedLastTime && trackerProxy->update(image, tmpCandid) ) || ( DETECT_FLG))
         {
@@ -145,7 +141,7 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
 
     //dfprintf((stdout, "scale = %f\n", log(1.0 * boundingBox.width / (data->getMinSize()).width) / log(SCALE_STEP)));
     //for( int i = 0; i < (int)candidatesRes.size(); i++ )
-        //dprintf(("\tcandidatesRes[%d] = %f\n", i, candidatesRes[i]));
+    //dprintf(("\tcandidatesRes[%d] = %f\n", i, candidatesRes[i]));
     //data->printme();
     //tldModel->printme(stdout);
 
@@ -169,7 +165,7 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
         resample(imageForDetector, candidates[it - candidatesRes.begin()], standardPatch);
         //dfprintf((stderr, "%d %f %f\n", data->frameNum, tldModel->Sc(standardPatch), tldModel->Sr(standardPatch)));
         //if( candidatesRes.size() == 2 &&  it == (candidatesRes.begin() + 1) )
-            //dfprintf((stderr, "detector WON\n"));
+        //dfprintf((stderr, "detector WON\n"));
     }
     else
     {
@@ -183,7 +179,7 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
     if( data->confident )
     {
         Pexpert pExpert(imageForDetector, image_blurred, boundingBox, tldModel->detector, params, data->getInternalBB().size());
-		Nexpert nExpert(imageForDetector, boundingBox, tldModel->detector, params);
+        Nexpert nExpert(imageForDetector, boundingBox, tldModel->detector, params);
         std::vector<Mat_<uchar> > examplesForModel, examplesForEnsemble;
         examplesForModel.reserve(100); examplesForEnsemble.reserve(100);
         int negRelabeled = 0;
@@ -207,17 +203,17 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
         tldModel->integrateRelabeled(imageForDetector, image_blurred, detectorResults);
         //dprintf(("%d relabeled by nExpert\n", negRelabeled));
         pExpert.additionalExamples(examplesForModel, examplesForEnsemble);
-		if (ocl::haveOpenCL())
-			tldModel->ocl_integrateAdditional(examplesForModel, examplesForEnsemble, true);
-		else
-			tldModel->integrateAdditional(examplesForModel, examplesForEnsemble, true);
+        if (ocl::haveOpenCL())
+            tldModel->ocl_integrateAdditional(examplesForModel, examplesForEnsemble, true);
+        else
+            tldModel->integrateAdditional(examplesForModel, examplesForEnsemble, true);
         examplesForModel.clear(); examplesForEnsemble.clear();
         nExpert.additionalExamples(examplesForModel, examplesForEnsemble);
 
-		if (ocl::haveOpenCL())
-			tldModel->ocl_integrateAdditional(examplesForModel, examplesForEnsemble, false);
-		else
-			tldModel->integrateAdditional(examplesForModel, examplesForEnsemble, false);
+        if (ocl::haveOpenCL())
+            tldModel->ocl_integrateAdditional(examplesForModel, examplesForEnsemble, false);
+        else
+            tldModel->integrateAdditional(examplesForModel, examplesForEnsemble, false);
     }
     else
     {
@@ -239,7 +235,7 @@ int TrackerTLDImpl::Pexpert::additionalExamples(std::vector<Mat_<uchar> >& examp
     Mat scaledImg, blurredImg;
 
     double scale = scaleAndBlur(img_, cvRound(log(1.0 * resultBox_.width / (initSize_.width)) / log(SCALE_STEP)),
-            scaledImg, blurredImg, GaussBlurKernelSize, SCALE_STEP);
+                                scaledImg, blurredImg, GaussBlurKernelSize, SCALE_STEP);
     TLDDetector::generateScanGrid(img_.rows, img_.cols, initSize_, scanGrid);
     getClosestN(scanGrid, Rect2d(resultBox_.x / scale, resultBox_.y / scale, resultBox_.width / scale, resultBox_.height / scale), 10, closest);
 

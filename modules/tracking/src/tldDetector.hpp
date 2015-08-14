@@ -42,6 +42,8 @@
 #ifndef OPENCV_TLD_DETECTOR
 #define OPENCV_TLD_DETECTOR
 
+#include <list>
+
 #include "precomp.hpp"
 #include "opencl_kernels_tracking.hpp"
 #include "tldEnsembleClassifier.hpp"
@@ -58,7 +60,7 @@ const int MAX_EXAMPLES_IN_MODEL = 500;
 const int MEASURES_PER_CLASSIFIER = 13;
 const int GRIDSIZE = STANDARD_PATCH_SIZE;
 const int DOWNSCALE_MODE = cv::INTER_LINEAR;
-const double THETA_NN = 0.50;
+const double THETA_NN = 0.6;
 const double CORE_THRESHOLD = 0.5;
 const double SCALE_STEP = 1.2;
 const double ENSEMBLE_THRESHOLD = 0.5;
@@ -69,40 +71,51 @@ static const cv::Size GaussBlurKernelSize(3, 3);
 
 class TLDDetector
 {
+
 public:
-    TLDDetector(){}
-    ~TLDDetector(){}
-    inline double ensembleClassifierNum(const uchar* data);
-    inline void prepareClassifiers(int rowstep);
-    double Sr(const Mat_<uchar>& patch);
-    double ocl_Sr(const Mat_<uchar>& patch);
-    double Sc(const Mat_<uchar>& patch);
-    double ocl_Sc(const Mat_<uchar>& patch);
-    void ocl_batchSrSc(const Mat_<uchar>& patches, double *resultSr, double *resultSc, int numOfPatches);
-
-    std::vector<TLDEnsembleClassifier> classifiers;
-    Mat *posExp, *negExp;
-    int *posNum, *negNum;
-    std::vector<Mat_<uchar> > *positiveExamples, *negativeExamples;
-    std::vector<int> *timeStampsPositive, *timeStampsNegative;
-    double originalVariance;
-
-    static void generateScanGrid(int rows, int cols, Size initBox, std::vector<Rect2d>& res, bool withScaling = false);
-    struct LabeledPatch
+    struct Response
     {
-        Rect2d rect;
-        bool isObject, shouldBeIntegrated;
+        Rect bb;
+        float confidence;
     };
-    bool detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std::vector<LabeledPatch>& patches, Size initSize);
-    bool ocl_detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std::vector<LabeledPatch>& patches, Size initSize);
+
+public:
+    TLDDetector(const Mat &originalImage, const Rect &bb, size_t actMaxNumberOfExamples, size_t actNumberOfFerns);
+    ~TLDDetector(){}
+
+    double ensembleClassifierNum(const uchar* data);
+    void prepareClassifiers(int rowstep);
+
+    double Sr(const Mat_<uchar>& patch);
+    double Sc(const Mat_<uchar>& patch);
+
+    void detect(const Mat& img, const Mat& imgBlurred, std::vector<Response>& patches, Size initSize);
+
+    bool patchVariance(Mat_<double>& intImgP, Mat_<double>& intImgP2, Point pt, Size size);
+    void computeIntegralImages(const Mat& img, Mat_<double>& intImgP, Mat_<double>& intImgP2){ integral(img, intImgP, intImgP2, CV_64F); }
+
+    void addPositiveExample(const Mat_<uchar> &example) { addExample(example, positiveExamples); }
+    void addNegativeExample(const Mat_<uchar> &example) { addExample(example, negativeExamples); }
 
     ////////////////////////////////////////////////
     static void printRect(cv::Mat &image, const Rect2d rect);
     static void outputScanningGrid(const cv::Mat &image, const std::vector<cv::Rect2d> &scanGrid);
     ////////////////////////////////////////////////
 
-    inline bool patchVariance(Mat_<double>& intImgP, Mat_<double>& intImgP2, Point pt, Size size);
-    void computeIntegralImages(const Mat& img, Mat_<double>& intImgP, Mat_<double>& intImgP2){ integral(img, intImgP, intImgP2, CV_64F); }
+private:
+    void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
+
+private:
+
+    Ptr<TLDEnsembleClassifier> ensebmler;
+
+    const double originalVariance;
+    const size_t maxNumberOfExamples;
+
+    RNG rng;
+    std::list<Mat_<uchar> > positiveExamples, negativeExamples;
+    std::vector<TLDEnsembleClassifier> classifiers;
+
 };
 }
 }

@@ -40,6 +40,7 @@
 //M*/
 
 #include <vector>
+
 #include "precomp.hpp"
 
 namespace cv
@@ -50,25 +51,30 @@ class TLDEnsembleClassifier
 {
 public:
 
-    static int makeClassifiers(Size /*size*/, int measurePerClassifier, int gridSize, std::vector<TLDEnsembleClassifier>& classifiers);
-    void integrate(const Mat_<uchar>& patch, bool isPositive);
-    double posteriorProbability(const uchar* data, int rowstep) const;
-    double posteriorProbabilityFast(const uchar* data) const;
-    void prepareClassifier(int rowstep);
+    TLDEnsembleClassifier(const Rect &roi, size_t actNumberOfFerns, size_t actNumberOfMeasurements);
 
-    /////////////////////////////////
-    static void printClassifier(const Size &displaySize, const Size &internalSize, const std::vector<TLDEnsembleClassifier> &classifiers);
-    /////////////////////////////////
+    double getProbability(const Mat_<uchar> &image) const;
 
-    //private:
-    TLDEnsembleClassifier(const std::vector<Vec4b>& meas, int beg, int end);
-    static void stepPrefSuff(std::vector<Vec4b> & arr, int pos, int len, int gridSize);
-    int code(const uchar* data, int rowstep) const;
-    int codeFast(const uchar* data) const;
-    std::vector<Point2i> posAndNeg;
-    std::vector<Vec4b> measurements;
-    std::vector<Point2i> offset;
-    int lastStep_;
+    void integratePositiveExample(const Mat_<uchar> &image);
+    void integrateNegativeExample(const Mat_<uchar> &image);
+
+private:
+    void integrateExample(const Mat_<uchar> &image, bool isPositive);
+    int code(const Mat_<uchar> &image) const;
+
+private:
+    const Size originalSize;
+    const size_t numberOfFerns, numberOfMeasurements;
+
+    std::vector<std::vector<Point2i> > posAndNeg;
+    std::vector<std::vector<Vec4b> > measurements;
+
+#ifdef DEBUG
+public:
+#endif
+    void printClassifiers();
+
+
 };
 }
 }
