@@ -80,7 +80,7 @@ public:
     };
 
 public:
-    TLDDetector(const Mat &originalImage, const Rect &bb, size_t actMaxNumberOfExamples, size_t actNumberOfFerns);
+    TLDDetector(const Mat &image, const Rect &bb, size_t actMaxNumberOfExamples, size_t actNumberOfFerns);
     ~TLDDetector(){}
 
     double ensembleClassifierNum(const uchar* data);
@@ -107,14 +107,14 @@ private:
 
 private:
 
-    Ptr<TLDEnsembleClassifier> ensebmler;
+    Ptr<tldFernClassifier> ensebmler;
 
     const double originalVariance;
     const size_t maxNumberOfExamples;
 
     RNG rng;
     std::list<Mat_<uchar> > positiveExamples, negativeExamples;
-    std::vector<TLDEnsembleClassifier> classifiers;
+    std::vector<tldFernClassifier> classifiers;
 
 };
 }

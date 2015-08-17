@@ -47,32 +47,35 @@ namespace cv
 {
 namespace tld
 {
-class TLDEnsembleClassifier
+class tldFernClassifier
 {
 public:
 
-    TLDEnsembleClassifier(const Rect &roi, size_t actNumberOfFerns, size_t actNumberOfMeasurements);
+    tldFernClassifier(const Rect &roi, int actNumberOfFerns, int actNumberOfMeasurements);
 
     double getProbability(const Mat_<uchar> &image) const;
 
-    void integratePositiveExample(const Mat_<uchar> &image);
-    void integrateNegativeExample(const Mat_<uchar> &image);
-
-private:
-    void integrateExample(const Mat_<uchar> &image, bool isPositive);
-    int code(const Mat_<uchar> &image) const;
+    void integratePositiveExample(const Mat_<uchar> &image) { CV_Assert(image.size() == originalSize); integrateExample(image, true); }
+    void integrateNegativeExample(const Mat_<uchar> &image) { CV_Assert(image.size() == originalSize); integrateExample(image, false); }
 
 private:
     const Size originalSize;
-    const size_t numberOfFerns, numberOfMeasurements;
+    const int numberOfFerns, numberOfMeasurements;
 
-    std::vector<std::vector<Point2i> > posAndNeg;
-    std::vector<std::vector<Vec4b> > measurements;
+    typedef std::vector<std::vector<std::pair<Point, Point> > > Ferns;
+    Ferns ferns;
+
+    typedef std::vector<std::vector<Point2i> > Precedents;
+    Precedents precedents;
+
+private:
+    int code(const Mat_<uchar> &image, const Ferns::value_type &fern) const;
+    void integrateExample(const Mat_<uchar> &image, bool isPositive);
 
 #ifdef DEBUG
 public:
 #endif
-    void printClassifiers();
+    void printClassifiers(const Size &displaySize);
 
 
 };

@@ -47,33 +47,29 @@ namespace tld
 {
 
 
-TLDEnsembleClassifier::TLDEnsembleClassifier(const Rect &roi, size_t actNumberOfFerns, size_t actNumberOfMeasurements):
-    originalSize(roi.size()), numberOfFerns(actNumberOfFerns), numberOfMeasurements(actNumberOfMeasurements)
+FernClassifier::FernClassifier(const Rect &roi, int actNumberOfFerns, int actNumberOfMeasurements):
+    originalSize(roi.size()), numberOfFerns(actNumberOfFerns), numberOfMeasurements(actNumberOfMeasurements),
+    ferns(actNumberOfFerns), precedents(actNumberOfFerns)
 {
 
-    CV_Assert(originalSize.area() * (originalSize.width + originalSize.height) >= numberOfFens * measurePerClassifier); //is it enough measurements
+    CV_Assert(originalSize.area() * (originalSize.width + originalSize.height) >= numberOfFerns * numberOfMeasurements); //is it enough measurements
 
-    std::vector<Vec4b> originalMeasurements;
+    Ferns::value_type measurements;
 
-    originalMeasurements.reserve(originalSize.area() * (originalSize.width + originalSize.height));
+    measurements.reserve(originalSize.area() * (originalSize.width + originalSize.height));
 
     for(int i = 0; i < originalSize.width; ++i) //generating all possible horizontal and vertical pixel comprations
     {
         for(int j = 0; j < originalSize.height; ++j)
         {
-            Vec4b measure;
-            measure.val[0] = i;
-            measure.val[1] = j;
+            Point firstPoint(i,j);
 
             for(int kk = 0; kk < originalSize.width; ++kk)
             {
                 if(kk == i)
                     continue;
 
-                measure.val[2] = kk;
-                measure.val[3] = j;
-                originalMeasurements.push_back(measure);
-
+                measurements.push_back(std::make_pair(firstPoint, Point(kk, j)));
             }
 
             for(int kk = 0; kk < originalSize.height; ++kk)
@@ -81,105 +77,91 @@ TLDEnsembleClassifier::TLDEnsembleClassifier(const Rect &roi, size_t actNumberOf
                 if(kk == j)
                     continue;
 
-                measure.val[2] = i;
-                measure.val[3] = kk;
-                originalMeasurements.push_back(measure);
+                measurements.push_back(std::make_pair(firstPoint, Point(i, kk)));
             }
 
         }
     }
 
-    std::random_shuffle(originalMeasurements.begin(), originalMeasurements.end());
+    std::random_shuffle(measurements.begin(), measurements.end());
 
-    measurements.assign(numberOfFerns, std::vector<Vec4b>());
+    Precedents::value_type emptyPrecedents(1 << numberOfMeasurements, Point());
 
-    std::vector<Vec4b>::iterator originalMeasurementsIt = originalMeasurements.begin();
-    for(size_t i = 0; i < numberOfFerns; ++i)
+    Ferns::value_type::const_iterator originalMeasurementsIt = measurements.begin();
+    for(size_t i = 0; i < size_t(numberOfFerns); ++i)
     {
-        measurements[i].assign(originalMeasurementsIt, originalMeasurementsIt + numberOfMeasurements);
+        ferns[i].assign(originalMeasurementsIt, originalMeasurementsIt + numberOfMeasurements);
         originalMeasurementsIt += numberOfMeasurements;
+
+        precedents[i] = emptyPrecedents;
     }
 
 }
 
-double TLDEnsembleClassifier::getProbability(const Mat_<uchar> &image) const
-{
-    int position = code(image);
-    int posNum = posAndNeg[position].x, negNum = posAndNeg[position].y;
-
-    if (posNum == 0 && negNum == 0)
-        return 0.0;
-    else
-        return double(posNum) / (posNum + negNum);
-}
-
-void TLDEnsembleClassifier::integratePositiveExample(const Mat_<uchar> &image)
+double FernClassifier::getProbability(const Mat_<uchar> &image) const
 {
 
+    CV_Assert(image.size() == originalSize);
+
+    double accumProbability = 0.;
+    for(size_t i = 0; i < size_t(numberOfFerns); ++i)
+    {
+        int position = code(image, ferns[i]);
+
+        int posNum = precedents[i][position].x, negNum = precedents[i][position].y;
+
+        if (posNum != 0 || negNum != 0)
+            accumProbability += double(posNum) / (posNum + negNum);
+    }
+
+    return accumProbability / numberOfFerns;
 }
 
-void TLDEnsembleClassifier::integrateNegativeExample(const Mat_<uchar> &image)
-{
-
-}
-
-void TLDEnsembleClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
-{
-
-}
-
-int TLDEnsembleClassifier::code(const Mat_<uchar> &image) const
+int FernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern) const
 {
     int position = 0;
-    for (size_t i = 0; i < measurements.size(); i++)
+    for(Ferns::value_type::const_iterator measureIt = fern.begin(); measureIt != fern.end(); ++measureIt)
     {
         position <<= 1;
-        if (*(image + rowstep * measurements[i].val[2] + measurements[i].val[0]) <
-                *(image + rowstep * measurements[i].val[3] + measurements[i].val[1]))
-        {
+        if(image.at<uchar>(measureIt->first) < image.at<uchar>(measureIt->second))
             position++;
-        }
     }
     return position;
 }
 
-void TLDEnsembleClassifier::integrate(const Mat_<uchar>& patch, bool isPositive)
+void FernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
 {
-    int position = code(patch.data, (int)patch.step[0]);
-    if (isPositive)
-        posAndNeg[position].x++;
-    else
-        posAndNeg[position].y++;
+    for(size_t i = 0; i < ferns.size(); ++i)
+    {
+        int position = code(image, ferns[i]);
+
+        if(isPositive)
+            precedents[i][position].x++;
+        else
+            precedents[i][position].y++;
+    }
 }
 
-double TLDEnsembleClassifier::posteriorProbabilityFast(const uchar* data) const
-{
-    int position = codeFast(data);
-    double posNum = (double)posAndNeg[position].x, negNum = (double)posAndNeg[position].y;
-    if (posNum == 0.0 && negNum == 0.0)
-        return 0.0;
-    else
-        return posNum / (posNum + negNum);
-}
-
-void TLDEnsembleClassifier::printClassifier(const Size &displaySize, const Size &internalSize, const std::vector<TLDEnsembleClassifier> &classifiers)
+void FernClassifier::printClassifiers(const Size &displaySize)
 {
 
-    static RNG rng;
+    RNG rng;
+
+    double scale = double(displaySize.width) / originalSize.width;
 
     const Mat black(displaySize, CV_8UC3, Scalar::all(0));
 
-    for(std::vector<TLDEnsembleClassifier>::const_iterator classifier = classifiers.begin(); classifier != classifiers.end(); ++classifier )
+    for(Ferns::const_iterator fernIt = ferns.begin(); fernIt != ferns.end(); ++fernIt)
     {
         Mat copyBlack; black.copyTo(copyBlack);
 
-        for(std::vector<Vec4b>::const_iterator measure = classifier->measurements.begin(); measure != classifier->measurements.end(); ++measure)
+        for(Ferns::value_type::const_iterator measureIt = fernIt->begin(); measureIt != fernIt->end(); ++measureIt)
         {
             Scalar color(rng.uniform(0,255), rng.uniform(0,255), rng.uniform(0,255));
 
-            Point p1(measure->operator[](0) * (double(displaySize.width) / internalSize.width), measure->operator[](1) * (double(displaySize.height) / internalSize.height) );
-            Point p2(measure->operator[](2) * (double(displaySize.width) / internalSize.width), measure->operator[](3) * (double(displaySize.height) / internalSize.height) );
-                    line(copyBlack, p1, p2, color, 4);
+            Point p1(cvRound(measureIt->first.x * scale), cvRound(measureIt->first.y * scale));
+            Point p2(cvRound(measureIt->second.x * scale), cvRound(measureIt->second.y * scale));
+            line(copyBlack, p1, p2, color, 4);
         }
 
         imshow("printClassifier", copyBlack);

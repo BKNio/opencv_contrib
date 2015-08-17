@@ -64,7 +64,7 @@ TLDDetector::TLDDetector(const Mat &image, const Rect &bb, size_t actMaxNumberOf
     //TLDDetector::outputScanningGrid(image, closest);
     ///////////////////////////
 
-    TLDEnsembleClassifier::makeClassifiers(minSize_, MEASURES_PER_CLASSIFIER, GRIDSIZE, detector->classifiers);
+    tldFernClassifier::makeClassifiers(minSize_, MEASURES_PER_CLASSIFIER, GRIDSIZE, detector->classifiers);
 
     ///////////////////////////
     //TLDEnsembleClassifier::printClassifier(cv::Size(256, 256), minSize_, detector->classifiers);
@@ -126,14 +126,14 @@ TLDDetector::TLDDetector(const Mat &image, const Rect &bb, size_t actMaxNumberOf
 
 void TLDDetector::prepareClassifiers(int rowstep)
 {
-    for(std::vector<TLDEnsembleClassifier>::iterator it = classifiers.begin(); it != classifiers.end(); ++it)
+    for(std::vector<tldFernClassifier>::iterator it = classifiers.begin(); it != classifiers.end(); ++it)
         it->prepareClassifier(rowstep);
 }
 
 double TLDDetector::ensembleClassifierNum(const uchar* data)
 {
     double p = 0.;
-    for(std::vector<TLDEnsembleClassifier>::iterator it = classifiers.begin(); it != classifiers.end(); ++it)
+    for(std::vector<tldFernClassifier>::iterator it = classifiers.begin(); it != classifiers.end(); ++it)
         p += it->posteriorProbabilityFast(data);
 
     p /= classifiers.size();
