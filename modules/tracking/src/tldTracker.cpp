@@ -95,132 +95,132 @@ bool TrackerTLDImpl::initImpl(const Mat& image, const Rect2d& boundingBox)
 
 bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
 {
-    Mat image_gray, image_blurred, imageForDetector;
-    cvtColor( image, image_gray, COLOR_BGR2GRAY );
-    double scale = data->getScale();
-    if( scale > 1.0 )
-        resize(image_gray, imageForDetector, Size(cvRound(image.cols*scale), cvRound(image.rows*scale)), 0, 0, DOWNSCALE_MODE);
-    else
-        imageForDetector = image_gray;
-    GaussianBlur(imageForDetector, image_blurred, GaussBlurKernelSize, 0.0);
-    TrackerTLDModel* tldModel = ((TrackerTLDModel*)static_cast<TrackerModel*>(model));
-    data->frameNum++;
-    Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-    std::vector<TLDDetector::Response> detectorResults;
+//    Mat image_gray, image_blurred, imageForDetector;
+//    cvtColor( image, image_gray, COLOR_BGR2GRAY );
+//    double scale = data->getScale();
+//    if( scale > 1.0 )
+//        resize(image_gray, imageForDetector, Size(cvRound(image.cols*scale), cvRound(image.rows*scale)), 0, 0, DOWNSCALE_MODE);
+//    else
+//        imageForDetector = image_gray;
+//    GaussianBlur(imageForDetector, image_blurred, GaussBlurKernelSize, 0.0);
+//    TrackerTLDModel* tldModel = ((TrackerTLDModel*)static_cast<TrackerModel*>(model));
+//    data->frameNum++;
+//    Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
+//    std::vector<TLDDetector::Response> detectorResults;
 
-    std::vector<Rect2d> candidates;
-    std::vector<double> candidatesRes;
-    bool trackerNeedsReInit = false;
+//    std::vector<Rect2d> candidates;
+//    std::vector<double> candidatesRes;
+//    bool trackerNeedsReInit = false;
 
-    for( int i = 0; i < 2; i++ )
-    {
-        Rect2d tmpCandid = boundingBox;
+//    for( int i = 0; i < 2; i++ )
+//    {
+//        Rect2d tmpCandid = boundingBox;
 
-        if (i == 1)
-        {
-            tldModel->detector->detect(imageForDetector, image_blurred, tmpCandid, detectorResults, tldModel->getMinSize());
-        }
+//        if (i == 1)
+//        {
+//            tldModel->detector->detect(imageForDetector, image_blurred, tmpCandid, detectorResults, tldModel->getMinSize());
+//        }
 
-        if( ( (i == 0) && !data->failedLastTime && trackerProxy->update(image, tmpCandid) ) || ( DETECT_FLG))
-        {
-            candidates.push_back(tmpCandid);
-            if( i == 0 )
-                resample(image_gray, tmpCandid, standardPatch);
-            else
-                resample(imageForDetector, tmpCandid, standardPatch);
-            candidatesRes.push_back(tldModel->detector->Sc(standardPatch));
-        }
-        else
-        {
-            if( i == 0 )
-                trackerNeedsReInit = true;
-        }
-    }
+//        if( ( (i == 0) && !data->failedLastTime && trackerProxy->update(image, tmpCandid) ) || ( DETECT_FLG))
+//        {
+//            candidates.push_back(tmpCandid);
+//            if( i == 0 )
+//                resample(image_gray, tmpCandid, standardPatch);
+//            else
+//                resample(imageForDetector, tmpCandid, standardPatch);
+//            candidatesRes.push_back(tldModel->detector->Sc(standardPatch));
+//        }
+//        else
+//        {
+//            if( i == 0 )
+//                trackerNeedsReInit = true;
+//        }
+//    }
 
-    std::vector<double>::iterator it = std::max_element(candidatesRes.begin(), candidatesRes.end());
+//    std::vector<double>::iterator it = std::max_element(candidatesRes.begin(), candidatesRes.end());
 
-    //dfprintf((stdout, "scale = %f\n", log(1.0 * boundingBox.width / (data->getMinSize()).width) / log(SCALE_STEP)));
-    //for( int i = 0; i < (int)candidatesRes.size(); i++ )
-    //dprintf(("\tcandidatesRes[%d] = %f\n", i, candidatesRes[i]));
-    //data->printme();
-    //tldModel->printme(stdout);
+//    //dfprintf((stdout, "scale = %f\n", log(1.0 * boundingBox.width / (data->getMinSize()).width) / log(SCALE_STEP)));
+//    //for( int i = 0; i < (int)candidatesRes.size(); i++ )
+//    //dprintf(("\tcandidatesRes[%d] = %f\n", i, candidatesRes[i]));
+//    //data->printme();
+//    //tldModel->printme(stdout);
 
-    if( it == candidatesRes.end() )
-    {
-        data->confident = false;
-        data->failedLastTime = true;
-        return false;
-    }
-    else
-    {
-        boundingBox = candidates[it - candidatesRes.begin()];
-        data->failedLastTime = false;
-        if( trackerNeedsReInit || it != candidatesRes.begin() )
-            trackerProxy->init(image, boundingBox);
-    }
+//    if( it == candidatesRes.end() )
+//    {
+//        data->confident = false;
+//        data->failedLastTime = true;
+//        return false;
+//    }
+//    else
+//    {
+//        boundingBox = candidates[it - candidatesRes.begin()];
+//        data->failedLastTime = false;
+//        if( trackerNeedsReInit || it != candidatesRes.begin() )
+//            trackerProxy->init(image, boundingBox);
+//    }
 
-#if 1
-    if( it != candidatesRes.end() )
-    {
-        resample(imageForDetector, candidates[it - candidatesRes.begin()], standardPatch);
-        //dfprintf((stderr, "%d %f %f\n", data->frameNum, tldModel->Sc(standardPatch), tldModel->Sr(standardPatch)));
-        //if( candidatesRes.size() == 2 &&  it == (candidatesRes.begin() + 1) )
-        //dfprintf((stderr, "detector WON\n"));
-    }
-    else
-    {
-        //dfprintf((stderr, "%d x x\n", data->frameNum));
-    }
-#endif
+//#if 1
+//    if( it != candidatesRes.end() )
+//    {
+//        resample(imageForDetector, candidates[it - candidatesRes.begin()], standardPatch);
+//        //dfprintf((stderr, "%d %f %f\n", data->frameNum, tldModel->Sc(standardPatch), tldModel->Sr(standardPatch)));
+//        //if( candidatesRes.size() == 2 &&  it == (candidatesRes.begin() + 1) )
+//        //dfprintf((stderr, "detector WON\n"));
+//    }
+//    else
+//    {
+//        //dfprintf((stderr, "%d x x\n", data->frameNum));
+//    }
+//#endif
 
-    if( *it > CORE_THRESHOLD )
-        data->confident = true;
+//    if( *it > CORE_THRESHOLD )
+//        data->confident = true;
 
-    if( data->confident )
-    {
-        Pexpert pExpert(imageForDetector, image_blurred, boundingBox, tldModel->detector, params, data->getInternalBB().size());
-        Nexpert nExpert(imageForDetector, boundingBox, tldModel->detector, params);
-        std::vector<Mat_<uchar> > examplesForModel, examplesForEnsemble;
-        examplesForModel.reserve(100); examplesForEnsemble.reserve(100);
-        int negRelabeled = 0;
-        for( int i = 0; i < (int)detectorResults.size(); i++ )
-        {
-            bool expertResult;
-            if( detectorResults[i].isObject )
-            {
-                expertResult = nExpert(detectorResults[i].rect);
-                if( expertResult != detectorResults[i].isObject )
-                    negRelabeled++;
-            }
-            else
-            {
-                expertResult = pExpert(detectorResults[i].rect);
-            }
+//    if( data->confident )
+//    {
+//        Pexpert pExpert(imageForDetector, image_blurred, boundingBox, tldModel->detector, params, data->getInternalBB().size());
+//        Nexpert nExpert(imageForDetector, boundingBox, tldModel->detector, params);
+//        std::vector<Mat_<uchar> > examplesForModel, examplesForEnsemble;
+//        examplesForModel.reserve(100); examplesForEnsemble.reserve(100);
+//        int negRelabeled = 0;
+//        for( int i = 0; i < (int)detectorResults.size(); i++ )
+//        {
+//            bool expertResult;
+//            if( detectorResults[i].isObject )
+//            {
+//                expertResult = nExpert(detectorResults[i].rect);
+//                if( expertResult != detectorResults[i].isObject )
+//                    negRelabeled++;
+//            }
+//            else
+//            {
+//                expertResult = pExpert(detectorResults[i].rect);
+//            }
 
-            detectorResults[i].shouldBeIntegrated = detectorResults[i].shouldBeIntegrated || (detectorResults[i].isObject != expertResult);
-            detectorResults[i].isObject = expertResult;
-        }
-        tldModel->integrateRelabeled(imageForDetector, image_blurred, detectorResults);
-        //dprintf(("%d relabeled by nExpert\n", negRelabeled));
-        pExpert.additionalExamples(examplesForModel, examplesForEnsemble);
-        if (ocl::haveOpenCL())
-            tldModel->ocl_integrateAdditional(examplesForModel, examplesForEnsemble, true);
-        else
-            tldModel->integrateAdditional(examplesForModel, examplesForEnsemble, true);
-        examplesForModel.clear(); examplesForEnsemble.clear();
-        nExpert.additionalExamples(examplesForModel, examplesForEnsemble);
+//            detectorResults[i].shouldBeIntegrated = detectorResults[i].shouldBeIntegrated || (detectorResults[i].isObject != expertResult);
+//            detectorResults[i].isObject = expertResult;
+//        }
+//        tldModel->integrateRelabeled(imageForDetector, image_blurred, detectorResults);
+//        //dprintf(("%d relabeled by nExpert\n", negRelabeled));
+//        pExpert.additionalExamples(examplesForModel, examplesForEnsemble);
+//        if (ocl::haveOpenCL())
+//            tldModel->ocl_integrateAdditional(examplesForModel, examplesForEnsemble, true);
+//        else
+//            tldModel->integrateAdditional(examplesForModel, examplesForEnsemble, true);
+//        examplesForModel.clear(); examplesForEnsemble.clear();
+//        nExpert.additionalExamples(examplesForModel, examplesForEnsemble);
 
-        if (ocl::haveOpenCL())
-            tldModel->ocl_integrateAdditional(examplesForModel, examplesForEnsemble, false);
-        else
-            tldModel->integrateAdditional(examplesForModel, examplesForEnsemble, false);
-    }
-    else
-    {
-#ifdef CLOSED_LOOP
-        tldModel->integrateRelabeled(imageForDetector, image_blurred, detectorResults);
-#endif
-    }
+//        if (ocl::haveOpenCL())
+//            tldModel->ocl_integrateAdditional(examplesForModel, examplesForEnsemble, false);
+//        else
+//            tldModel->integrateAdditional(examplesForModel, examplesForEnsemble, false);
+//    }
+//    else
+//    {
+//#ifdef CLOSED_LOOP
+//        tldModel->integrateRelabeled(imageForDetector, image_blurred, detectorResults);
+//#endif
+//    }
 
     return true;
 }
@@ -228,48 +228,48 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
 
 int TrackerTLDImpl::Pexpert::additionalExamples(std::vector<Mat_<uchar> >& examplesForModel, std::vector<Mat_<uchar> >& examplesForEnsemble)
 {
-    examplesForModel.clear(); examplesForEnsemble.clear();
-    examplesForModel.reserve(100); examplesForEnsemble.reserve(100);
+//    examplesForModel.clear(); examplesForEnsemble.clear();
+//    examplesForModel.reserve(100); examplesForEnsemble.reserve(100);
 
-    std::vector<Rect2d> closest, scanGrid;
-    Mat scaledImg, blurredImg;
+//    std::vector<Rect2d> closest, scanGrid;
+//    Mat scaledImg, blurredImg;
 
-    double scale = scaleAndBlur(img_, cvRound(log(1.0 * resultBox_.width / (initSize_.width)) / log(SCALE_STEP)),
-                                scaledImg, blurredImg, GaussBlurKernelSize, SCALE_STEP);
-    TLDDetector::generateScanGrid(img_.rows, img_.cols, initSize_, scanGrid);
-    getClosestN(scanGrid, Rect2d(resultBox_.x / scale, resultBox_.y / scale, resultBox_.width / scale, resultBox_.height / scale), 10, closest);
+//    double scale = scaleAndBlur(img_, cvRound(log(1.0 * resultBox_.width / (initSize_.width)) / log(SCALE_STEP)),
+//                                scaledImg, blurredImg, GaussBlurKernelSize, SCALE_STEP);
+//    TLDDetector::generateScanGrid(img_.rows, img_.cols, initSize_, scanGrid);
+//    getClosestN(scanGrid, Rect2d(resultBox_.x / scale, resultBox_.y / scale, resultBox_.width / scale, resultBox_.height / scale), 10, closest);
 
-    for( int i = 0; i < (int)closest.size(); i++ )
-    {
-        for( int j = 0; j < 10; j++ )
-        {
-            Point2f center;
-            Size2f size;
-            Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE), blurredPatch(initSize_);
-            center.x = (float)(closest[i].x + closest[i].width * (0.5 + rng.uniform(-0.01, 0.01)));
-            center.y = (float)(closest[i].y + closest[i].height * (0.5 + rng.uniform(-0.01, 0.01)));
-            size.width = (float)(closest[i].width * rng.uniform((double)0.99, (double)1.01));
-            size.height = (float)(closest[i].height * rng.uniform((double)0.99, (double)1.01));
-            float angle = (float)rng.uniform(-5.0, 5.0);
+//    for( int i = 0; i < (int)closest.size(); i++ )
+//    {
+//        for( int j = 0; j < 10; j++ )
+//        {
+//            Point2f center;
+//            Size2f size;
+//            Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE), blurredPatch(initSize_);
+//            center.x = (float)(closest[i].x + closest[i].width * (0.5 + rng.uniform(-0.01, 0.01)));
+//            center.y = (float)(closest[i].y + closest[i].height * (0.5 + rng.uniform(-0.01, 0.01)));
+//            size.width = (float)(closest[i].width * rng.uniform((double)0.99, (double)1.01));
+//            size.height = (float)(closest[i].height * rng.uniform((double)0.99, (double)1.01));
+//            float angle = (float)rng.uniform(-5.0, 5.0);
 
-            for( int y = 0; y < standardPatch.rows; y++ )
-            {
-                for( int x = 0; x < standardPatch.cols; x++ )
-                {
-                    standardPatch(x, y) += (uchar)rng.gaussian(5.0);
-                }
-            }
-#ifdef BLUR_AS_VADIM
-            GaussianBlur(standardPatch, blurredPatch, GaussBlurKernelSize, 0.0);
-            resize(blurredPatch, blurredPatch, initSize_);
-#else
-            resample(blurredImg, RotatedRect(center, size, angle), blurredPatch);
-#endif
-            resample(scaledImg, RotatedRect(center, size, angle), standardPatch);
-            examplesForModel.push_back(standardPatch);
-            examplesForEnsemble.push_back(blurredPatch);
-        }
-    }
+//            for( int y = 0; y < standardPatch.rows; y++ )
+//            {
+//                for( int x = 0; x < standardPatch.cols; x++ )
+//                {
+//                    standardPatch(x, y) += (uchar)rng.gaussian(5.0);
+//                }
+//            }
+//#ifdef BLUR_AS_VADIM
+//            GaussianBlur(standardPatch, blurredPatch, GaussBlurKernelSize, 0.0);
+//            resize(blurredPatch, blurredPatch, initSize_);
+//#else
+//            resample(blurredImg, RotatedRect(center, size, angle), blurredPatch);
+//#endif
+//            resample(scaledImg, RotatedRect(center, size, angle), standardPatch);
+//            examplesForModel.push_back(standardPatch);
+//            examplesForEnsemble.push_back(blurredPatch);
+//        }
+//    }
     return 0;
 }
 
@@ -292,16 +292,6 @@ Data::Data(Rect2d initBox)
     internalBB.height = cvRound(initBox.height * scale);
 
     frameNum = 0;
-    //dprintf(("minSize = %dx%d\n", minSize.width, minSize.height));
-}
-
-void Data::printme(FILE*  port)
-{
-    dfprintf((port, "Data:\n"));
-    dfprintf((port, "\tframeNum = %d\n", frameNum));
-    dfprintf((port, "\tconfident = %s\n", confident?"true":"false"));
-    dfprintf((port, "\tfailedLastTime = %s\n", failedLastTime?"true":"false"));
-    dfprintf((port, "\tminSize = %dx%d\n", internalBB.width, internalBB.height));
 }
 
 }

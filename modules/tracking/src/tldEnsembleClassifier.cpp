@@ -47,11 +47,10 @@ namespace tld
 {
 
 
-FernClassifier::FernClassifier(const Rect &roi, int actNumberOfFerns, int actNumberOfMeasurements):
-    originalSize(roi.size()), numberOfFerns(actNumberOfFerns), numberOfMeasurements(actNumberOfMeasurements),
+tldFernClassifier::tldFernClassifier(const Size &initialSize, int actNumberOfFerns, int actNumberOfMeasurements):
+    originalSize(initialSize), numberOfFerns(actNumberOfFerns), numberOfMeasurements(actNumberOfMeasurements),
     ferns(actNumberOfFerns), precedents(actNumberOfFerns)
 {
-
     CV_Assert(originalSize.area() * (originalSize.width + originalSize.height) >= numberOfFerns * numberOfMeasurements); //is it enough measurements
 
     Ferns::value_type measurements;
@@ -98,7 +97,7 @@ FernClassifier::FernClassifier(const Rect &roi, int actNumberOfFerns, int actNum
 
 }
 
-double FernClassifier::getProbability(const Mat_<uchar> &image) const
+double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
 {
 
     CV_Assert(image.size() == originalSize);
@@ -117,7 +116,7 @@ double FernClassifier::getProbability(const Mat_<uchar> &image) const
     return accumProbability / numberOfFerns;
 }
 
-int FernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern) const
+int tldFernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern) const
 {
     int position = 0;
     for(Ferns::value_type::const_iterator measureIt = fern.begin(); measureIt != fern.end(); ++measureIt)
@@ -129,7 +128,7 @@ int FernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern
     return position;
 }
 
-void FernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
+void tldFernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
 {
     for(size_t i = 0; i < ferns.size(); ++i)
     {
@@ -142,7 +141,7 @@ void FernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
     }
 }
 
-void FernClassifier::printClassifiers(const Size &displaySize)
+void tldFernClassifier::printClassifiers(const Size &displaySize)
 {
 
     RNG rng;
@@ -157,7 +156,7 @@ void FernClassifier::printClassifiers(const Size &displaySize)
 
         for(Ferns::value_type::const_iterator measureIt = fernIt->begin(); measureIt != fernIt->end(); ++measureIt)
         {
-            Scalar color(rng.uniform(0,255), rng.uniform(0,255), rng.uniform(0,255));
+            Scalar color(rng.uniform(10,255), rng.uniform(10,255), rng.uniform(10,255));
 
             Point p1(cvRound(measureIt->first.x * scale), cvRound(measureIt->first.y * scale));
             Point p2(cvRound(measureIt->second.x * scale), cvRound(measureIt->second.y * scale));

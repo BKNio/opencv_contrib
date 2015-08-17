@@ -50,8 +50,7 @@ namespace tld
 class tldFernClassifier
 {
 public:
-
-    tldFernClassifier(const Rect &roi, int actNumberOfFerns, int actNumberOfMeasurements);
+    tldFernClassifier(const Size &roi, int actNumberOfFerns, int actNumberOfMeasurements);
 
     double getProbability(const Mat_<uchar> &image) const;
 
@@ -76,7 +75,6 @@ private:
 public:
 #endif
     void printClassifiers(const Size &displaySize);
-
 
 };
 }

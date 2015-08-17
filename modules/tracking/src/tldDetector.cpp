@@ -46,98 +46,113 @@ namespace cv
 namespace tld
 {
 
-TLDDetector::TLDDetector(const Mat &image, const Rect &bb, size_t actMaxNumberOfExamples, size_t actNumberOfFerns) : maxNumberOfExamples(actMaxNumberOfExamples)
+TLDDetector::TLDDetector(const Mat &originalImage, const Rect &bb, int actMaxNumberOfExamples, int numberOfFerns, int numberOfMeasurements):
+    maxNumberOfExamples(actMaxNumberOfExamples)
 {
-    std::vector<Rect2d> closest, scanGrid;
-    Mat blurredWapedPatch;
 
 
-    generateScanGrid(image.rows, image.cols, minSize_, scanGrid);
+    Mat_<uchar> image;
 
+    if(originalImage.type() == CV_8UC3)
+        cvtColor(originalImage, image, CV_BGR2GRAY);
+    else if(originalImage.type() == CV_8U)
+        image = originalImage;
+    else
+        CV_Error(Error::StsBadArg, "Image should be grayscale or RGB");
+
+    if(bb.height < 20 || bb.width < 20)
+        CV_Error(Error::StsBadArg, "Minimal height and width should be greater or equal to 20");
+
+    fernClassifier = makePtr<tldFernClassifier>(bb.size(), numberOfFerns, numberOfMeasurements);
+
+    std::vector<Rect> scanGrid;
+    generateScanGrid(originalImage.size(), bb.size(), scanGrid);
     ///////////////////////////
     //TLDDetector::outputScanningGrid(image, scanGrid);
     ///////////////////////////
 
-    getClosestN(scanGrid, boundingBox, 10, closest);
-
+    std::vector<Rect> closest;
+    getClosestN(scanGrid, bb, 10, closest);
     ///////////////////////////
     //TLDDetector::outputScanningGrid(image, closest);
     ///////////////////////////
 
-    tldFernClassifier::makeClassifiers(minSize_, MEASURES_PER_CLASSIFIER, GRIDSIZE, detector->classifiers);
+    fernClassifier->printClassifiers(cv::Size(256, 256));
 
     ///////////////////////////
     //TLDEnsembleClassifier::printClassifier(cv::Size(256, 256), minSize_, detector->classifiers);
     ///////////////////////////
 
-    Mat_<uchar> warpedPatch(minSize_);
+//    Mat_<uchar> warpedPatch(minSize_);
 
-    for (int i = 0; i < (int)closest.size(); i++)
-    {
-        for (int j = 0; j < 20; j++)
-        {
-            Point2f center;
-            Size2f size;
+//    for (int i = 0; i < (int)closest.size(); i++)
+//    {
+//        for (int j = 0; j < 20; j++)
+//        {
+//            Point2f center;
+//            Size2f size;
 
-            center.x = (float)(closest[i].x + closest[i].width * (0.5 + rng.uniform(-0.01, 0.01)));
-            center.y = (float)(closest[i].y + closest[i].height * (0.5 + rng.uniform(-0.01, 0.01)));
+//            center.x = (float)(closest[i].x + closest[i].width * (0.5 + rng.uniform(-0.01, 0.01)));
+//            center.y = (float)(closest[i].y + closest[i].height * (0.5 + rng.uniform(-0.01, 0.01)));
 
-            size.width = (float)(closest[i].width * rng.uniform((double)0.99, (double)1.01));
-            size.height = (float)(closest[i].height * rng.uniform((double)0.99, (double)1.01));
+//            size.width = (float)(closest[i].width * rng.uniform((double)0.99, (double)1.01));
+//            size.height = (float)(closest[i].height * rng.uniform((double)0.99, (double)1.01));
 
-            float angle = (float)rng.uniform(-10.0, 10.0);
+//            float angle = (float)rng.uniform(-10.0, 10.0);
 
-            resample(image, RotatedRect(center, size, angle), warpedPatch);
-            GaussianBlur(warpedPatch, blurredWapedPatch, GaussBlurKernelSize, 0.0);
-            for (int k = 0; k < (int)detector->classifiers.size(); k++)
-                detector->classifiers[k].integrate(blurredWapedPatch, true);
+//            resample(originalImage, RotatedRect(center, size, angle), warpedPatch);
+//            GaussianBlur(warpedPatch, blurredWapedPatch, GaussBlurKernelSize, 0.0);
+//            for (int k = 0; k < (int)detector->classifiers.size(); k++)
+//                detector->classifiers[k].integrate(blurredWapedPatch, true);
 
-            Mat_<uchar> stdPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-            resample(image, RotatedRect(center, size, angle), stdPatch);
-            pushIntoModel(stdPatch, true);
-            /////////////////////////////////////////////////////
-            //imshow("blurredWapedPatch", blurredWapedPatch);
-            //imshow("stdPatch", stdPatch);
-            //waitKey();
-            /////////////////////////////////////////////////////
+//            Mat_<uchar> stdPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
+//            resample(originalImage, RotatedRect(center, size, angle), stdPatch);
+//            pushIntoModel(stdPatch, true);
+//            /////////////////////////////////////////////////////
+//            //imshow("blurredWapedPatch", blurredWapedPatch);
+//            //imshow("stdPatch", stdPatch);
+//            //waitKey();
+//            /////////////////////////////////////////////////////
 
-        }
-    }
+//        }
+//    }
 
-    TLDDetector::generateScanGrid(image.rows, image.cols, minSize_, scanGrid, true);
-    std::vector<int> indices;
-    indices.reserve(NEG_EXAMPLES_IN_INIT_MODEL);
-    while ((int)indices.size() < NEG_EXAMPLES_IN_INIT_MODEL)
-    {
-        int i = rng.uniform((int)0, (int)scanGrid.size());
-        if (std::find(indices.begin(), indices.end(), i) == indices.end() && overlap(boundingBox, scanGrid[i]) < NEXPERT_THRESHOLD)
-        {
-            indices.push_back(i);
-            Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-            resample(image, scanGrid[i], standardPatch);
-            pushIntoModel(standardPatch, false);
+//    TLDDetector::generateScanGrid(originalImage.rows, originalImage.cols, minSize_, scanGrid, true);
+//    std::vector<int> indices;
+//    indices.reserve(NEG_EXAMPLES_IN_INIT_MODEL);
+//    while ((int)indices.size() < NEG_EXAMPLES_IN_INIT_MODEL)
+//    {
+//        int i = rng.uniform((int)0, (int)scanGrid.size());
+//        if (std::find(indices.begin(), indices.end(), i) == indices.end() && overlap(boundingBox, scanGrid[i]) < NEXPERT_THRESHOLD)
+//        {
+//            indices.push_back(i);
+//            Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
+//            resample(originalImage, scanGrid[i], standardPatch);
+//            pushIntoModel(standardPatch, false);
 
-            resample(image, scanGrid[i], warpedPatch);
-            for (int k = 0; k < (int)detector->classifiers.size(); k++)
-                detector->classifiers[k].integrate(warpedPatch, false);
-        }
-    }
+//            resample(originalImage, scanGrid[i], warpedPatch);
+//            for (int k = 0; k < (int)detector->classifiers.size(); k++)
+//                detector->classifiers[k].integrate(warpedPatch, false);
+//        }
+//    }
 }
 
 void TLDDetector::prepareClassifiers(int rowstep)
 {
-    for(std::vector<tldFernClassifier>::iterator it = classifiers.begin(); it != classifiers.end(); ++it)
-        it->prepareClassifier(rowstep);
+//    for(std::vector<tldFernClassifier>::iterator it = classifiers.begin(); it != classifiers.end(); ++it)
+//        it->prepareClassifier(rowstep);
 }
 
 double TLDDetector::ensembleClassifierNum(const uchar* data)
 {
-    double p = 0.;
-    for(std::vector<tldFernClassifier>::iterator it = classifiers.begin(); it != classifiers.end(); ++it)
-        p += it->posteriorProbabilityFast(data);
+//    double p = 0.;
+//    for(std::vector<tldFernClassifier>::iterator it = classifiers.begin(); it != classifiers.end(); ++it)
+//        p += it->posteriorProbabilityFast(data);
 
-    p /= classifiers.size();
-    return p;
+//    p /= classifiers.size();
+//    return p;
+
+    return 0.;
 }
 
 double TLDDetector::Sr(const Mat_<uchar>& patch)
@@ -271,16 +286,16 @@ void TLDDetector::detect(const Mat& img, const Mat& imgBlurred, std::vector<Resp
     }
 }
 
-void TLDDetector::printRect(Mat &image, const Rect2d rect)
+void TLDDetector::printRect(Mat &image, const Rect rect)
 {
     rectangle(image, rect, Scalar::all(255));
 }
 
-void TLDDetector::outputScanningGrid(const Mat &image, const std::vector<Rect2d> &scanGrid)
+void TLDDetector::outputScanningGrid(const Mat &image, const std::vector<Rect> &scanGrid)
 {
     cv::Mat imageCopy; image.copyTo(imageCopy);
 
-    std::vector<Rect2d> copyScanGrid(scanGrid);
+    std::vector<Rect> copyScanGrid(scanGrid);
 
     if(copyScanGrid.size() > 100)
     {
@@ -321,6 +336,16 @@ bool TLDDetector::patchVariance(Mat_<double>& intImgP, Mat_<double>& intImgP2, P
     p2 = (A + D - B - C) / (width * height);
 
     return ((p2 - p * p) > VARIANCE_THRESHOLD * originalVariance);
+}
+
+void TLDDetector::addPositiveExample(const Mat_<uchar> &example)
+{
+    addExample(example, positiveExamples); fernClassifier->integratePositiveExample(example);
+}
+
+void TLDDetector::addNegativeExample(const Mat_<uchar> &example)
+{
+    addExample(example, negativeExamples); fernClassifier->integrateNegativeExample(example);
 }
 
 void TLDDetector::addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage)

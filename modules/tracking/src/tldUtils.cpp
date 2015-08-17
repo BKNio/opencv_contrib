@@ -49,56 +49,7 @@ namespace tld
 
 //Debug functions and variables
 Rect2d etalon(14.0, 110.0, 20.0, 20.0);
-void drawWithRects(const Mat& img, std::vector<Rect2d>& blackOnes, Rect2d whiteOne)
-{
-    Mat image;
-    img.copyTo(image);
-    if( whiteOne.width >= 0 )
-        rectangle( image, whiteOne, 255, 1, 1 );
-    for( int i = 0; i < (int)blackOnes.size(); i++ )
-        rectangle( image, blackOnes[i], 0, 1, 1 );
-    imshow("img", image);
-}
-void drawWithRects(const Mat& img, std::vector<Rect2d>& blackOnes, std::vector<Rect2d>& whiteOnes, String filename)
-{
-    Mat image;
-    static int frameCounter = 1;
-    img.copyTo(image);
-    for( int i = 0; i < (int)whiteOnes.size(); i++ )
-        rectangle( image, whiteOnes[i], 255, 1, 1 );
-    for( int i = 0; i < (int)blackOnes.size(); i++ )
-        rectangle( image, blackOnes[i], 0, 1, 1 );
-    imshow("img", image);
-    if( filename.length() > 0 )
-    {
-        char inbuf[100];
-        sprintf(inbuf, "%s%d.jpg", filename.c_str(), frameCounter);
-        imwrite(inbuf, image);
-        frameCounter++;
-    }
-}
-void myassert(const Mat& img)
-{
-    int count = 0;
-    for( int i = 0; i < img.rows; i++ )
-    {
-        for( int j = 0; j < img.cols; j++ )
-        {
-            if( img.at<uchar>(i, j) == 0 )
-                count++;
-        }
-    }
-    dprintf(("black: %d out of %d (%f)\n", count, img.rows * img.cols, 1.0 * count / img.rows / img.cols));
-}
-void printPatch(const Mat_<uchar>& standardPatch)
-{
-    for( int i = 0; i < standardPatch.rows; i++ )
-    {
-        for( int j = 0; j < standardPatch.cols; j++ )
-            dprintf(("%5.2f, ", (double)standardPatch(i, j)));
-        dprintf(("\n"));
-    }
-}
+
 std::string type2str(const Mat& mat)
 {
   int type = mat.type();
@@ -125,61 +76,38 @@ std::string type2str(const Mat& mat)
 }
 
 //Scale & Blur image using scale Indx
-double scaleAndBlur(const Mat& originalImg, int scale, Mat& scaledImg, Mat& blurredImg, Size GaussBlurKernelSize, double scaleStep)
-{
-    double dScale = 1.0;
-    for( int i = 0; i < scale; i++, dScale *= scaleStep );
-    Size2d size = originalImg.size();
-    size.height /= dScale; size.width /= dScale;
-    resize(originalImg, scaledImg, size);
-    GaussianBlur(scaledImg, blurredImg, GaussBlurKernelSize, 0.0);
-    return dScale;
-}
+//double scaleAndBlur(const Mat& originalImg, int scale, Mat& scaledImg, Mat& blurredImg, Size GaussBlurKernelSize, double scaleStep)
+//{
+//    double dScale = 1.0;
+//    for( int i = 0; i < scale; i++, dScale *= scaleStep );
+//    Size2d size = originalImg.size();
+//    size.height /= dScale; size.width /= dScale;
+//    resize(originalImg, scaledImg, size);
+//    GaussianBlur(scaledImg, blurredImg, GaussBlurKernelSize, 0.0);
+//    return dScale;
+//}
+
+bool comparartor(Overlaps::value_type a, Overlaps::value_type b) { return a.second > b.second;}
 
 //Find N-closest BB to the target
-void getClosestN(const std::vector<Rect2d>& scanGrid, const Rect2d &bBox, int n, std::vector<Rect2d>& res)
+void getClosestN(const std::vector<Rect>& scanGrid, const Rect &bBox, int n, std::vector<Rect>& res)
 {
-    if( n >= (int)scanGrid.size() )
+    if(n >= int(scanGrid.size()))
+        res = scanGrid;
+    else
     {
-        res.assign(scanGrid.begin(), scanGrid.end());
-        return;
-    }
-    std::vector<double> overlaps;
-    overlaps.assign(n, 0.0);
-    res.assign(scanGrid.begin(), scanGrid.begin() + n);
-    for( int i = 0; i < n; i++ )
-        overlaps[i] = overlap(res[i], bBox);
+        Overlaps overlaps;
+        overlaps.reserve(scanGrid.size());
 
-    double otmp;
-    Rect2d rtmp;
-    for (int i = 1; i < n; i++)
-    {
-        int j = i;
-        while (j > 0 && overlaps[j - 1] > overlaps[j])
-        {
-            otmp = overlaps[j];
-            overlaps[j] = overlaps[j - 1];
-            overlaps[j - 1] = otmp;
+        for(size_t i = 0; i < scanGrid.size(); ++i)
+            overlaps.push_back(std::make_pair(i, overlap(bBox, scanGrid[i])));
 
-            rtmp = res[j];
-            res[j] = res[j - 1];
-            res[j - 1] = rtmp;
-            j--;
-        }
+        std::sort(overlaps.begin(), overlaps.end(), std::ptr_fun(comparartor));
+
+        for(Overlaps::const_iterator it = overlaps.begin(); it != overlaps.begin() + n; ++it)
+            res.push_back(scanGrid[it->first]);
     }
 
-    for( int i = n; i < (int)scanGrid.size(); i++ )
-    {
-        double o = 0.0;
-        if( (o = overlap(scanGrid[i], bBox)) <= overlaps[0] )
-            continue;
-        int j = 0;
-        while( j < n && overlaps[j] < o )
-            j++;
-        j--;
-        for( int k = 0; k < j; overlaps[k] = overlaps[k + 1], res[k] = res[k + 1], k++ );
-        overlaps[j] = o; res[j] = scanGrid[i];
-    }
 }
 
 //Calculate patch variance
@@ -235,7 +163,7 @@ int getMedian(const std::vector<int>& values, int size)
 }
 
 //Overlap between two BB
-double overlap(const Rect2d& r1, const Rect2d& r2)
+double overlap(const Rect& r1, const Rect& r2)
 {
     double a1 = r1.area(), a2 = r2.area(), a0 = (r1&r2).area();
     return a0 / (a1 + a2 - a0);
@@ -292,42 +220,51 @@ std::pair<double, Rect2d> augmentedOverlap(const Rect2d rect, const Rect2d bb)
     return std::make_pair(overlap(rect,bb), bb);
 }
 
-void generateScanGrid(int rows, int cols, Size initBox, std::vector<Rect2d>& res, bool withScaling)
+void generateScanGrid(const Size &imageSize, const Size &actBBSize, std::vector<Rect> &res)
 {
-    res.clear();
-    for (double h = initBox.height, w = initBox.width; h < cols && w < rows;)
+    Size2d bbSize = actBBSize;
+
+    generateScanGridInternal(imageSize, bbSize, res);
+
+    bool isDownScaleDone = false;
+    bool isUpScaleDone = false;
+
+    double upScale = 1., downScale = 1.;
+
+    while(!isDownScaleDone || !isUpScaleDone)
     {
-        for (double x = 0; (x + w + 1.0) <= cols; x += (0.1 * w))
+        if(!isDownScaleDone)
         {
-            for (double y = 0; (y + h + 1.0) <= rows; y += (0.1 * h))
-                res.push_back(Rect2d(x, y, w, h));
-        }
-        if (withScaling)
-        {
-            if (h <= initBox.height)
-            {
-                h /= SCALE_STEP;
-                w /= SCALE_STEP;
-                if (h < 20 || w < 20)
-                {
-                    h = initBox.height * SCALE_STEP;
-                    w = initBox.width * SCALE_STEP;
-                    CV_Assert(h > initBox.height || w > initBox.width);
-                }
-            }
+            downScale /= SCALE_STEP;
+            Size2d downSize = bbSize * downScale;
+            if(downSize.height < 20 || downSize.width < 20)
+                isDownScaleDone = true;
             else
-            {
-                h *= SCALE_STEP;
-                w *= SCALE_STEP;
-            }
+                generateScanGrid(imageSize, downSize, res);
         }
-        else
+
+        if(!isUpScaleDone)
         {
-            break;
+            upScale *= SCALE_STEP;
+            Size2d upSize = bbSize * upScale;
+            if(upSize.height > imageSize.height / 2 || upSize.width > imageSize.width / 2)
+                isUpScaleDone = true;
+            else
+                generateScanGridInternal(imageSize, upSize, res);
         }
     }
-    //dprintf(("%d rects in res\n", (int)res.size()));
 }
 
+void generateScanGridInternal(const Size &imageSize, const Size2d &bbSize, std::vector<Rect> &res)
+{
+    double h = bbSize.height, w = bbSize.width;
+    for (double x = 0; x + w + 1.0 <= imageSize.width; x += 0.1 * w)
+    {
+        for (double y = 0; y + h + 1.0 <= imageSize.height; y += 0.1 * h)
+            res.push_back(Rect(x, y, w, h));
+    }
 
-}}
+}
+
+}
+}

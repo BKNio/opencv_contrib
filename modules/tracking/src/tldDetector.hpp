@@ -54,24 +54,9 @@ namespace cv
 {
 namespace tld
 {
-const int STANDARD_PATCH_SIZE = 15;
-const int NEG_EXAMPLES_IN_INIT_MODEL = 300;
-const int MAX_EXAMPLES_IN_MODEL = 500;
-const int MEASURES_PER_CLASSIFIER = 13;
-const int GRIDSIZE = STANDARD_PATCH_SIZE;
-const int DOWNSCALE_MODE = cv::INTER_LINEAR;
-const double THETA_NN = 0.6;
-const double CORE_THRESHOLD = 0.5;
-const double SCALE_STEP = 1.2;
-const double ENSEMBLE_THRESHOLD = 0.5;
-const double VARIANCE_THRESHOLD = 0.5;
-const double NEXPERT_THRESHOLD = 0.2;
-
-static const cv::Size GaussBlurKernelSize(3, 3);
 
 class TLDDetector
 {
-
 public:
     struct Response
     {
@@ -80,41 +65,38 @@ public:
     };
 
 public:
-    TLDDetector(const Mat &image, const Rect &bb, size_t actMaxNumberOfExamples, size_t actNumberOfFerns);
+    TLDDetector(const Mat &originalImage, const Rect &bb, int actMaxNumberOfExamples, int numberOfFerns, int numberOfMeasurements);
     ~TLDDetector(){}
 
+    void detect(const Mat& img, const Mat& imgBlurred, std::vector<Response>& patches, Size initSize);
+    void addPositiveExample(const Mat_<uchar> &example);
+    void addNegativeExample(const Mat_<uchar> &example);
+
+private:
+    Ptr<tldFernClassifier> fernClassifier;
+
+    /*const*/ double originalVariance;
+    const int maxNumberOfExamples;
+    std::list<Mat_<uchar> > positiveExamples, negativeExamples;
+
+    RNG rng;
+
+private:
+    void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
     double ensembleClassifierNum(const uchar* data);
     void prepareClassifiers(int rowstep);
 
     double Sr(const Mat_<uchar>& patch);
     double Sc(const Mat_<uchar>& patch);
-
-    void detect(const Mat& img, const Mat& imgBlurred, std::vector<Response>& patches, Size initSize);
-
     bool patchVariance(Mat_<double>& intImgP, Mat_<double>& intImgP2, Point pt, Size size);
     void computeIntegralImages(const Mat& img, Mat_<double>& intImgP, Mat_<double>& intImgP2){ integral(img, intImgP, intImgP2, CV_64F); }
 
-    void addPositiveExample(const Mat_<uchar> &example) { addExample(example, positiveExamples); }
-    void addNegativeExample(const Mat_<uchar> &example) { addExample(example, negativeExamples); }
+#ifdef DEBUG
+public:
+#endif
+    static void printRect(cv::Mat &image, const Rect rect);
+    static void outputScanningGrid(const cv::Mat &image, const std::vector<Rect> &scanGrid);
 
-    ////////////////////////////////////////////////
-    static void printRect(cv::Mat &image, const Rect2d rect);
-    static void outputScanningGrid(const cv::Mat &image, const std::vector<cv::Rect2d> &scanGrid);
-    ////////////////////////////////////////////////
-
-private:
-    void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
-
-private:
-
-    Ptr<tldFernClassifier> ensebmler;
-
-    const double originalVariance;
-    const size_t maxNumberOfExamples;
-
-    RNG rng;
-    std::list<Mat_<uchar> > positiveExamples, negativeExamples;
-    std::vector<tldFernClassifier> classifiers;
 
 };
 }
