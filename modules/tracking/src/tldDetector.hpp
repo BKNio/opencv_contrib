@@ -55,7 +55,33 @@ namespace cv
 namespace tld
 {
 
-class TLDDetector
+
+class tldNNClassifier
+{
+public:
+    tldNNClassifier(size_t actMaxNumberOfExamples, Size actPatchSize) : maxNumberOfExamples(actMaxNumberOfExamples), patchSize(actPatchSize){}
+
+    ~tldNNClassifier(){}
+
+    void addPositiveExample(const Mat_<uchar> &example) { addExample(example, positiveExamples); }
+    void addNegativeExample(const Mat_<uchar> &example) { addExample(example, negativeExamples); }
+
+    double Sr(const Mat_<uchar>& patch) const;
+    double Sc(const Mat_<uchar>& patch) const;
+
+private:
+    const size_t maxNumberOfExamples;
+    const Size patchSize;
+
+    std::list<Mat_<uchar> > positiveExamples, negativeExamples;
+    RNG rng;
+
+private:
+    void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
+    static double NCC(const Mat_<uchar>& patch1, const Mat_<uchar>& patch2);
+};
+
+class tldDetector
 {
 public:
     struct Response
@@ -65,40 +91,26 @@ public:
     };
 
 public:
-    TLDDetector(const Mat &originalImage, const Rect &bb, int actMaxNumberOfExamples, int numberOfFerns, int numberOfMeasurements);
-    ~TLDDetector(){}
+    tldDetector(const Mat &originalImage, const Rect &bb, int actMaxNumberOfExamples, int numberOfFerns, int numberOfMeasurements);
+    ~tldDetector(){}
 
-    void detect(const Mat& img, const Mat& imgBlurred, std::vector<Response>& patches, Size initSize);
+    void detect(const Mat_<uchar> &img, std::vector<Response>& responses);
+
     void addPositiveExample(const Mat_<uchar> &example);
     void addNegativeExample(const Mat_<uchar> &example);
 
 private:
     Ptr<tldFernClassifier> fernClassifier;
+    Ptr<tldNNClassifier> nnClassifier;
 
-    /*const*/ double originalVariance;
-    const int maxNumberOfExamples;
-    std::list<Mat_<uchar> > positiveExamples, negativeExamples;
-
-    RNG rng;
+    const double originalVariance;
 
 private:
-    void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
-    double ensembleClassifierNum(const uchar* data);
-    void prepareClassifiers(int rowstep);
-
-    double Sr(const Mat_<uchar>& patch);
-    double Sc(const Mat_<uchar>& patch);
-    bool patchVariance(Mat_<double>& intImgP, Mat_<double>& intImgP2, Point pt, Size size);
-    void computeIntegralImages(const Mat& img, Mat_<double>& intImgP, Mat_<double>& intImgP2){ integral(img, intImgP, intImgP2, CV_64F); }
-
-#ifdef DEBUG
-public:
-#endif
-    static void printRect(cv::Mat &image, const Rect rect);
-    static void outputScanningGrid(const cv::Mat &image, const std::vector<Rect> &scanGrid);
-
+    static double variance(const Mat_<uchar>& img);
+    static double variance(const Mat_<double>& intImgP, const Mat_<double>& intImgP2, Point pt, Size size);
 
 };
+
 }
 }
 

@@ -99,7 +99,6 @@ tldFernClassifier::tldFernClassifier(const Size &initialSize, int actNumberOfFer
 
 double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
 {
-
     CV_Assert(image.size() == originalSize);
 
     double accumProbability = 0.;
@@ -141,31 +140,35 @@ void tldFernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositi
     }
 }
 
-void tldFernClassifier::printClassifiers(const Size &displaySize)
+std::vector<Mat> tldFernClassifier::outputFerns(const Size &displaySize) const
 {
-
     RNG rng;
 
-    double scale = double(displaySize.width) / originalSize.width;
+    double scaleW = double(displaySize.width) / originalSize.width;
+    double scaleH = double(displaySize.height) / originalSize.height;
 
     const Mat black(displaySize, CV_8UC3, Scalar::all(0));
+
+    std::vector<Mat> fernsImages;
+    fernsImages.reserve(numberOfFerns);
 
     for(Ferns::const_iterator fernIt = ferns.begin(); fernIt != ferns.end(); ++fernIt)
     {
         Mat copyBlack; black.copyTo(copyBlack);
-
         for(Ferns::value_type::const_iterator measureIt = fernIt->begin(); measureIt != fernIt->end(); ++measureIt)
         {
-            Scalar color(rng.uniform(10,255), rng.uniform(10,255), rng.uniform(10,255));
+            Scalar color(rng.uniform(20,255), rng.uniform(20,255), rng.uniform(20,255));
 
-            Point p1(cvRound(measureIt->first.x * scale), cvRound(measureIt->first.y * scale));
-            Point p2(cvRound(measureIt->second.x * scale), cvRound(measureIt->second.y * scale));
+            Point p1(cvRound(measureIt->first.x * scaleW), cvRound(measureIt->first.y * scaleH));
+            Point p2(cvRound(measureIt->second.x * scaleW), cvRound(measureIt->second.y * scaleH));
             line(copyBlack, p1, p2, color, 4);
         }
 
-        imshow("printClassifier", copyBlack);
-        waitKey();
+        fernsImages.push_back(copyBlack);
+
     }
+
+    return fernsImages;
 }
 
 }

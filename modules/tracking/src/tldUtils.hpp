@@ -22,7 +22,9 @@ const double SCALE_STEP = 1.2;
 const double ENSEMBLE_THRESHOLD = 0.5;
 const double VARIANCE_THRESHOLD = 0.5;
 const double NEXPERT_THRESHOLD = 0.2;
-static const cv::Size GaussBlurKernelSize(3, 3);
+const cv::Size GaussBlurKernelSize(3, 3);
+const Size standardPath = Size(15, 15);
+const Size minimalBBSize = Size(20,20);
 
 void myassert(const Mat& img);
 void printPatch(const Mat_<uchar>& standardPatch);
@@ -46,9 +48,12 @@ void resample(const Mat& img, const Rect2d& r2, Mat_<uchar>& samples);
 /** Computes the variance of single given image.*/
 double variance(const Mat& img);
 
+/** Computes patch variance using integral images */
+double variance(const Mat_<double>& intImgP, const Mat_<double>& intImgP2, Point pt, Size size);
+
 /** Computes normalized corellation coefficient between the two patches (they should be
         * of the same size).*/
-double NCC(const Mat_<uchar>& patch1, const Mat_<uchar>& patch2);
+double CV_EXPORTS NCC(const Mat_<uchar>& patch1, const Mat_<uchar>& patch2);
 
 typedef std::vector<std::pair<size_t, double> > Overlaps;
 bool comparartor(Overlaps::value_type a, Overlaps::value_type b);

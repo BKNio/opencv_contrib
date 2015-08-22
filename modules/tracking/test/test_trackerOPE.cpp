@@ -357,73 +357,73 @@ void TrackerOPETest::run()
  \****************************************************************************************/
 
 //[TESTDATA] [LOCATION ERROR THRESHOLD]
-PARAM_TEST_CASE(OPE_Distance, string, float)
-{
-  string dataset;
-  float threshold;
-  virtual void SetUp()
-  {
-    dataset = GET_PARAM(0);
-    threshold = GET_PARAM(1);
-  }
-};
+//PARAM_TEST_CASE(OPE_Distance, string, float)
+//{
+//  string dataset;
+//  float threshold;
+//  virtual void SetUp()
+//  {
+//    dataset = GET_PARAM(0);
+//    threshold = GET_PARAM(1);
+//  }
+//};
 
-//[TESTDATA] [OVERLAP THRESHOLD]
-PARAM_TEST_CASE(OPE_Overlap, string, float)
-{
-  string dataset;
-  float threshold;
-  virtual void SetUp()
-  {
-    dataset = GET_PARAM(0);
-    threshold = GET_PARAM(1);
-  }
-};
+////[TESTDATA] [OVERLAP THRESHOLD]
+//PARAM_TEST_CASE(OPE_Overlap, string, float)
+//{
+//  string dataset;
+//  float threshold;
+//  virtual void SetUp()
+//  {
+//    dataset = GET_PARAM(0);
+//    threshold = GET_PARAM(1);
+//  }
+//};
 
-TEST_P(OPE_Distance, MIL)
-{
-  TrackerOPETest test( Tracker::create( "MIL" ), TrackerOPETest::DISTANCE, dataset, threshold );
-  test.run();
-  RecordProperty( "ratioSuccess", test.getRatioSucc() );
-}
+//TEST_P(OPE_Distance, MIL)
+//{
+//  TrackerOPETest test( Tracker::create( "MIL" ), TrackerOPETest::DISTANCE, dataset, threshold );
+//  test.run();
+//  RecordProperty( "ratioSuccess", test.getRatioSucc() );
+//}
 
-TEST_P(OPE_Overlap, MIL)
-{
-  TrackerOPETest test( Tracker::create( "MIL" ), TrackerOPETest::OVERLAP, dataset, threshold );
-  test.run();
-  RecordProperty( "ratioSuccess", test.getRatioSucc() );
-}
+//TEST_P(OPE_Overlap, MIL)
+//{
+//  TrackerOPETest test( Tracker::create( "MIL" ), TrackerOPETest::OVERLAP, dataset, threshold );
+//  test.run();
+//  RecordProperty( "ratioSuccess", test.getRatioSucc() );
+//}
 
-TEST_P(OPE_Distance, Boosting)
-{
-  TrackerOPETest test( Tracker::create( "BOOSTING" ), TrackerOPETest::DISTANCE, dataset, threshold );
-  test.run();
-  RecordProperty( "ratioSuccess", test.getRatioSucc() );
-}
+//TEST_P(OPE_Distance, Boosting)
+//{
+//  TrackerOPETest test( Tracker::create( "BOOSTING" ), TrackerOPETest::DISTANCE, dataset, threshold );
+//  test.run();
+//  RecordProperty( "ratioSuccess", test.getRatioSucc() );
+//}
 
-TEST_P(OPE_Overlap, Boosting)
-{
-  TrackerOPETest test( Tracker::create( "BOOSTING" ), TrackerOPETest::OVERLAP, dataset, threshold );
-  test.run();
-  RecordProperty( "ratioSuccess", test.getRatioSucc() );
-}
+//TEST_P(OPE_Overlap, Boosting)
+//{
+//  TrackerOPETest test( Tracker::create( "BOOSTING" ), TrackerOPETest::OVERLAP, dataset, threshold );
+//  test.run();
+//  RecordProperty( "ratioSuccess", test.getRatioSucc() );
+//}
 
-TEST_P(OPE_Distance, TLD)
-{
-  TrackerOPETest test( Tracker::create( "TLD" ), TrackerOPETest::DISTANCE, dataset, threshold );
-  test.run();
-  RecordProperty( "ratioSuccess", test.getRatioSucc() );
-}
+//TEST_P(OPE_Distance, TLD)
+//{
+//  TrackerOPETest test( Tracker::create( "TLD" ), TrackerOPETest::DISTANCE, dataset, threshold );
+//  test.run();
+//  RecordProperty( "ratioSuccess", test.getRatioSucc() );
+//}
 
-TEST_P(OPE_Overlap, TLD)
-{
-  TrackerOPETest test( Tracker::create( "TLD" ), TrackerOPETest::OVERLAP, dataset, threshold );
-  test.run();
-  RecordProperty( "ratioSuccess", test.getRatioSucc() );
-}
+//TEST_P(OPE_Overlap, TLD)
+//{
+//  TrackerOPETest test( Tracker::create( "TLD" ), TrackerOPETest::OVERLAP, dataset, threshold );
+//  test.run();
+//  RecordProperty( "ratioSuccess", test.getRatioSucc() );
+//}
 
-INSTANTIATE_TEST_CASE_P( Tracking, OPE_Distance, testing::Combine( TESTSET_NAMES, LOCATION_ERROR_THRESHOLD ) );
+//INSTANTIATE_TEST_CASE_P( Tracking, OPE_Distance, testing::Combine( TESTSET_NAMES, LOCATION_ERROR_THRESHOLD ) );
 
-INSTANTIATE_TEST_CASE_P( Tracking, OPE_Overlap, testing::Combine( TESTSET_NAMES, OVERLAP_THRESHOLD ) );
+//INSTANTIATE_TEST_CASE_P( Tracking, OPE_Overlap, testing::Combine( TESTSET_NAMES, OVERLAP_THRESHOLD ) );
 
 /* End of file. */

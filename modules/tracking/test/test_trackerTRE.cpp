@@ -430,77 +430,77 @@ void TrackerTRETest::run()
  \****************************************************************************************/
 
 //[TESTDATA] [#SEGMENT] [LOCATION ERROR THRESHOLD]
-PARAM_TEST_CASE(TRE_Distance, string, int, float)
-{
-  int segment;
-  string dataset;
-  float threshold;
-  virtual void SetUp()
-  {
-    dataset = GET_PARAM(0);
-    segment = GET_PARAM(1);
-    threshold = GET_PARAM(2);
-  }
-};
+//PARAM_TEST_CASE(TRE_Distance, string, int, float)
+//{
+//  int segment;
+//  string dataset;
+//  float threshold;
+//  virtual void SetUp()
+//  {
+//    dataset = GET_PARAM(0);
+//    segment = GET_PARAM(1);
+//    threshold = GET_PARAM(2);
+//  }
+//};
 
-//[TESTDATA] [#SEGMENT] [OVERLAP THRESHOLD]
-PARAM_TEST_CASE(TRE_Overlap, string, int, float)
-{
-  int segment;
-  string dataset;
-  float threshold;
-  virtual void SetUp()
-  {
-    dataset = GET_PARAM(0);
-    segment = GET_PARAM(1);
-    threshold = GET_PARAM(2);
-  }
-};
+////[TESTDATA] [#SEGMENT] [OVERLAP THRESHOLD]
+//PARAM_TEST_CASE(TRE_Overlap, string, int, float)
+//{
+//  int segment;
+//  string dataset;
+//  float threshold;
+//  virtual void SetUp()
+//  {
+//    dataset = GET_PARAM(0);
+//    segment = GET_PARAM(1);
+//    threshold = GET_PARAM(2);
+//  }
+//};
 
-TEST_P(TRE_Distance, MIL)
-{
-  TrackerTRETest test( Tracker::create( "MIL" ), TrackerTRETest::DISTANCE, dataset, threshold, segment );
-  test.run();
-  RecordProperty( "ratioSuccess", test.getRatioSucc() );
-}
+//TEST_P(TRE_Distance, MIL)
+//{
+//  TrackerTRETest test( Tracker::create( "MIL" ), TrackerTRETest::DISTANCE, dataset, threshold, segment );
+//  test.run();
+//  RecordProperty( "ratioSuccess", test.getRatioSucc() );
+//}
 
-TEST_P(TRE_Overlap, MIL)
-{
-  TrackerTRETest test( Tracker::create( "MIL" ), TrackerTRETest::OVERLAP, dataset, threshold, segment );
-  test.run();
-  RecordProperty( "ratioSuccess", test.getRatioSucc() );
-}
+//TEST_P(TRE_Overlap, MIL)
+//{
+//  TrackerTRETest test( Tracker::create( "MIL" ), TrackerTRETest::OVERLAP, dataset, threshold, segment );
+//  test.run();
+//  RecordProperty( "ratioSuccess", test.getRatioSucc() );
+//}
 
-TEST_P(TRE_Distance, Boosting)
-{
-  TrackerTRETest test( Tracker::create( "BOOSTING" ), TrackerTRETest::DISTANCE, dataset, threshold, segment );
-  test.run();
-  RecordProperty( "ratioSuccess", test.getRatioSucc() );
-}
+//TEST_P(TRE_Distance, Boosting)
+//{
+//  TrackerTRETest test( Tracker::create( "BOOSTING" ), TrackerTRETest::DISTANCE, dataset, threshold, segment );
+//  test.run();
+//  RecordProperty( "ratioSuccess", test.getRatioSucc() );
+//}
 
-TEST_P(TRE_Overlap, Boosting)
-{
-  TrackerTRETest test( Tracker::create( "BOOSTING" ), TrackerTRETest::OVERLAP, dataset, threshold, segment );
-  test.run();
-  RecordProperty( "ratioSuccess", test.getRatioSucc() );
-}
+//TEST_P(TRE_Overlap, Boosting)
+//{
+//  TrackerTRETest test( Tracker::create( "BOOSTING" ), TrackerTRETest::OVERLAP, dataset, threshold, segment );
+//  test.run();
+//  RecordProperty( "ratioSuccess", test.getRatioSucc() );
+//}
 
-TEST_P(TRE_Distance, TLD)
-{
-  TrackerTRETest test( Tracker::create( "TLD" ), TrackerTRETest::DISTANCE, dataset, threshold, segment );
-  test.run();
-  RecordProperty( "ratioSuccess", test.getRatioSucc() );
-}
+//TEST_P(TRE_Distance, TLD)
+//{
+//  TrackerTRETest test( Tracker::create( "TLD" ), TrackerTRETest::DISTANCE, dataset, threshold, segment );
+//  test.run();
+//  RecordProperty( "ratioSuccess", test.getRatioSucc() );
+//}
 
-TEST_P(TRE_Overlap, TLD)
-{
-  TrackerTRETest test( Tracker::create( "TLD" ), TrackerTRETest::OVERLAP, dataset, threshold, segment );
-  test.run();
-  RecordProperty( "ratioSuccess", test.getRatioSucc() );
-}
+//TEST_P(TRE_Overlap, TLD)
+//{
+//  TrackerTRETest test( Tracker::create( "TLD" ), TrackerTRETest::OVERLAP, dataset, threshold, segment );
+//  test.run();
+//  RecordProperty( "ratioSuccess", test.getRatioSucc() );
+//}
 
-INSTANTIATE_TEST_CASE_P( Tracking, TRE_Distance, testing::Combine( TESTSET_NAMES, SEGMENTS, LOCATION_ERROR_THRESHOLD ) );
+//INSTANTIATE_TEST_CASE_P( Tracking, TRE_Distance, testing::Combine( TESTSET_NAMES, SEGMENTS, LOCATION_ERROR_THRESHOLD ) );
 
-INSTANTIATE_TEST_CASE_P( Tracking, TRE_Overlap, testing::Combine( TESTSET_NAMES, SEGMENTS, OVERLAP_THRESHOLD ) );
+//INSTANTIATE_TEST_CASE_P( Tracking, TRE_Overlap, testing::Combine( TESTSET_NAMES, SEGMENTS, OVERLAP_THRESHOLD ) );
 
 /* End of file. */

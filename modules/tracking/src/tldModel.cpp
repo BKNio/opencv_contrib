@@ -48,12 +48,92 @@ namespace tld
 TrackerTLDModel::TrackerTLDModel(TrackerTLD::Params params, const Mat& image, const Rect &boundingBox):
     minSize_(boundingBox.size()), params_(params), boundingBox_(boundingBox)
 {
-    //detector = makePtr<TLDDetector>(variance(image(boundingBox)), 500);
-    detector = makePtr<TLDDetector>(image, boundingBox, 500, 50, 13);
+    detector = makePtr<tldDetector>(image, boundingBox, 500, 50, 13);
+
+    std::vector<Rect> scanGrid;
+    //generateScanGrid(originalImage.size(), bb.size(), scanGrid);
+    ///////////////////////////
+    //TLDDetector::outputScanningGrid(image, scanGrid);
+    ///////////////////////////
+
+    std::vector<Rect> closest;
+    //getClosestN(scanGrid, bb, 10, closest);
+    ///////////////////////////
+    //TLDDetector::outputScanningGrid(image, closest);
+    ///////////////////////////
+
+
+
+//    Mat_<uchar> warpedPatch(bb.size()), blurredWarpedPatch(bb.size);
+
+//    for (size_t i = 0; i < closest.size(); i++)
+//    {
+//        for (size_t j = 0; j < 20; j++)
+//        {
+//            Point2f center;
+//            center.x = closest[i].x + closest[i].width * (0.5 + rng.uniform(-0.01, 0.01));
+//            center.y = closest[i].y + closest[i].height * (0.5 + rng.uniform(-0.01, 0.01));
+
+//            Size2f size;
+//            size.width = closest[i].width * rng.uniform(0.99, 1.01);
+//            size.height = closest[i].height * rng.uniform(0.99, 1.01);
+
+//            float angle = rng.uniform(-10.0, 10.0);
+
+//            resample(originalImage, RotatedRect(center, size, angle), warpedPatch);
+//            addExample(warpedPatch, positiveExamples);
+
+//            GaussianBlur(warpedPatch, blurredWarpedPatch, GaussBlurKernelSize, 0.0);
+//        }
+//    }
+
+//    TLDDetector::generateScanGrid(originalImage.rows, originalImage.cols, minSize_, scanGrid, true);
+//    std::vector<int> indices;
+//    indices.reserve(NEG_EXAMPLES_IN_INIT_MODEL);
+//    while ((int)indices.size() < NEG_EXAMPLES_IN_INIT_MODEL)
+//    {
+//        int i = rng.uniform((int)0, (int)scanGrid.size());
+//        if (std::find(indices.begin(), indices.end(), i) == indices.end() && overlap(boundingBox, scanGrid[i]) < NEXPERT_THRESHOLD)
+//        {
+//            indices.push_back(i);
+//            Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
+//            resample(originalImage, scanGrid[i], standardPatch);
+//            pushIntoModel(standardPatch, false);
+
+//            resample(originalImage, scanGrid[i], warpedPatch);
+//            for (int k = 0; k < (int)detector->classifiers.size(); k++)
+//                detector->classifiers[k].integrate(warpedPatch, false);
+//        }
+//    }
 }
 
+//void TLDDetector::outputScanningGrid(const Mat &image, const std::vector<Rect> &scanGrid)
+//{
+//    cv::Mat imageCopy; image.copyTo(imageCopy);
 
-void TrackerTLDModel::integrateRelabeled(Mat& img, Mat& imgBlurred, const std::vector<TLDDetector::Response>& patches)
+//    std::vector<Rect> copyScanGrid(scanGrid);
+
+//    if(copyScanGrid.size() > 100)
+//    {
+//        std::random_shuffle(copyScanGrid.begin(), copyScanGrid.end());
+//        std::for_each(copyScanGrid.begin(), copyScanGrid.begin() + 100, std::bind1st(std::ptr_fun(printRect), imageCopy));
+//    }
+//    else
+//    {
+//        std::for_each(copyScanGrid.begin(), copyScanGrid.end(), std::bind1st(std::ptr_fun(printRect), imageCopy));
+//    }
+
+
+//    cv::imshow("outputScanningGrid",imageCopy);
+//    cv::waitKey();
+//}
+
+//void tldDetector::printRect(Mat &image, const Rect rect)
+//{
+//    rectangle(image, rect, Scalar::all(255));
+//}
+
+void TrackerTLDModel::integrateRelabeled(Mat& img, Mat& imgBlurred, const std::vector<tldDetector::Response>& patches)
 {
 //    Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE), blurredPatch(minSize_);
 //    int positiveIntoModel = 0, negativeIntoModel = 0, positiveIntoEnsemble = 0, negativeIntoEnsemble = 0;

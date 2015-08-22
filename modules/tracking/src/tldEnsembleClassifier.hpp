@@ -57,6 +57,8 @@ public:
     void integratePositiveExample(const Mat_<uchar> &image) { CV_Assert(image.size() == originalSize); integrateExample(image, true); }
     void integrateNegativeExample(const Mat_<uchar> &image) { CV_Assert(image.size() == originalSize); integrateExample(image, false); }
 
+    std::vector<Mat> outputFerns(const Size &displaySize) const;
+
 private:
     const Size originalSize;
     const int numberOfFerns, numberOfMeasurements;
@@ -71,10 +73,6 @@ private:
     int code(const Mat_<uchar> &image, const Ferns::value_type &fern) const;
     void integrateExample(const Mat_<uchar> &image, bool isPositive);
 
-#ifdef DEBUG
-public:
-#endif
-    void printClassifiers(const Size &displaySize);
 
 };
 }

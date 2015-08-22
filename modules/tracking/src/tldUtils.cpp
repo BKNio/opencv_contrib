@@ -89,7 +89,6 @@ std::string type2str(const Mat& mat)
 
 bool comparartor(Overlaps::value_type a, Overlaps::value_type b) { return a.second > b.second;}
 
-//Find N-closest BB to the target
 void getClosestN(const std::vector<Rect>& scanGrid, const Rect &bBox, int n, std::vector<Rect>& res)
 {
     if(n >= int(scanGrid.size()))
@@ -110,46 +109,6 @@ void getClosestN(const std::vector<Rect>& scanGrid, const Rect &bBox, int n, std
 
 }
 
-//Calculate patch variance
-double variance(const Mat& img)
-{
-    double p = 0, p2 = 0;
-    for( int i = 0; i < img.rows; i++ )
-    {
-        for( int j = 0; j < img.cols; j++ )
-        {
-            p += img.at<uchar>(i, j);
-            p2 += img.at<uchar>(i, j) * img.at<uchar>(i, j);
-        }
-    }
-    p /= (img.cols * img.rows);
-    p2 /= (img.cols * img.rows);
-    return p2 - p * p;
-}
-
-//Normalized Correlation Coefficient
-double NCC(const Mat_<uchar>& patch1, const Mat_<uchar>& patch2)
-{
-    CV_Assert( patch1.rows == patch2.rows );
-    CV_Assert( patch1.cols == patch2.cols );
-
-    int N = patch1.rows * patch1.cols;
-    int s1 = 0, s2 = 0, n1 = 0, n2 = 0, prod = 0;
-    for( int i = 0; i < patch1.rows; i++ )
-    {
-        for( int j = 0; j < patch1.cols; j++ )
-        {
-            int p1 = patch1(i, j), p2 = patch2(i, j);
-            s1 += p1; s2 += p2;
-            n1 += (p1 * p1); n2 += (p2 * p2);
-            prod += (p1 * p2);
-        }
-    }
-    double sq1 = sqrt(std::max(0.0, n1 - 1.0 * s1 * s1 / N)), sq2 = sqrt(std::max(0.0, n2 - 1.0 * s2 * s2 / N));
-    double ares = (sq2 == 0) ? sq1 / abs(sq1) : (prod - s1 * s2 / N) / sq1 / sq2;
-    return ares;
-}
-
 int getMedian(const std::vector<int>& values, int size)
 {
     if( size == -1 )
@@ -162,7 +121,6 @@ int getMedian(const std::vector<int>& values, int size)
         return copy[(size - 1) / 2];
 }
 
-//Overlap between two BB
 double overlap(const Rect& r1, const Rect& r2)
 {
     double a1 = r1.area(), a2 = r2.area(), a0 = (r1&r2).area();
@@ -199,12 +157,6 @@ void resample(const Mat& img, const RotatedRect& r2, Mat_<uchar>& samples)
     b.copyTo(M.colRange(Range(2, 3)));
 
     warpAffine(img, samples, M, samples.size());
-
-    //////
-    //imwrite("/tmp/1.png", samples);
-    //imshow("resample", samples);
-    //waitKey();
-    //////
 }
 
 void resample(const Mat& img, const Rect2d& r2, Mat_<uchar>& samples)
@@ -264,6 +216,41 @@ void generateScanGridInternal(const Size &imageSize, const Size2d &bbSize, std::
             res.push_back(Rect(x, y, w, h));
     }
 
+}
+
+double NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
+{
+    CV_Assert(patch1.size() == patch2.size());
+
+    const float N = patch1.size().area();
+
+    float p1Sum = 0., p2Sum = 0., p1p2Sum = 0., p1SqSum = 0. , p2SqSum = 0.;
+
+    for(int i = 0; i < patch1.cols; ++i)
+    {
+        for(int j = 0; j < patch1.rows; ++j)
+        {
+            const float p1 = patch1.at<uchar>(i,j);
+            const float p2 = patch2.at<uchar>(i,j);
+
+            p1Sum += p1;
+            p2Sum += p2;
+
+            p1p2Sum += p1*p2;
+
+            p1SqSum += p1*p1;
+            p2SqSum += p2*p2;
+
+        }
+    }
+
+    const float p1Mean = p1Sum / N;
+    const float p2Mean = p2Sum / N;
+
+    const float p1Dev = p1SqSum / N- p1Mean * p1Mean;
+    const float p2Dev = p2SqSum / N- p2Mean * p2Mean;
+
+    return (p1p2Sum / N - p1Mean * p2Mean) / std::sqrt(p1Dev * p2Dev);
 }
 
 }
