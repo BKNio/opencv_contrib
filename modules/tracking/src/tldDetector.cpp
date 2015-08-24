@@ -46,139 +46,37 @@ namespace cv
 namespace tld
 {
 
-
-double tldNNClassifier::Sr(const Mat_<uchar> &patch) const
-{
-    double splus = 0., sminus = 0.;
-    for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
-        splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
-
-    for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != negativeExamples.end(); ++it)
-        sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
-
-    if (splus + sminus == 0.0)
-        return 0.0;
-
-    return splus / (sminus + splus);
-}
-
-double tldNNClassifier::Sc(const Mat_<uchar> &patch) const
-{
-    double splus = 0., sminus = 0.;
-
-    size_t mediana = positiveExamples.size() / 2 + positiveExamples.size() % 2;
-
-    std::list<Mat_<uchar> >::const_iterator end = positiveExamples.begin();
-    for(size_t i = 0; i < mediana; ++i) ++end;
-
-    for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != end; ++it)
-        splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
-
-    for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != negativeExamples.end(); ++it)
-        sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
-
-    if (splus + sminus == 0.0)
-        return 0.0;
-
-    return splus / (sminus + splus);
-}
-
-void tldNNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage)
-{
-    CV_Assert(patchSize == example.size());
-    CV_Assert(storage.size() <= maxNumberOfExamples);
-
-    if(storage.size() == maxNumberOfExamples)
-    {
-        int randomIndex = rng.uniform(0, int(maxNumberOfExamples));
-        std::list<Mat_<uchar> >::iterator it = storage.begin();
-        for(int i = 0; i < randomIndex; ++i)
-            ++it;
-
-        storage.erase(it);
-    }
-
-    storage.push_back(example.clone());
-}
-
-double tldNNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
-{
-    CV_Assert(patch1.size() == patch2.size());
-
-    int N = patch1.size().area();
-
-    double s1 = 0., s2 = 0., n1 = 0., n2 = 0., prod = 0.;
-    for( int i = 0; i < patch1.rows; i++ )
-    {
-        for( int j = 0; j < patch1.cols; j++ )
-        {
-            int p1 = patch1(i, j), p2 = patch2(i, j);
-            s1 += p1; s2 += p2;
-            n1 += (p1 * p1); n2 += (p2 * p2);
-            prod += (p1 * p2);
-        }
-    }
-
-    double sq1 = sqrt(n1/N - (s1/N)*(s1/N)), sq2 = sqrt(n2/N - (s2/N)*(s2/N));
-
-    double ares = (prod + s1 * s2 / (N * N)) / (sq1 * sq2);
-
-    return ares / N;
-}
-
-tldDetector::tldDetector(const Mat &originalImage, const Rect &bb, int maxNumberOfExamples, int numberOfFerns, int numberOfMeasurements):
-    originalVariance(variance(originalImage(bb)))
+tldCascadeClassifier::tldCascadeClassifier(const Mat_<uchar> &originalImage, const Rect &bb, int maxNumberOfExamples, int numberOfFerns, int numberOfMeasurements)
 {
     if(bb.width < minimalBBSize.width || bb.height < minimalBBSize.height)
         CV_Error(Error::StsBadArg, "Initial bounding box is too small");
 
-    nnClassifier = makePtr<tldNNClassifier>(maxNumberOfExamples, standardPath);
+    varianceClassifier = makePtr<tldVarianceClassifier>(originalImage, bb);
     fernClassifier = makePtr<tldFernClassifier>(bb.size(), numberOfFerns, numberOfMeasurements);
+    nnClassifier = makePtr<tldNNClassifier>(maxNumberOfExamples, standardPath);
 }
 
-double tldDetector::variance(const Mat_<uchar>& img)
+void tldCascadeClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const
 {
-    double p = 0, p2 = 0;
-    for( int i = 0; i < img.rows; i++ )
-    {
-        for( int j = 0; j < img.cols; j++ )
-        {
-            p += img.at<uchar>(i, j);
-            p2 += img.at<uchar>(i, j) * img.at<uchar>(i, j);
-        }
-    }
-    p /= (img.cols * img.rows);
-    p2 /= (img.cols * img.rows);
-    return p2 - p * p;
+    varianceClassifier->isObjects(hypothesis, scaledImages, answers);
+    fernClassifier->isObjects(hypothesis, scaledImages, answers);
+    nnClassifier->isObjects(hypothesis, scaledImages, answers);
 }
 
-double tldDetector::variance(const Mat_<double>& intImgP, const Mat_<double>& intImgP2, Point pt, Size size)
+void tldCascadeClassifier::addPositiveExample(const Mat_<uchar> &example)
 {
-    int x = (pt.x), y = (pt.y), width = (size.width), height = (size.height);
-
-    CV_Assert(0 <= x && (x + width) < intImgP.cols && (x + width) < intImgP2.cols);
-    CV_Assert(0 <= y && (y + height) < intImgP.rows && (y + height) < intImgP2.rows);
-
-    double p = 0, p2 = 0;
-    double A, B, C, D;
-
-    A = intImgP(y, x);
-    B = intImgP(y, x + width);
-    C = intImgP(y + height, x);
-    D = intImgP(y + height, x + width);
-    p = (A + D - B - C) / (width * height);
-
-    A = intImgP2(y, x);
-    B = intImgP2(y, x + width);
-    C = intImgP2(y + height, x);
-    D = intImgP2(y + height, x + width);
-    p2 = (A + D - B - C) / (width * height);
-
-    return (p2 - p * p);
+    fernClassifier->integratePositiveExample(example);
+    nnClassifier->addPositiveExample(example);
 }
 
-void tldDetector::detect(const Mat_<uchar>& img, std::vector<Response>& responses)
+void tldCascadeClassifier::addNegativeExample(const Mat_<uchar> &example)
 {
+    fernClassifier->integrateNegativeExample(example);
+    nnClassifier->addNegativeExample(example);
+}
+
+//void tldCascadeClassifier::detect(const Mat_<uchar>& img, std::vector<Response>& responses)
+//{
 //    Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
 //    Mat tmp;
 //    int dx = initSize.width / 10, dy = initSize.height / 10;
@@ -268,17 +166,7 @@ void tldDetector::detect(const Mat_<uchar>& img, std::vector<Response>& response
 //            responses.push_back(response);
 //        }
     //    }
-}
-
-void tldDetector::addPositiveExample(const Mat_<uchar> &example)
-{
-
-}
-
-void tldDetector::addNegativeExample(const Mat_<uchar> &example)
-{
-
-}
+//}
 
 }
 }

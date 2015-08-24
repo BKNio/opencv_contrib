@@ -48,7 +48,7 @@ namespace tld
 TrackerTLDModel::TrackerTLDModel(TrackerTLD::Params params, const Mat& image, const Rect &boundingBox):
     minSize_(boundingBox.size()), params_(params), boundingBox_(boundingBox)
 {
-    detector = makePtr<tldDetector>(image, boundingBox, 500, 50, 13);
+    detector = makePtr<tldCascadeClassifier>(image, boundingBox, 500, 50, 13);
 
     std::vector<Rect> scanGrid;
     //generateScanGrid(originalImage.size(), bb.size(), scanGrid);
@@ -133,7 +133,7 @@ TrackerTLDModel::TrackerTLDModel(TrackerTLD::Params params, const Mat& image, co
 //    rectangle(image, rect, Scalar::all(255));
 //}
 
-void TrackerTLDModel::integrateRelabeled(Mat& img, Mat& imgBlurred, const std::vector<tldDetector::Response>& patches)
+void TrackerTLDModel::integrateRelabeled(Mat& img, Mat& imgBlurred, const std::vector<tldCascadeClassifier::Response>& patches)
 {
 //    Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE), blurredPatch(minSize_);
 //    int positiveIntoModel = 0, negativeIntoModel = 0, positiveIntoEnsemble = 0, negativeIntoEnsemble = 0;

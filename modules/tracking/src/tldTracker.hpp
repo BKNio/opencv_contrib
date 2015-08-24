@@ -72,13 +72,13 @@ public:
 class MyMouseCallbackDEBUG
 {
 public:
-	MyMouseCallbackDEBUG(Mat& img, Mat& imgBlurred, tldDetector* detector) :img_(img), imgBlurred_(imgBlurred), detector_(detector){}
+	MyMouseCallbackDEBUG(Mat& img, Mat& imgBlurred, tldCascadeClassifier* detector) :img_(img), imgBlurred_(imgBlurred), detector_(detector){}
 	static void onMouse(int event, int x, int y, int, void* obj){ ((MyMouseCallbackDEBUG*)obj)->onMouse(event, x, y); }
 	MyMouseCallbackDEBUG& operator = (const MyMouseCallbackDEBUG& /*other*/){ return *this; }
 private:
 	void onMouse(int event, int x, int y);
 	Mat& img_, imgBlurred_;
-	tldDetector* detector_;
+	tldCascadeClassifier* detector_;
 };
 
 
@@ -133,7 +133,7 @@ protected:
 	{
 	public:
 		Pexpert(const Mat& img_in, const Mat& imgBlurred_in, Rect2d& resultBox_in,
-			const tldDetector* detector_in, TrackerTLD::Params params_in, Size initSize_in) :
+			const tldCascadeClassifier* detector_in, TrackerTLD::Params params_in, Size initSize_in) :
 			img_(img_in), imgBlurred_(imgBlurred_in), resultBox_(resultBox_in), detector_(detector_in), params_(params_in), initSize_(initSize_in){}
 		bool operator()(Rect2d /*box*/){ return false; }
 		int additionalExamples(std::vector<Mat_<uchar> >& examplesForModel, std::vector<Mat_<uchar> >& examplesForEnsemble);
@@ -141,7 +141,7 @@ protected:
 		Pexpert(){}
 		Mat img_, imgBlurred_;
 		Rect2d resultBox_;
-		const tldDetector* detector_;
+		const tldCascadeClassifier* detector_;
 		TrackerTLD::Params params_;
 		RNG rng;
 		Size initSize_;
@@ -150,7 +150,7 @@ protected:
 	class Nexpert : public Pexpert
 	{
 	public:
-		Nexpert(const Mat& img_in, Rect2d& resultBox_in, const tldDetector* detector_in, TrackerTLD::Params params_in)
+		Nexpert(const Mat& img_in, Rect2d& resultBox_in, const tldCascadeClassifier* detector_in, TrackerTLD::Params params_in)
 		{
 			img_ = img_in; resultBox_ = resultBox_in; detector_ = detector_in; params_ = params_in;
 		}

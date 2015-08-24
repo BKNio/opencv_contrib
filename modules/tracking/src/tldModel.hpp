@@ -56,11 +56,11 @@ public:
     TrackerTLDModel(TrackerTLD::Params params, const Mat& image, const Rect& boundingBox);
     Rect2d getBoundingBox(){ return boundingBox_; }
     void setBoudingBox(Rect2d boundingBox){ boundingBox_ = boundingBox; }
-    void integrateRelabeled(Mat& img, Mat& imgBlurred, const std::vector<tldDetector::Response>& patches);
+    void integrateRelabeled(Mat& img, Mat& imgBlurred, const std::vector<tldCascadeClassifier::Response>& patches);
     void integrateAdditional(const std::vector<Mat_<uchar> >& eForModel, const std::vector<Mat_<uchar> >& eForEnsemble, bool isPositive);
     void ocl_integrateAdditional(const std::vector<Mat_<uchar> >& eForModel, const std::vector<Mat_<uchar> >& eForEnsemble, bool isPositive);
     Size getMinSize(){ return minSize_; }
-    Ptr<tldDetector> detector;
+    Ptr<tldCascadeClassifier> detector;
 
     double originalVariance_;
 
