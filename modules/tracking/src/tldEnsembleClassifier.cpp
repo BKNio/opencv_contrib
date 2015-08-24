@@ -48,7 +48,8 @@ namespace tld
 
 /*                   tldVarianceClassifier                   */
 
-tldVarianceClassifier::tldVarianceClassifier(const Mat_<uchar> &originalImage, const Rect &bb) : originalVariance(variance(originalImage(bb))), threshold(0.5)
+tldVarianceClassifier::tldVarianceClassifier(const Mat_<uchar> &originalImage, const Rect &bb, double actThreshold) :
+    originalVariance(variance(originalImage(bb))), threshold(actThreshold)
 {}
 
 void tldVarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const
@@ -269,8 +270,9 @@ std::vector<Mat> tldFernClassifier::outputFerns(const Size &displaySize) const
 
 /*                   tldNNClassifier                   */
 
-tldNNClassifier::tldNNClassifier(size_t actMaxNumberOfExamples, Size actPatchSize) : theta(0.6), maxNumberOfExamples(actMaxNumberOfExamples),
-    patchSize(actPatchSize), normilizedPatchSize(15, 15), normilizedPatch(normilizedPatchSize)
+tldNNClassifier::tldNNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize, double actTheta) :
+    theta(actTheta), maxNumberOfExamples(actMaxNumberOfExamples),
+    normilizedPatchSize(actNormilizedPatchSize), normilizedPatch(normilizedPatchSize)
 {}
 
 void tldNNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const
@@ -279,12 +281,16 @@ void tldNNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const
 
     for(size_t i = 0; i < hypothesis.size(); ++i)
         if(answers[i])
-            answers[i] = isObject(scaledImages[i](hypothesis[i].bb));
+            answers[i] = isObject(scaledImages[hypothesis[i].scaleId](hypothesis[i].bb));
 }
 
 bool tldNNClassifier::isObject(const Mat_<uchar> &object) const
 {
-    resize(object, normilizedPatch, normilizedPatchSize, INTER_NEAREST);
+    if(object.size() != normilizedPatchSize)
+        resize(object, normilizedPatch, normilizedPatchSize, INTER_NEAREST);
+    else
+        object.copyTo(normilizedPatch);
+
     return Sr(normilizedPatch) > theta;
 }
 
@@ -294,7 +300,7 @@ double tldNNClassifier::Sr(const Mat_<uchar> &patch) const
     for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
         splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
 
-    for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != negativeExamples.end(); ++it)
+    for(std::list<Mat_<uchar> >::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
 
     if (splus + sminus == 0.0)
@@ -326,8 +332,13 @@ double tldNNClassifier::Sc(const Mat_<uchar> &patch) const
 
 void tldNNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage)
 {
-    CV_Assert(patchSize == example.size());
     CV_Assert(storage.size() <= maxNumberOfExamples);
+
+    if(example.size() != normilizedPatchSize)
+        resize(example, normilizedPatch, normilizedPatchSize, INTER_NEAREST);
+    else
+        normilizedPatch = example;
+
 
     if(storage.size() == maxNumberOfExamples)
     {
@@ -339,7 +350,7 @@ void tldNNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<ucha
         storage.erase(it);
     }
 
-    storage.push_back(example.clone());
+    storage.push_back(normilizedPatch.clone());
 }
 
 double tldNNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)

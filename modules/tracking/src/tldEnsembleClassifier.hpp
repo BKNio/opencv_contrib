@@ -51,15 +51,16 @@ namespace tld
 
 struct Hypothesis
 {
+    Hypothesis() : bb(), scaleId(-1), confidence(-1.){}
     Rect bb;
     int scaleId;
     double confidence;
 };
 
-class tldVarianceClassifier
+class CV_EXPORTS_W tldVarianceClassifier
 {
 public:
-    tldVarianceClassifier(const Mat_<uchar> &originalImage, const Rect &bb);
+    tldVarianceClassifier(const Mat_<uchar> &originalImage, const Rect &bb, double actThreshold = 0.5);
     void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const;
 
 private:
@@ -74,7 +75,7 @@ private:
 
 };
 
-class tldFernClassifier
+class CV_EXPORTS_W tldFernClassifier
 {
 public:
     tldFernClassifier(const Size &roi, int actNumberOfFerns, int actNumberOfMeasurements);
@@ -106,10 +107,10 @@ private:
 
 };
 
-class tldNNClassifier
+class CV_EXPORTS_W tldNNClassifier
 {
 public:
-    tldNNClassifier(size_t actMaxNumberOfExamples, Size actPatchSize);
+    tldNNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize = Size(15, 15), double actTheta = 0.6);
     void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const;
 
     void addPositiveExample(const Mat_<uchar> &example) { addExample(example, positiveExamples); }
@@ -118,7 +119,7 @@ public:
 private:
     const double theta;
     const size_t maxNumberOfExamples;
-    const Size patchSize, normilizedPatchSize;
+    const Size normilizedPatchSize;
     Mat_<uchar> normilizedPatch;
 
     std::list<Mat_<uchar> > positiveExamples, negativeExamples;

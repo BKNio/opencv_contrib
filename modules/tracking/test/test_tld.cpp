@@ -42,18 +42,40 @@
 #include "test_precomp.hpp"
 
 #include "../src/tldUtils.hpp"
+#include "../src/tldEnsembleClassifier.hpp"
 
-struct TLDNCC: public cvtest::BaseTest
+class NNClassifierTest: public cvtest::BaseTest
 {
-  virtual ~TLDNCC(){}
-  virtual void run();
+public:
+    virtual ~NNClassifierTest(){}
+    virtual void run();
+
+private:
+    bool nccTest();
+    bool emptyTest();
+    bool simpleTest();
+    bool syntheticDataTest();
+    bool realDataTest() { return true; }
 };
 
 
-void TLDNCC::run()
+void NNClassifierTest::run()
 {
+    if(!nccTest())
+        FAIL() << "NCC correctness test failed" << std::endl;
 
-    cv::Ptr<cv::Tracker> tracker = cv::Tracker::create("TLD");
+    if(!emptyTest())
+        FAIL() << "Empty test failed" << std::endl;
+
+    if(!simpleTest())
+        FAIL() << "Simple test failed" << std::endl;
+
+    if(!syntheticDataTest())
+        FAIL() << "syntheticDataTest test failed" << std::endl;
+}
+
+bool NNClassifierTest::nccTest()
+{
     for(int n = 3; n < 31; n++)
     {
         cv::Mat img(n, n, CV_8U), templ(n, n, CV_8U);
@@ -66,17 +88,154 @@ void TLDNCC::run()
 
             float ncc =  cv::tld::NCC(img, templ);
 
-
             cv::matchTemplate(img, templ, result, CV_TM_CCOEFF_NORMED);
             float gt = result.at<float>(0,0);
 
-            if(std::abs(ncc - gt) < 5e-6)
-            {
-                FAIL() << "NCC correctness  test failed" << std::endl;
-            }
+            if(std::abs(ncc - gt) > 5e-6)
+                return false;
 
         }
     }
+
+    return true;
 }
 
-TEST(TLD, NCC_test) { TLDNCC test; test.run(); }
+bool NNClassifierTest::emptyTest()
+{
+    cv::Ptr<cv::tld::tldNNClassifier> nnclasifier = cv::makePtr<cv::tld::tldNNClassifier>(100);
+
+    const cv::Mat image(480, 640, CV_8U, cv::Scalar::all(0));
+    std::vector<cv::Mat_<uchar> > scaledImages(1, image);
+
+    std::vector<cv::tld::Hypothesis> hypothesis(3);
+
+    hypothesis[0].bb = cv::Rect(cv::Point(0,0), cv::Size(50, 80));
+    hypothesis[0].scaleId = 0;
+
+    hypothesis[1].bb = cv::Rect(cv::Point(300,100), cv::Size(250, 180));
+    hypothesis[1].scaleId = 0;
+
+    hypothesis[2].bb = cv::Rect(cv::Point(453,74), cv::Size(33, 10));
+    hypothesis[2].scaleId = 0;
+
+    std::vector<bool> answers(3);
+
+    answers[0] = true;
+    answers[1] = false;
+    answers[2] = true;
+
+    nnclasifier->isObjects(hypothesis, scaledImages, answers);
+
+    return !answers[0] && !answers[1] && !answers[2];
+
+}
+
+bool NNClassifierTest::simpleTest()
+{
+    cv::Ptr<cv::tld::tldNNClassifier> nnclasifier = cv::makePtr<cv::tld::tldNNClassifier>(100);
+
+    cv::Mat positiveExmpl(320, 240, CV_8U, cv::Scalar::all(0)), negativeExmpl(320, 240, CV_8U, cv::Scalar::all(0));
+
+    cv::circle(positiveExmpl, cv::Point(positiveExmpl.cols / 2, positiveExmpl.rows / 2), std::min(positiveExmpl.cols, positiveExmpl.rows) / 2, cv::Scalar::all(255));
+    cv::rectangle(negativeExmpl, cv::Rect(negativeExmpl.cols / 3, negativeExmpl.rows / 4, negativeExmpl.cols / 2, negativeExmpl.rows / 2), cv::Scalar::all(255));
+
+//    cv::imshow("circle", positiveExmpl);
+//    cv::imshow("rectan", negativeExmpl);
+
+//    cv::waitKey();
+
+    nnclasifier->addPositiveExample(positiveExmpl);
+    nnclasifier->addNegativeExample(negativeExmpl);
+
+    std::vector<cv::tld::Hypothesis> hypothesis(2);
+    hypothesis[0].bb = cv::Rect(cv::Point(0,0), positiveExmpl.size());
+    hypothesis[0].scaleId = 0;
+    hypothesis[1].bb = cv::Rect(cv::Point(0,0), negativeExmpl.size());
+    hypothesis[1].scaleId = 1;
+
+    std::vector<cv::Mat_<uchar> > scaledImages(2);
+    scaledImages[0] = positiveExmpl;
+    scaledImages[1] = negativeExmpl;
+
+    std::vector<bool> answers(2);
+    answers[0] = true;
+    answers[1] = true;
+
+    nnclasifier->isObjects(hypothesis, scaledImages, answers);
+
+    return answers[0] && !answers[1];
+
+    return true;
+}
+
+bool NNClassifierTest::syntheticDataTest()
+{
+
+    const int modelSize = 100;
+    cv::Ptr<cv::tld::tldNNClassifier> nnclasifier = cv::makePtr<cv::tld::tldNNClassifier>(modelSize);
+
+    cv::RNG rng;
+
+    for(int i = 0; i < modelSize; ++i)
+    {
+        int rows = rng.uniform(100, 400);
+        int cols = rng.uniform(100, 400);
+        cv::Mat positiveExmpl(rows, cols, CV_8U, cv::Scalar::all(0));
+
+        cv::Size textSize = getTextSize("A", cv::FONT_HERSHEY_COMPLEX, 1., 1, 0);
+
+        if(textSize.area() > positiveExmpl.size().area())
+        {
+            i--;
+            continue;
+        }
+
+        cv::putText(positiveExmpl, "A", cv::Point(20,20), cv::FONT_HERSHEY_COMPLEX, 1., cv::Scalar::all(255), 1);
+
+        cv::imshow("pos", positiveExmpl/*(cv::Rect(cv::Point(0,0), textSize))*/);
+        cv::waitKey();
+
+    }
+
+
+
+
+
+
+
+//    cv::Mat negativeExmpl(320, 240, CV_8U, cv::Scalar::all(0));
+
+//    cv::circle(positiveExmpl, cv::Point(positiveExmpl.cols / 2, positiveExmpl.rows / 2), std::min(positiveExmpl.cols, positiveExmpl.rows) / 2, cv::Scalar::all(255));
+//    cv::rectangle(negativeExmpl, cv::Rect(negativeExmpl.cols / 3, negativeExmpl.rows / 4, negativeExmpl.cols / 2, negativeExmpl.rows / 2), cv::Scalar::all(255));
+
+////    cv::imshow("circle", positiveExmpl);
+////    cv::imshow("rectan", negativeExmpl);
+
+////    cv::waitKey();
+
+//    nnclasifier->addPositiveExample(positiveExmpl);
+//    nnclasifier->addNegativeExample(negativeExmpl);
+
+//    std::vector<cv::tld::Hypothesis> hypothesis(2);
+//    hypothesis[0].bb = cv::Rect(cv::Point(0,0), positiveExmpl.size());
+//    hypothesis[0].scaleId = 0;
+//    hypothesis[1].bb = cv::Rect(cv::Point(0,0), negativeExmpl.size());
+//    hypothesis[1].scaleId = 1;
+
+//    std::vector<cv::Mat_<uchar> > scaledImages(2);
+//    scaledImages[0] = positiveExmpl;
+//    scaledImages[1] = negativeExmpl;
+
+//    std::vector<bool> answers(2);
+//    answers[0] = true;
+//    answers[1] = true;
+
+//    nnclasifier->isObjects(hypothesis, scaledImages, answers);
+
+//    return answers[0] && !answers[1];
+
+    return true;
+}
+
+TEST(TLD, NNClassifier) { NNClassifierTest test; test.run(); }
+
