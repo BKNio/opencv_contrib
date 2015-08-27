@@ -218,40 +218,5 @@ void generateScanGridInternal(const Size &imageSize, const Size2d &bbSize, std::
 
 }
 
-double NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
-{
-    CV_Assert(patch1.size() == patch2.size());
-
-    const float N = patch1.size().area();
-
-    float p1Sum = 0., p2Sum = 0., p1p2Sum = 0., p1SqSum = 0. , p2SqSum = 0.;
-
-    for(int i = 0; i < patch1.cols; ++i)
-    {
-        for(int j = 0; j < patch1.rows; ++j)
-        {
-            const float p1 = patch1.at<uchar>(i,j);
-            const float p2 = patch2.at<uchar>(i,j);
-
-            p1Sum += p1;
-            p2Sum += p2;
-
-            p1p2Sum += p1*p2;
-
-            p1SqSum += p1*p1;
-            p2SqSum += p2*p2;
-
-        }
-    }
-
-    const float p1Mean = p1Sum / N;
-    const float p2Mean = p2Sum / N;
-
-    const float p1Dev = p1SqSum / N- p1Mean * p1Mean;
-    const float p2Dev = p2SqSum / N- p2Mean * p2Mean;
-
-    return (p1p2Sum / N - p1Mean * p2Mean) / std::sqrt(p1Dev * p2Dev);
-}
-
 }
 }

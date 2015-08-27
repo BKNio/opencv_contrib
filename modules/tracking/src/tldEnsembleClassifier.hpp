@@ -44,6 +44,9 @@
 
 #include "precomp.hpp"
 
+
+#define DEBUG
+
 namespace cv
 {
 namespace tld
@@ -110,11 +113,19 @@ private:
 class CV_EXPORTS_W tldNNClassifier
 {
 public:
-    tldNNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize = Size(15, 15), double actTheta = 0.6);
+    tldNNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize = Size(15, 15), double actTheta = 0.5);
+
     void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const;
 
     void addPositiveExample(const Mat_<uchar> &example) { addExample(example, positiveExamples); }
     void addNegativeExample(const Mat_<uchar> &example) { addExample(example, negativeExamples); }
+
+#ifdef DEBUG
+    std::pair<cv::Mat, cv::Mat> outputModel() const;
+    std::pair<cv::Mat, cv::Mat> outputNearestPrecedents(int hypothesisIndex) const;
+    std::pair<float, float> getDistancesToNearestPrecedents(int hypothesisIndex) const;
+#endif
+
 
 private:
     const double theta;
@@ -122,15 +133,22 @@ private:
     const Size normilizedPatchSize;
     Mat_<uchar> normilizedPatch;
 
-    std::list<Mat_<uchar> > positiveExamples, negativeExamples;
+    typedef std::list<Mat_<uchar> > ExampleStorage;
+    ExampleStorage positiveExamples, negativeExamples;
     RNG rng;
+
+#ifdef DEBUG
+    mutable std::vector<std::pair<ExampleStorage::const_iterator, ExampleStorage::const_iterator> > nearestPrecedents;
+    mutable std::vector<std::pair<float, float> > distances;
+#endif
 
 private:
     bool isObject(const Mat_<uchar> &object) const;
     double Sr(const Mat_<uchar>& patch) const;
     double Sc(const Mat_<uchar>& patch) const;
     void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
-    static double NCC(const Mat_<uchar>& patch1, const Mat_<uchar>& patch2);
+public:
+    static float NCC(const Mat_<uchar>& patch1, const Mat_<uchar>& patch2);
 };
 
 }

@@ -51,10 +51,6 @@ double variance(const Mat& img);
 /** Computes patch variance using integral images */
 double variance(const Mat_<double>& intImgP, const Mat_<double>& intImgP2, Point pt, Size size);
 
-/** Computes normalized corellation coefficient between the two patches (they should be
-        * of the same size).*/
-double CV_EXPORTS NCC(const Mat_<uchar>& patch1, const Mat_<uchar>& patch2);
-
 typedef std::vector<std::pair<size_t, double> > Overlaps;
 bool comparartor(Overlaps::value_type a, Overlaps::value_type b);
 

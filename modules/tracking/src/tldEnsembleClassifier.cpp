@@ -279,9 +279,111 @@ void tldNNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const
 {
     CV_Assert(hypothesis.size() == answers.size());
 
+#ifdef DEBUG
+    nearestPrecedents.clear();
+    distances.clear();
+#endif
+
     for(size_t i = 0; i < hypothesis.size(); ++i)
         if(answers[i])
             answers[i] = isObject(scaledImages[hypothesis[i].scaleId](hypothesis[i].bb));
+}
+
+std::pair<Mat, Mat> tldNNClassifier::outputModel() const
+{
+    const int sqrtSize = cvRound(std::sqrt(std::max(positiveExamples.size(), negativeExamples.size())) + 0.5f);
+    const int outputWidth = sqrtSize * normilizedPatchSize.width, outputHeight = sqrtSize * normilizedPatchSize.height;
+
+    cv::Mat positivePrecedents(outputHeight, outputWidth, CV_8U), negativePrecedents(outputHeight, outputWidth, CV_8U);
+
+    cv::Rect actPositionPositive(cv::Point(), normilizedPatchSize);
+
+    for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
+    {
+        if(actPositionPositive.x + it->cols > positivePrecedents.cols)
+        {
+            actPositionPositive.x = 0;
+            actPositionPositive.y += it->rows;
+        }
+
+        CV_Assert(actPositionPositive.y + it->rows <= positivePrecedents.rows);
+
+        it->copyTo(positivePrecedents(actPositionPositive));
+
+        actPositionPositive.x += it->cols;
+
+    }
+
+    cv::Rect actPositionNegative(cv::Point(), normilizedPatchSize);
+
+    for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
+    {
+        if(actPositionNegative.x + it->cols > negativePrecedents.cols)
+        {
+            actPositionNegative.x = 0;
+            actPositionNegative.y += it->rows;
+        }
+
+        CV_Assert(actPositionNegative.y + it->rows <= negativePrecedents.rows);
+
+        it->copyTo(negativePrecedents(actPositionNegative));
+
+        actPositionNegative.x += it->cols;
+
+    }
+
+    return std::make_pair(positivePrecedents, negativePrecedents);
+}
+
+std::pair<Mat, Mat> tldNNClassifier::outputNearestPrecedents(int hypothesisIndex) const
+{
+    std::pair<Mat, Mat> precedents = outputModel();
+
+    ExampleStorage::const_iterator nearestPositiveExample = nearestPrecedents[hypothesisIndex].first;
+    ExampleStorage::const_iterator nearestNegativeExample = nearestPrecedents[hypothesisIndex].second;
+
+    const int sqrtSize = cvRound(std::sqrt(std::max(positiveExamples.size(), negativeExamples.size())) + 0.5f);
+
+    Rect positiveBB;
+    if(nearestPositiveExample != positiveExamples.end())
+    {
+        int index = std::distance(positiveExamples.begin(), nearestPositiveExample);
+
+        const int row = index / sqrtSize;
+        const int col = index % sqrtSize;
+
+        Point tl(col * normilizedPatchSize.width /*- 3*/, row * normilizedPatchSize.height /*- 3*/);
+        positiveBB = cv::Rect(tl, cv::Size(normilizedPatchSize.width /*+ 6*/, normilizedPatchSize.height /*+ 6*/));
+
+        /*rectangle(precedents.first, positiveBB, Scalar::all(255));*/
+    }
+
+    Rect negativeBB;
+    if(nearestNegativeExample != negativeExamples.end())
+    {
+        int index = std::distance(negativeExamples.begin(), nearestNegativeExample);
+
+        const int row = index / sqrtSize;
+        const int col = index % sqrtSize;
+
+        Point tl(col * normilizedPatchSize.width /*- 3*/, row * normilizedPatchSize.height /*- 3*/);
+        negativeBB = cv::Rect(tl, cv::Size(normilizedPatchSize.width /*+ 6*/, normilizedPatchSize.height /*+ 6*/));
+
+        /*rectangle(precedents.second, negativeBB, Scalar::all(255));*/
+    }
+
+//    std::cout << "----------------------" << std::endl;
+//    std::cout << "splus " << distances[hypothesisIndex].first << std::endl;
+//    std::cout << "sminus " << distances[hypothesisIndex].second << std::endl;
+
+    /*return precedents;*/
+
+    return std::make_pair(precedents.first(positiveBB), precedents.second(negativeBB));
+}
+
+std::pair<float, float> tldNNClassifier::getDistancesToNearestPrecedents(int hypothesisIndex) const
+{
+    return std::make_pair(distances[hypothesisIndex].first, distances[hypothesisIndex].second);
 }
 
 bool tldNNClassifier::isObject(const Mat_<uchar> &object) const
@@ -297,11 +399,39 @@ bool tldNNClassifier::isObject(const Mat_<uchar> &object) const
 double tldNNClassifier::Sr(const Mat_<uchar> &patch) const
 {
     double splus = 0., sminus = 0.;
-    for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
-        splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
 
-    for(std::list<Mat_<uchar> >::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
+#ifdef DEBUG
+    double prevSplus = splus;
+    ExampleStorage::const_iterator nearestPositivePrecedent = positiveExamples.end();
+#endif
+
+    for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
+    {
+        splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
+#ifdef DEBUG
+        if(prevSplus != splus)
+            prevSplus = splus, nearestPositivePrecedent = it;
+#endif
+    }
+
+#ifdef DEBUG
+    double prevSminus = sminus;
+    ExampleStorage::const_iterator nearestNegativePrecedent = negativeExamples.end();
+#endif
+
+    for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
+    {
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
+#ifdef DEBUG
+        if(prevSminus != sminus)
+            prevSminus = sminus, nearestNegativePrecedent = it;
+#endif
+    }
+
+#ifdef DEBUG
+    nearestPrecedents.push_back(std::make_pair(nearestPositivePrecedent, nearestNegativePrecedent));
+    distances.push_back(std::make_pair(splus, sminus));
+#endif
 
     if (splus + sminus == 0.0)
         return 0.0;
@@ -315,13 +445,13 @@ double tldNNClassifier::Sc(const Mat_<uchar> &patch) const
 
     size_t mediana = positiveExamples.size() / 2 + positiveExamples.size() % 2;
 
-    std::list<Mat_<uchar> >::const_iterator end = positiveExamples.begin();
+    ExampleStorage::const_iterator end = positiveExamples.begin();
     for(size_t i = 0; i < mediana; ++i) ++end;
 
-    for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != end; ++it)
+    for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != end; ++it)
         splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
 
-    for(std::list<Mat_<uchar> >::const_iterator it = positiveExamples.begin(); it != negativeExamples.end(); ++it)
+    for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != negativeExamples.end(); ++it)
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
 
     if (splus + sminus == 0.0)
@@ -343,7 +473,7 @@ void tldNNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<ucha
     if(storage.size() == maxNumberOfExamples)
     {
         int randomIndex = rng.uniform(0, int(maxNumberOfExamples));
-        std::list<Mat_<uchar> >::iterator it = storage.begin();
+        ExampleStorage::iterator it = storage.begin();
         for(int i = 0; i < randomIndex; ++i)
             ++it;
 
@@ -353,29 +483,50 @@ void tldNNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<ucha
     storage.push_back(normilizedPatch.clone());
 }
 
-double tldNNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
+float tldNNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
 {
     CV_Assert(patch1.size() == patch2.size());
 
-    int N = patch1.size().area();
+    const float N = patch1.size().area();
 
-    double s1 = 0., s2 = 0., n1 = 0., n2 = 0., prod = 0.;
-    for( int i = 0; i < patch1.rows; i++ )
+    float p1Sum = 0., p2Sum = 0., p1p2Sum = 0., p1SqSum = 0. , p2SqSum = 0.;
+
+    for(int i = 0; i < patch1.cols; ++i)
     {
-        for( int j = 0; j < patch1.cols; j++ )
+        for(int j = 0; j < patch1.rows; ++j)
         {
-            int p1 = patch1(i, j), p2 = patch2(i, j);
-            s1 += p1; s2 += p2;
-            n1 += (p1 * p1); n2 += (p2 * p2);
-            prod += (p1 * p2);
+            const float p1 = patch1.at<uchar>(j,i);
+            const float p2 = patch2.at<uchar>(j,i);
+
+            p1Sum += p1;
+            p2Sum += p2;
+
+            p1p2Sum += p1*p2;
+
+            p1SqSum += p1*p1;
+            p2SqSum += p2*p2;
+
         }
     }
 
-    double sq1 = sqrt(n1/N - (s1/N)*(s1/N)), sq2 = sqrt(n2/N - (s2/N)*(s2/N));
+    const float p1Mean = p1Sum / N;
+    const float p2Mean = p2Sum / N;
 
-    double ares = (prod + s1 * s2 / (N * N)) / (sq1 * sq2);
+    const float p1Dev = p1SqSum / N- p1Mean * p1Mean;
 
-    return ares / N;
+//    if(p1Dev <= 0.)
+//        imwrite("/tmp/zerostdDev1.png", patch1);
+
+    CV_Assert(p1Dev > 0.);
+
+    const float p2Dev = p2SqSum / N- p2Mean * p2Mean;
+
+//    if(p2Dev <= 0.)
+//        imwrite("/tmp/zerostdDev2.png", patch2);
+
+    CV_Assert(p2Dev > 0.);
+
+    return (p1p2Sum / N - p1Mean * p2Mean) / std::sqrt(p1Dev * p2Dev);
 }
 
 
