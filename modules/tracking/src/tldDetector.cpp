@@ -52,7 +52,7 @@ tldCascadeClassifier::tldCascadeClassifier(const Mat_<uchar> &originalImage, con
         CV_Error(Error::StsBadArg, "Initial bounding box is too small");
 
     varianceClassifier = makePtr<tldVarianceClassifier>(originalImage, bb);
-    fernClassifier = makePtr<tldFernClassifier>(bb.size(), numberOfFerns, numberOfMeasurements);
+    fernClassifier = makePtr<tldFernClassifier>();
     nnClassifier = makePtr<tldNNClassifier>(maxNumberOfExamples, standardPath);
 }
 
@@ -66,13 +66,13 @@ void tldCascadeClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, 
 void tldCascadeClassifier::addPositiveExample(const Mat_<uchar> &example)
 {
     fernClassifier->integratePositiveExample(example);
-    nnClassifier->addPositiveExample(example);
+    nnClassifier->integratePositiveExample(example);
 }
 
 void tldCascadeClassifier::addNegativeExample(const Mat_<uchar> &example)
 {
     fernClassifier->integrateNegativeExample(example);
-    nnClassifier->addNegativeExample(example);
+    nnClassifier->integrateNegativeExample(example);
 }
 
 //void tldCascadeClassifier::detect(const Mat_<uchar>& img, std::vector<Response>& responses)

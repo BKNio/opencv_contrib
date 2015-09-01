@@ -118,50 +118,75 @@ double tldVarianceClassifier::variance(const Mat_<double> &sum, const Mat_<doubl
 /*                   tldFernClassifier                   */
 
 
-tldFernClassifier::tldFernClassifier(const Size &initialSize, int actNumberOfFerns, int actNumberOfMeasurements):
-    originalSize(initialSize), numberOfFerns(actNumberOfFerns), numberOfMeasurements(actNumberOfMeasurements),
-    threshold(0.5), ferns(actNumberOfFerns), precedents(actNumberOfFerns)
+tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize):
+    normilizedPatchSize(actNormilizedPatchSize), threshold(0.5)
 {
-    CV_Assert(originalSize.area() * (originalSize.width + originalSize.height) >= numberOfFerns * numberOfMeasurements); //is it enough measurements
-
     Ferns::value_type measurements;
+    /*measurements.reserve(normilizedPatchSize.area() * (normilizedPatchSize.width + normilizedPatchSize.height - 6));*/
 
-    measurements.reserve(originalSize.area() * (originalSize.width + originalSize.height));
-
-    for(int i = 0; i < originalSize.width; ++i) //generating all possible horizontal and vertical pixel comprations
+    const int shift = 1;
+    for(int i = shift; i < normilizedPatchSize.width - shift; ++i) //generating all possible horizontal and vertical pixel comprations
     {
-        for(int j = 0; j < originalSize.height; ++j)
+        for(int j = shift; j < normilizedPatchSize.height - shift; ++j)
         {
             Point firstPoint(i,j);
 
-            for(int kk = 0; kk < originalSize.width; ++kk)
+#if 1
+            for(int kk = shift; kk < normilizedPatchSize.width - shift; ++kk)
             {
-                if(kk == i)
+                const Point diff = Point(kk, j) - firstPoint;
+                if(diff.dot(diff) < 9)
                     continue;
 
                 measurements.push_back(std::make_pair(firstPoint, Point(kk, j)));
             }
 
-            for(int kk = 0; kk < originalSize.height; ++kk)
+            for(int kk = shift; kk < normilizedPatchSize.height -shift; ++kk)
             {
-                if(kk == j)
+                const Point diff = Point(i, kk) - firstPoint;
+                if(diff.dot(diff) < 9)
                     continue;
 
                 measurements.push_back(std::make_pair(firstPoint, Point(i, kk)));
             }
 
+#else
+            for(int ii = /*i + 1*/ shift; ii < normilizedPatchSize.width - shift; ++ii)
+            {
+                for(int jj = /*j + 1*/ shift; jj < normilizedPatchSize.height - shift; ++jj)
+                {
+                    Point secondPoint(ii,jj);
+
+                    const Point diff = firstPoint - secondPoint;
+                    if(diff.dot(diff) < 9)
+                        continue;
+
+                    measurements.push_back(std::make_pair(firstPoint, secondPoint));
+                }
+            }
+#endif
+
+
         }
     }
 
+    const int actNumberOfFerns = reqNumberOfFerns > 0 ? reqNumberOfFerns : int(measurements.size()) / numberOfMeasurementsPerFern;
+
+    if(int(measurements.size()) < reqNumberOfFerns * numberOfMeasurementsPerFern)
+        CV_Error(cv::Error::StsBadArg, "Not enough measurements");
+
     std::random_shuffle(measurements.begin(), measurements.end());
 
-    Precedents::value_type emptyPrecedents(1 << numberOfMeasurements, Point());
-
+    Precedents::value_type emptyPrecedents(1 << numberOfMeasurementsPerFern, Point());
     Ferns::value_type::const_iterator originalMeasurementsIt = measurements.begin();
-    for(size_t i = 0; i < size_t(numberOfFerns); ++i)
+
+    ferns = Ferns(actNumberOfFerns);
+    precedents = Precedents(actNumberOfFerns);
+
+    for(int i = 0; i < actNumberOfFerns; ++i)
     {
-        ferns[i].assign(originalMeasurementsIt, originalMeasurementsIt + numberOfMeasurements);
-        originalMeasurementsIt += numberOfMeasurements;
+        ferns[i].assign(originalMeasurementsIt, originalMeasurementsIt + numberOfMeasurementsPerFern);
+        originalMeasurementsIt += numberOfMeasurementsPerFern;
 
         precedents[i] = emptyPrecedents;
     }
@@ -179,13 +204,13 @@ void tldFernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, con
 
 void tldFernClassifier::integratePositiveExample(const Mat_<uchar> &image)
 {
-    CV_Assert(image.size() == originalSize);
+//    CV_Assert(image.size() == normilizedPatchSize);
     integrateExample(image, true);
 }
 
 void tldFernClassifier::integrateNegativeExample(const Mat_<uchar> &image)
 {
-    CV_Assert(image.size() == originalSize);
+//    CV_Assert(image.size() == normilizedPatchSize);
     integrateExample(image, false);
 }
 
@@ -196,10 +221,10 @@ bool tldFernClassifier::isObject(const Mat_<uchar> &object) const
 
 double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
 {
-    CV_Assert(image.size() == originalSize);
+//    CV_Assert(image.size() == normilizedPatchSize);
 
     double accumProbability = 0.;
-    for(size_t i = 0; i < size_t(numberOfFerns); ++i)
+    for(size_t i = 0; i < ferns.size(); ++i)
     {
         int position = code(image, ferns[i]);
 
@@ -209,17 +234,37 @@ double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
             accumProbability += double(posNum) / (posNum + negNum);
     }
 
-    return accumProbability / numberOfFerns;
+    return accumProbability / int(ferns.size());
 }
 
 int tldFernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern) const
 {
     int position = 0;
+
+    const float coeffX = float(image.cols - 1) / normilizedPatchSize.width;
+    const float coeffY = float(image.rows - 1) / normilizedPatchSize.height;
+
     for(Ferns::value_type::const_iterator measureIt = fern.begin(); measureIt != fern.end(); ++measureIt)
     {
         position <<= 1;
-        if(image.at<uchar>(measureIt->first) < image.at<uchar>(measureIt->second))
+
+        const Point2f p1(measureIt->first.x * coeffX, measureIt->first.y * coeffY);
+        const Point2f p2(measureIt->second.x * coeffX, measureIt->second.y * coeffY);
+
+
+#ifdef FERN_DEBUG
+        if(debugOutput.empty())
+            cvtColor(image, debugOutput, CV_GRAY2BGR);
+
+        static RNG rng;
+        Scalar color(rng.uniform(0,255), rng.uniform(0,255), rng.uniform(0,255));
+        line(debugOutput, p1, p2, color);
+        line(debugOutput, p1, p2, color);
+#endif
+
+        if(getPixelVale(image, p1) < getPixelVale(image, p2))
             position++;
+
     }
     return position;
 }
@@ -231,23 +276,40 @@ void tldFernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositi
         int position = code(image, ferns[i]);
 
         if(isPositive)
+        {
             precedents[i][position].x++;
+            if(precedents[i][position].y > 0)precedents[i][position].y--;
+        }
         else
+        {
+            if(precedents[i][position].x > 0) precedents[i][position].x--;
             precedents[i][position].y++;
+        }
     }
+}
+
+uchar tldFernClassifier::getPixelVale(const Mat_<uchar> &image, const Point2f point)
+{
+    CV_Assert(point.x >= 0.f && point.y >= 0.f);
+    CV_Assert(point.x < image.cols && point.y < image.rows);
+
+    uchar ret;
+    cv::getRectSubPix(image, cv::Size(1,1), point, cv::_OutputArray(&ret, 1));
+
+    return ret;
 }
 
 std::vector<Mat> tldFernClassifier::outputFerns(const Size &displaySize) const
 {
     RNG rng;
 
-    double scaleW = double(displaySize.width) / originalSize.width;
-    double scaleH = double(displaySize.height) / originalSize.height;
+    float scaleW = float(displaySize.width) / normilizedPatchSize.width;
+    float scaleH = float(displaySize.height) / normilizedPatchSize.height;
 
     const Mat black(displaySize, CV_8UC3, Scalar::all(0));
 
     std::vector<Mat> fernsImages;
-    fernsImages.reserve(numberOfFerns);
+    fernsImages.reserve(ferns.size());
 
     for(Ferns::const_iterator fernIt = ferns.begin(); fernIt != ferns.end(); ++fernIt)
     {
@@ -258,7 +320,9 @@ std::vector<Mat> tldFernClassifier::outputFerns(const Size &displaySize) const
 
             Point p1(cvRound(measureIt->first.x * scaleW), cvRound(measureIt->first.y * scaleH));
             Point p2(cvRound(measureIt->second.x * scaleW), cvRound(measureIt->second.y * scaleH));
-            line(copyBlack, p1, p2, color, 4);
+            line(copyBlack, p1, p2, color, 2);
+            circle(copyBlack, p1, 2, color, 2);
+            circle(copyBlack, p2, 2, color, 2);
         }
 
         fernsImages.push_back(copyBlack);
@@ -279,7 +343,7 @@ void tldNNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const
 {
     CV_Assert(hypothesis.size() == answers.size());
 
-#ifdef DEBUG
+#if 0
     nearestPrecedents.clear();
     distances.clear();
 #endif
@@ -335,61 +399,10 @@ std::pair<Mat, Mat> tldNNClassifier::outputModel() const
     return std::make_pair(positivePrecedents, negativePrecedents);
 }
 
-std::pair<Mat, Mat> tldNNClassifier::outputNearestPrecedents(int hypothesisIndex) const
-{
-    std::pair<Mat, Mat> precedents = outputModel();
-
-    ExampleStorage::const_iterator nearestPositiveExample = nearestPrecedents[hypothesisIndex].first;
-    ExampleStorage::const_iterator nearestNegativeExample = nearestPrecedents[hypothesisIndex].second;
-
-    const int sqrtSize = cvRound(std::sqrt(std::max(positiveExamples.size(), negativeExamples.size())) + 0.5f);
-
-    Rect positiveBB;
-    if(nearestPositiveExample != positiveExamples.end())
-    {
-        int index = std::distance(positiveExamples.begin(), nearestPositiveExample);
-
-        const int row = index / sqrtSize;
-        const int col = index % sqrtSize;
-
-        Point tl(col * normilizedPatchSize.width /*- 3*/, row * normilizedPatchSize.height /*- 3*/);
-        positiveBB = cv::Rect(tl, cv::Size(normilizedPatchSize.width /*+ 6*/, normilizedPatchSize.height /*+ 6*/));
-
-        /*rectangle(precedents.first, positiveBB, Scalar::all(255));*/
-    }
-
-    Rect negativeBB;
-    if(nearestNegativeExample != negativeExamples.end())
-    {
-        int index = std::distance(negativeExamples.begin(), nearestNegativeExample);
-
-        const int row = index / sqrtSize;
-        const int col = index % sqrtSize;
-
-        Point tl(col * normilizedPatchSize.width /*- 3*/, row * normilizedPatchSize.height /*- 3*/);
-        negativeBB = cv::Rect(tl, cv::Size(normilizedPatchSize.width /*+ 6*/, normilizedPatchSize.height /*+ 6*/));
-
-        /*rectangle(precedents.second, negativeBB, Scalar::all(255));*/
-    }
-
-//    std::cout << "----------------------" << std::endl;
-//    std::cout << "splus " << distances[hypothesisIndex].first << std::endl;
-//    std::cout << "sminus " << distances[hypothesisIndex].second << std::endl;
-
-    /*return precedents;*/
-
-    return std::make_pair(precedents.first(positiveBB), precedents.second(negativeBB));
-}
-
-std::pair<float, float> tldNNClassifier::getDistancesToNearestPrecedents(int hypothesisIndex) const
-{
-    return std::make_pair(distances[hypothesisIndex].first, distances[hypothesisIndex].second);
-}
-
 bool tldNNClassifier::isObject(const Mat_<uchar> &object) const
 {
     if(object.size() != normilizedPatchSize)
-        resize(object, normilizedPatch, normilizedPatchSize, INTER_NEAREST);
+        resize(object, normilizedPatch, normilizedPatchSize/*, INTER_NEAREST*/);
     else
         object.copyTo(normilizedPatch);
 
@@ -400,38 +413,11 @@ double tldNNClassifier::Sr(const Mat_<uchar> &patch) const
 {
     double splus = 0., sminus = 0.;
 
-#ifdef DEBUG
-    double prevSplus = splus;
-    ExampleStorage::const_iterator nearestPositivePrecedent = positiveExamples.end();
-#endif
-
     for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
-    {
         splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
-#ifdef DEBUG
-        if(prevSplus != splus)
-            prevSplus = splus, nearestPositivePrecedent = it;
-#endif
-    }
-
-#ifdef DEBUG
-    double prevSminus = sminus;
-    ExampleStorage::const_iterator nearestNegativePrecedent = negativeExamples.end();
-#endif
 
     for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
-    {
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
-#ifdef DEBUG
-        if(prevSminus != sminus)
-            prevSminus = sminus, nearestNegativePrecedent = it;
-#endif
-    }
-
-#ifdef DEBUG
-    nearestPrecedents.push_back(std::make_pair(nearestPositivePrecedent, nearestNegativePrecedent));
-    distances.push_back(std::make_pair(splus, sminus));
-#endif
 
     if (splus + sminus == 0.0)
         return 0.0;
@@ -465,7 +451,7 @@ void tldNNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<ucha
     CV_Assert(storage.size() <= maxNumberOfExamples);
 
     if(example.size() != normilizedPatchSize)
-        resize(example, normilizedPatch, normilizedPatchSize, INTER_NEAREST);
+        resize(example, normilizedPatch, normilizedPatchSize/*, INTER_NEAREST*/);
     else
         normilizedPatch = example;
 
@@ -491,12 +477,12 @@ float tldNNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
 
     float p1Sum = 0., p2Sum = 0., p1p2Sum = 0., p1SqSum = 0. , p2SqSum = 0.;
 
-    for(int i = 0; i < patch1.cols; ++i)
+    for(int i = 0; i < patch1.rows; ++i)
     {
-        for(int j = 0; j < patch1.rows; ++j)
+        for(int j = 0; j < patch1.cols; ++j)
         {
-            const float p1 = patch1.at<uchar>(j,i);
-            const float p2 = patch2.at<uchar>(j,i);
+            const float p1 = patch1.at<uchar>(i,j);
+            const float p2 = patch2.at<uchar>(i,j);
 
             p1Sum += p1;
             p2Sum += p2;
@@ -513,17 +499,9 @@ float tldNNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
     const float p2Mean = p2Sum / N;
 
     const float p1Dev = p1SqSum / N- p1Mean * p1Mean;
-
-//    if(p1Dev <= 0.)
-//        imwrite("/tmp/zerostdDev1.png", patch1);
-
     CV_Assert(p1Dev > 0.);
 
     const float p2Dev = p2SqSum / N- p2Mean * p2Mean;
-
-//    if(p2Dev <= 0.)
-//        imwrite("/tmp/zerostdDev2.png", patch2);
-
     CV_Assert(p2Dev > 0.);
 
     return (p1p2Sum / N - p1Mean * p2Mean) / std::sqrt(p1Dev * p2Dev);

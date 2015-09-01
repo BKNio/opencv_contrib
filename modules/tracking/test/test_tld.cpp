@@ -46,22 +46,25 @@
 #include "../src/tldUtils.hpp"
 #include "../src/tldEnsembleClassifier.hpp"
 
-class NNClassifierTest: public cvtest::BaseTest
+class ClassifiersTest: public cvtest::BaseTest
 {
 public:
-    virtual ~NNClassifierTest(){}
+    virtual ~ClassifiersTest(){}
     virtual void run();
-    NNClassifierTest() : rng(std::time(NULL)), fontScaleRange(0.7f, 2.7f), angleRange(-15.f, 15.f), scaleRange(0.9f, 1.1f),
+    ClassifiersTest() : rng(/*std::time(NULL)*/), fontScaleRange(0.7f, 2.7f), angleRange(-15.f, 15.f), scaleRange(0.9f, 1.1f),
         shiftRange(-5, 5), thicknessRange(1, 3), minimalSize(20, 20)
     {}
 
 private:
-    bool nccRandom();
-    bool nccCharacters();
+    bool nccRandomFill();
+    bool nccRandomCharacters();
     bool emptyTest();
     bool simpleTest();
     bool syntheticDataTest();
     bool onlineTrainTest();
+
+    bool subPixelApproxTest();
+    bool scaleTest();
 
 private:
     cv::RNG rng;
@@ -123,29 +126,32 @@ private:
 };
 
 
-void NNClassifierTest::run()
+void ClassifiersTest::run()
 {
-    if(!nccRandom())
-        FAIL() << "NCC random test failed" << std::endl;
+//    if(!nccRandomFill())
+//        FAIL() << "nccRandom test failed" << std::endl;
 
-    if(!nccCharacters())
-        FAIL() << "NCC character test failed" << std::endl;
+//    if(!nccRandomCharacters())
+//        FAIL() << "nccCharacter test failed" << std::endl;
 
-    if(!emptyTest())
-        FAIL() << "Empty test failed" << std::endl;
+//    if(!emptyTest())
+//        FAIL() << "empty test failed" << std::endl;
 
-    if(!simpleTest())
-        FAIL() << "Simple test failed" << std::endl;
+//    if(!simpleTest())
+//        FAIL() << "simple test failed" << std::endl;
 
-    if(!syntheticDataTest())
-        FAIL() << "SyntheticData test failed" << std::endl;
+//    if(!syntheticDataTest())
+//        FAIL() << "syntheticData test failed" << std::endl;
 
-    if(!onlineTrainTest())
-        FAIL() << "OnlineTrain test failed" << std::endl;
+//    if(!onlineTrainTest())
+//        FAIL() << "onlineTrain test failed" << std::endl;
+
+    if(!scaleTest())
+        FAIL() << "getPixelValue test failed" << std::endl;
 
 }
 
-bool NNClassifierTest::nccRandom()
+bool ClassifiersTest::nccRandomFill()
 {
     for(int n = 3; n < 31; n++)
     {
@@ -163,16 +169,14 @@ bool NNClassifierTest::nccRandom()
 
             if(std::abs(ncc - gt) > 5e-6)
                 return false;
-
         }
     }
 
     return true;
 }
 
-bool NNClassifierTest::nccCharacters()
+bool ClassifiersTest::nccRandomCharacters()
 {
-
     const int sizeOfTest = 2500;
     const int numberOfLetters = 11;
     const std::string letters [] = {"Z", "`", "W", "R", "X", "@", "D", "*", "E", "A", "#"};
@@ -208,36 +212,48 @@ bool NNClassifierTest::nccCharacters()
 
 }
 
-bool NNClassifierTest::emptyTest()
+bool ClassifiersTest::emptyTest()
 {
-    cv::Ptr<cv::tld::tldNNClassifier> nnclasifier = cv::makePtr<cv::tld::tldNNClassifier>(100);
 
-    const cv::Mat image(480, 640, CV_8U, cv::Scalar::all(0));
-    std::vector<cv::Mat_<uchar> > scaledImages(1, image);
+    bool result = true;
+    for(int i = 0; i < 1; ++i)
+    {
+        cv::Ptr<cv::tld::tldIClassifier> clasifier;
 
-    std::vector<cv::tld::Hypothesis> hypothesis(3);
+        if(i == 0)
+            clasifier = cv::makePtr<cv::tld::tldNNClassifier>(100);
+        else
+            clasifier = cv::makePtr<cv::tld::tldFernClassifier>();
 
-    hypothesis[0].bb = cv::Rect(cv::Point(0,0), cv::Size(50, 80));
-    hypothesis[0].scaleId = 0;
+        const cv::Mat image(480, 640, CV_8U, cv::Scalar::all(0));
+        std::vector<cv::Mat_<uchar> > scaledImages(1, image);
 
-    hypothesis[1].bb = cv::Rect(cv::Point(300,100), cv::Size(250, 180));
-    hypothesis[1].scaleId = 0;
+        std::vector<cv::tld::Hypothesis> hypothesis(3);
 
-    hypothesis[2].bb = cv::Rect(cv::Point(453,74), cv::Size(33, 10));
-    hypothesis[2].scaleId = 0;
+        hypothesis[0].bb = cv::Rect(cv::Point(0,0), cv::Size(50, 80));
+        hypothesis[0].scaleId = 0;
 
-    std::vector<bool> answers(3);
+        hypothesis[1].bb = cv::Rect(cv::Point(300,100), cv::Size(250, 180));
+        hypothesis[1].scaleId = 0;
 
-    answers[0] = true;
-    answers[1] = false;
-    answers[2] = true;
+        hypothesis[2].bb = cv::Rect(cv::Point(453,74), cv::Size(33, 10));
+        hypothesis[2].scaleId = 0;
 
-    nnclasifier->isObjects(hypothesis, scaledImages, answers);
+        std::vector<bool> answers(3);
 
-    return !answers[0] && !answers[1] && !answers[2];
+        answers[0] = true;
+        answers[1] = false;
+        answers[2] = true;
+
+        clasifier->isObjects(hypothesis, scaledImages, answers);
+
+        result &= !answers[0] && !answers[1] && !answers[2];
+    }
+
+    return result;
 }
 
-bool NNClassifierTest::simpleTest()
+bool ClassifiersTest::simpleTest()
 {
     cv::Ptr<cv::tld::tldNNClassifier> nnclasifier = cv::makePtr<cv::tld::tldNNClassifier>(100);
 
@@ -246,8 +262,8 @@ bool NNClassifierTest::simpleTest()
     cv::circle(positiveExmpl, cv::Point(positiveExmpl.cols / 2, positiveExmpl.rows / 2), std::min(positiveExmpl.cols, positiveExmpl.rows) / 2, cv::Scalar::all(255));
     cv::rectangle(negativeExmpl, cv::Rect(negativeExmpl.cols / 3, negativeExmpl.rows / 4, negativeExmpl.cols / 2, negativeExmpl.rows / 2), cv::Scalar::all(255));
 
-    nnclasifier->addPositiveExample(positiveExmpl);
-    nnclasifier->addNegativeExample(negativeExmpl);
+    nnclasifier->integratePositiveExample(positiveExmpl);
+    nnclasifier->integrateNegativeExample(negativeExmpl);
 
     std::vector<cv::tld::Hypothesis> hypothesis(2);
     hypothesis[0].bb = cv::Rect(cv::Point(0,0), positiveExmpl.size());
@@ -270,9 +286,7 @@ bool NNClassifierTest::simpleTest()
     return true;
 }
 
-//#define SHOW_BAD_CACES
-
-bool NNClassifierTest::syntheticDataTest()
+bool ClassifiersTest::syntheticDataTest()
 {
     const std::string positiveLetter = "A";
     const std::string negativeLetter = "Z";
@@ -285,14 +299,14 @@ bool NNClassifierTest::syntheticDataTest()
     {
         cv::Mat_<uchar> positiveExample;
         putRandomWarpedLetter(positiveExample, positiveLetter);
-        nnclasifier->addPositiveExample(positiveExample);
+        nnclasifier->integratePositiveExample(positiveExample);
     }
 
     for(int i = 0; i < modelSize; ++i)
     {
         cv::Mat_<uchar> negativeExample;
         putRandomWarpedLetter(negativeExample, negativeLetter);
-        nnclasifier->addNegativeExample(negativeExample);
+        nnclasifier->integrateNegativeExample(negativeExample);
     }
 
     const int numberOfTestExamples = 2500;
@@ -351,73 +365,10 @@ bool NNClassifierTest::syntheticDataTest()
 
     float tP = 0.f, tN = 0.f, fP = 0.f, fN = 0.f;
 
-#ifdef SHOW_BAD_CACES
-    std::vector<cv::Mat> errorImages(scaledImages.size());
-#endif
-
     for(size_t i = 0; i < hypothesis.size(); ++i)
     {
         if(gt[i] != test[i])
         {
-
-#ifdef SHOW_BAD_CACES
-
-            {
-                std::pair<cv::Mat, cv::Mat> model = nnclasifier->outputNearestPrecedents(i);
-                cv::Mat copy = scaledImages[hypothesis[i].scaleId](hypothesis[i].bb);//(400, 400, CV_8U, cv::Scalar::all(0));
-                //scaledImages[hypothesis[i].scaleId](hypothesis[i].bb).copyTo(copy(cv::Rect(cv::Point(), hypothesis[i].bb.size()
-                cv::Mat resizedCopy; cv::resize(copy, resizedCopy, pathSize, cv::INTER_NEAREST);
-                cv::Mat resultPositive;
-                cv::matchTemplate(resizedCopy, model.first, resultPositive, CV_TM_CCOEFF_NORMED);
-
-                cv::Mat resultNegative;
-                cv::matchTemplate(resizedCopy, model.second, resultNegative, CV_TM_CCOEFF_NORMED);
-
-                CV_Assert(resultNegative.size().area() == 1);
-                CV_Assert(resultPositive.size().area() == 1);
-                CV_Assert(resultNegative.depth() == CV_32F && resultPositive.depth() == CV_32F);
-
-                const float actSplus = 0.5f * (resultPositive.at<float>(0) + 1.f);
-                const float actSminus = 0.5f * (resultNegative.at<float>(0) + 1.f);
-                const std::pair<float, float> distancesToNearestPrecedents = nnclasifier->getDistancesToNearestPrecedents(i);
-
-                /*std::cout << 0.5f * (resultPositive.at<float>(0) + 1.f) << " " << 0.5f * (resultNegative.at<float>(0) + 1.f) << std::endl;
-
-                cv::imshow("resizedCopy", resizedCopy);
-                cv::imshow("Nearest positive example", model.first);
-                cv::imshow("Nearest negative example", model.second);
-                std::cout <<"gt "<< gt[i] <<" test "<< test[i] << std::endl;
-
-                cv::Mat absDiffPositive, absDiffNegative;
-                cv::absdiff(resizedCopy, model.first, absDiffPositive);
-                cv::absdiff(resizedCopy, model.second, absDiffNegative);
-
-                std::cout << cv::sum(absDiffPositive)[0] << " " << cv::sum(absDiffNegative)[0] << std::endl;
-
-                cv::imshow("absDiffPositive", absDiffPositive);
-                cv::imshow("absDiffNegative", absDiffNegative);
-
-                cv::waitKey();*/
-
-                CV_Assert(std::abs(actSplus - distancesToNearestPrecedents.first) < 5e-5 || std::abs(actSminus - distancesToNearestPrecedents.second) < 5e-5);
-            }
-
-            /*const cv::tld::Hypothesis &errorHypothesis = hypothesis[i];
-
-            if(errorImages[errorHypothesis.scaleId].empty())
-                cv::cvtColor(scaledImages[errorHypothesis.scaleId], errorImages[errorHypothesis.scaleId], cv::COLOR_GRAY2BGR);
-
-            if(gt[i])
-            {
-                cv::putText(errorImages[errorHypothesis.scaleId], "FN", errorHypothesis.bb.br(), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(128,0,255), 2);
-                cv::rectangle(errorImages[errorHypothesis.scaleId], errorHypothesis.bb, cv::Scalar(128,0,255), 1);
-            }
-            else
-            {
-                cv::putText(errorImages[errorHypothesis.scaleId], "FP", errorHypothesis.bb.br(), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(0,128,255), 2);
-                cv::rectangle(errorImages[errorHypothesis.scaleId], errorHypothesis.bb, cv::Scalar(0,128,255), 1);
-            }*/
-#endif
 
             if(!gt[i] && test[i])
                 fP += 1.f;
@@ -433,27 +384,17 @@ bool NNClassifierTest::syntheticDataTest()
     }
 
     CV_Assert(tP + tN + fN + fP == hypothesis.size());
+    const int numberOfPositives = std::count(gt.begin(), gt.end(), true);
 
-    int numberOfPositives = std::count(gt.begin(), gt.end(), true);
+    const float recall = tP / numberOfPositives;
+    const float precission = tP / (tP + fP);
 
-    std::cout << "recall " << tP / numberOfPositives << " precision " << tP / (tP + fP) << std::endl;
-    std::cout << "total misclassified " << fP + fN << " misclassified percent " << (fP + fN) / numberOfTestExamples << std::endl;
+    std::cout << "recall " << recall << " precission " << precission << std::endl;
 
-#ifdef SHOW_BAD_CACES
-    for(std::vector<cv::Mat>::const_iterator it = errorImages.begin(); it != errorImages.end(); ++it)
-    {
-        if(!it->empty())
-        {
-            cv::imshow("error img", *it);
-            cv::waitKey();
-        }
-    }
-#endif
-
-    return true;
+    return recall > 0.98f && precission > 0.98f;
 }
 
-bool NNClassifierTest::onlineTrainTest()
+bool ClassifiersTest::onlineTrainTest()
 {
     const std::string positiveLetter = "A";
     const std::string negativeLetter = "Z";
@@ -493,9 +434,9 @@ bool NNClassifierTest::onlineTrainTest()
         if(answers[0] != isObject)
         {
             if(isObject)
-                nnclasifier->addPositiveExample(example);
+                nnclasifier->integratePositiveExample(example);
             else
-                nnclasifier->addNegativeExample(example);
+                nnclasifier->integrateNegativeExample(example);
 
             misclassified += 1.f;
 
@@ -503,14 +444,11 @@ bool NNClassifierTest::onlineTrainTest()
 
             nnclasifier->isObjects(hypothesis, scaledImgs, answers);
 
-            CV_Assert(answers[0] == isObject);
+            if(answers[0] != isObject)
+                return false;
         }
         else
             correctClassified += 1.f;
-
-
-        if(iteration % 100 == 0)
-            std::cout << "correctClassified percent " << correctClassified / (iteration + 1) << " misclassified percent " << misclassified / (iteration + 1) << std::endl;
 
     }
 
@@ -518,7 +456,130 @@ bool NNClassifierTest::onlineTrainTest()
 
 }
 
-void NNClassifierTest::EuclideanTransform(cv::Vec2i shift, cv::Vec2f scale, float angle, const cv::Mat &src, cv::Mat &dst)
+bool ClassifiersTest::scaleTest() //fern and nnc must be scale invariant
+{
+    std::vector<std::string> positiveLetters;
+    positiveLetters.push_back("Z");
+    positiveLetters.push_back("`");
+    positiveLetters.push_back("W");
+    positiveLetters.push_back("R");
+    positiveLetters.push_back("X");
+    positiveLetters.push_back("@");
+    positiveLetters.push_back("D");
+    positiveLetters.push_back("*");
+    positiveLetters.push_back("O");
+    positiveLetters.push_back("A");
+
+    std::vector<std::string> negativeLetters;
+    negativeLetters.push_back("F");
+    negativeLetters.push_back("!");
+    negativeLetters.push_back("Q");
+    negativeLetters.push_back("C");
+    negativeLetters.push_back("E");
+    negativeLetters.push_back("2");
+    negativeLetters.push_back("B");
+    negativeLetters.push_back("@");
+    negativeLetters.push_back("V");
+    negativeLetters.push_back(";");
+
+    cv::Ptr<cv::tld::tldFernClassifier> fernClassifier = cv::makePtr<cv::tld::tldFernClassifier>(2,20);
+    cv::Ptr<cv::tld::tldNNClassifier> nnclassifier = cv::makePtr<cv::tld::tldNNClassifier>(500);
+
+    for(int lettersIndex = 0; lettersIndex < 2; ++lettersIndex)
+    {
+        const std::vector<std::string> &currentLettersSet = lettersIndex ? negativeLetters : positiveLetters;
+
+        for(std::vector<std::string>::const_iterator it = currentLettersSet.begin(); it != currentLettersSet.end(); ++it)
+        {
+            const cv::Size textSize = cv::getTextSize(*it, cv::FONT_HERSHEY_COMPLEX, 3.5, 3, NULL);
+            cv::Mat_<uchar> image(textSize, 0);
+            cv::putText(image, *it, cv::Point(0, textSize.height), cv::FONT_HERSHEY_COMPLEX, 3.5, cv::Scalar::all(255), 3);
+
+            if(lettersIndex)
+            {
+                fernClassifier->integrateNegativeExample(image);
+                nnclassifier->integrateNegativeExample(image);
+            }
+            else
+            {
+                fernClassifier->integratePositiveExample(image);
+                nnclassifier->integratePositiveExample(image);
+            }
+
+        }
+
+    }
+
+    const float scales[] = {3.f, 2.f, 1.5f, 1., 0.66f, 0.5f/*, 0.33f*/};
+    cv::Mat bigPicture = cv::Mat(900, 1800, CV_8U);
+
+    std::vector<cv::Mat_<uchar> > scaledImages;
+    std::vector<cv::tld::Hypothesis> hypothesis;
+    std::vector<bool> gt;
+
+    cv::Point cuurentPutPoint(0, 0);
+    int nextLineY = 0;
+
+    for(int setIndex = 0; setIndex < 2; ++setIndex)
+    {
+        const std::vector<std::string> &currentLettersSet = setIndex ? negativeLetters : positiveLetters;
+
+        bool isPositive = setIndex == 0;
+
+        for(std::vector<std::string>::const_iterator it = currentLettersSet.begin(); it != currentLettersSet.end(); ++it)
+        {
+            for(size_t scaleIndex = 0; scaleIndex < sizeof scales / sizeof (float); ++scaleIndex)
+            {
+                const cv::Size textSize = cv::getTextSize(*it, cv::FONT_HERSHEY_COMPLEX, scales[scaleIndex], 3, NULL);
+                cv::Mat_<uchar> testExample(textSize, 0);
+                cv::putText(testExample, *it, cv::Point(0, textSize.height), cv::FONT_HERSHEY_COMPLEX, scales[scaleIndex], cv::Scalar::all(255), 3);
+
+                if(cuurentPutPoint.x + testExample.cols > bigPicture.cols)
+                {
+                    cuurentPutPoint = cv::Point(0, cuurentPutPoint.y + nextLineY + 10);
+                    nextLineY = 0;
+                }
+
+                if(cuurentPutPoint.y + testExample.rows > bigPicture.rows)
+                {
+                    scaledImages.push_back(bigPicture.clone());
+                    bigPicture = cv::Scalar::all(0);
+
+                    cuurentPutPoint = cv::Point();
+                    nextLineY = 0;
+                }
+
+                const cv::Rect bb = cv::Rect(cuurentPutPoint, testExample.size());
+                testExample.copyTo(bigPicture(bb));
+
+                hypothesis.push_back(cv::tld::Hypothesis());
+
+                hypothesis.back().bb = bb;
+                hypothesis.back().scaleId = scaledImages.size();
+
+
+                gt.push_back(isPositive);
+
+                cuurentPutPoint += cv::Point(testExample.cols + 10, 0);
+                nextLineY = std::max(nextLineY, testExample.rows);
+
+            }
+        }
+    }
+
+    scaledImages.push_back(bigPicture.clone());
+
+    for(std::vector<cv::Mat_<uchar> >::const_iterator it = scaledImages.begin(); it != scaledImages.end(); ++it)
+    {
+        cv::imshow("scaledImages", *it);
+        cv::waitKey();
+    }
+
+    return true;
+
+}
+
+void ClassifiersTest::EuclideanTransform(cv::Vec2i shift, cv::Vec2f scale, float angle, const cv::Mat &src, cv::Mat &dst)
 {
     cv::Mat shiftTransform = cv::Mat::eye(3, 3, CV_32F);
     shiftTransform.at<float>(0,2) = shift[0];
@@ -543,5 +604,5 @@ void NNClassifierTest::EuclideanTransform(cv::Vec2i shift, cv::Vec2f scale, floa
 
 }
 
-TEST(TLD, NNClassifier) { NNClassifierTest test; test.run(); }
+TEST(TLD, NNClassifier) { ClassifiersTest test; test.run(); }
 

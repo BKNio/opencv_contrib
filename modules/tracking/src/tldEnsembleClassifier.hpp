@@ -44,8 +44,7 @@
 
 #include "precomp.hpp"
 
-
-#define DEBUG
+#define FERN_DEBUG
 
 namespace cv
 {
@@ -60,11 +59,26 @@ struct Hypothesis
     double confidence;
 };
 
-class CV_EXPORTS_W tldVarianceClassifier
+class tldIClassifier
+{
+public:
+    virtual void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const = 0;
+    virtual void integratePositiveExample(const Mat_<uchar> &image) = 0;
+    virtual void integrateNegativeExample(const Mat_<uchar> &image) = 0;
+
+    virtual ~tldIClassifier() {}
+
+};
+
+class CV_EXPORTS_W tldVarianceClassifier : tldIClassifier
 {
 public:
     tldVarianceClassifier(const Mat_<uchar> &originalImage, const Rect &bb, double actThreshold = 0.5);
     void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const;
+    void integratePositiveExample(const Mat_<uchar> &) {}
+    void integrateNegativeExample(const Mat_<uchar> &) {}
+
+    ~tldVarianceClassifier() {}
 
 private:
     const double originalVariance;
@@ -78,10 +92,10 @@ private:
 
 };
 
-class CV_EXPORTS_W tldFernClassifier
+class CV_EXPORTS_W tldFernClassifier : public tldIClassifier
 {
 public:
-    tldFernClassifier(const Size &roi, int actNumberOfFerns, int actNumberOfMeasurements);
+    tldFernClassifier(int numberOfMeasurementsPerFern = 13, int reqNumberOfFerns = -1, Size actNormilizedPatchSize = Size(15, 15));
 
     void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const;
 
@@ -90,9 +104,11 @@ public:
 
     std::vector<Mat> outputFerns(const Size &displaySize) const;
 
+    ~tldFernClassifier() {}
+
 private:
-    const Size originalSize;
-    const int numberOfFerns, numberOfMeasurements;
+    const Size normilizedPatchSize;
+    /*const int numberOfFerns, numberOfMeasurements;*/
     const double threshold;
 
     typedef std::vector<std::vector<std::pair<Point, Point> > > Ferns;
@@ -106,26 +122,27 @@ private:
     double getProbability(const Mat_<uchar> &image) const;
     int code(const Mat_<uchar> &image, const Ferns::value_type &fern) const;
     void integrateExample(const Mat_<uchar> &image, bool isPositive);
+    static uchar getPixelVale(const Mat_<uchar> &image, const Point2f point);
 
-
+#ifdef FERN_DEBUG
+public:
+    mutable cv::Mat debugOutput;
+#endif
 };
 
-class CV_EXPORTS_W tldNNClassifier
+class CV_EXPORTS_W tldNNClassifier : public tldIClassifier
 {
 public:
     tldNNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize = Size(15, 15), double actTheta = 0.5);
 
     void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const;
 
-    void addPositiveExample(const Mat_<uchar> &example) { addExample(example, positiveExamples); }
-    void addNegativeExample(const Mat_<uchar> &example) { addExample(example, negativeExamples); }
+    void integratePositiveExample(const Mat_<uchar> &example) { addExample(example, positiveExamples); }
+    void integrateNegativeExample(const Mat_<uchar> &example) { addExample(example, negativeExamples); }
 
-#ifdef DEBUG
     std::pair<cv::Mat, cv::Mat> outputModel() const;
-    std::pair<cv::Mat, cv::Mat> outputNearestPrecedents(int hypothesisIndex) const;
-    std::pair<float, float> getDistancesToNearestPrecedents(int hypothesisIndex) const;
-#endif
 
+    ~tldNNClassifier() {}
 
 private:
     const double theta;
@@ -136,11 +153,6 @@ private:
     typedef std::list<Mat_<uchar> > ExampleStorage;
     ExampleStorage positiveExamples, negativeExamples;
     RNG rng;
-
-#ifdef DEBUG
-    mutable std::vector<std::pair<ExampleStorage::const_iterator, ExampleStorage::const_iterator> > nearestPrecedents;
-    mutable std::vector<std::pair<float, float> > distances;
-#endif
 
 private:
     bool isObject(const Mat_<uchar> &object) const;
