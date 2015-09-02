@@ -44,7 +44,7 @@
 
 #include "precomp.hpp"
 
-#define FERN_DEBUG
+//#define FERN_DEBUG
 
 namespace cv
 {
@@ -92,10 +92,12 @@ private:
 
 };
 
+//#define FERN_DEBUG
+#define USE_BLUR
 class CV_EXPORTS_W tldFernClassifier : public tldIClassifier
 {
 public:
-    tldFernClassifier(int numberOfMeasurementsPerFern = 13, int reqNumberOfFerns = -1, Size actNormilizedPatchSize = Size(15, 15));
+    tldFernClassifier(int numberOfMeasurementsPerFern = 13, int reqNumberOfFerns = 100, Size actNormilizedPatchSize = Size(15, 15));
 
     void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const;
 
@@ -106,7 +108,7 @@ public:
 
     ~tldFernClassifier() {}
 
-private:
+/*private:*/
     const Size normilizedPatchSize;
     /*const int numberOfFerns, numberOfMeasurements;*/
     const double threshold;
@@ -117,7 +119,8 @@ private:
     typedef std::vector<std::vector<Point2i> > Precedents;
     Precedents precedents;
 
-private:
+/*private:*/
+public:
     bool isObject(const Mat_<uchar> &object) const;
     double getProbability(const Mat_<uchar> &image) const;
     int code(const Mat_<uchar> &image, const Ferns::value_type &fern) const;
@@ -127,13 +130,14 @@ private:
 #ifdef FERN_DEBUG
 public:
     mutable cv::Mat debugOutput;
+    mutable std::pair<uchar, uchar> vals;
 #endif
 };
 
 class CV_EXPORTS_W tldNNClassifier : public tldIClassifier
 {
 public:
-    tldNNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize = Size(15, 15), double actTheta = 0.5);
+    tldNNClassifier(size_t actMaxNumberOfExamples = 500, Size actNormilizedPatchSize = Size(15, 15), double actTheta = 0.5);
 
     void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const;
 

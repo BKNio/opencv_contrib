@@ -158,7 +158,7 @@ tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNum
                     Point secondPoint(ii,jj);
 
                     const Point diff = firstPoint - secondPoint;
-                    if(diff.dot(diff) < 9)
+                    if(diff.dot(diff) < 4)
                         continue;
 
                     measurements.push_back(std::make_pair(firstPoint, secondPoint));
@@ -199,7 +199,7 @@ void tldFernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, con
 
     for(size_t i = 0; i < hypothesis.size(); ++i)
         if(answers[i])
-            answers[i] = isObject(scaledImages[i](hypothesis[i].bb));
+            answers[i] = isObject(scaledImages[hypothesis[i].scaleId](hypothesis[i].bb));
 }
 
 void tldFernClassifier::integratePositiveExample(const Mat_<uchar> &image)
@@ -223,16 +223,33 @@ double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
 {
 //    CV_Assert(image.size() == normilizedPatchSize);
 
+#ifdef USE_BLUR
+    Mat_<uchar> blurred;
+    GaussianBlur(image, blurred, Size(3,3), 0.);
+#endif
+
     double accumProbability = 0.;
     for(size_t i = 0; i < ferns.size(); ++i)
     {
+#ifdef FERN_DEBUG
+    debugOutput = Mat();
+#endif
+#ifdef USE_BLUR
+        int position = code(blurred, ferns[i]);
+#else
         int position = code(image, ferns[i]);
+#endif
 
         int posNum = precedents[i][position].x, negNum = precedents[i][position].y;
 
         if (posNum != 0 || negNum != 0)
             accumProbability += double(posNum) / (posNum + negNum);
+#ifdef FERN_DEBUG
+    imshow("debugOutput", debugOutput);
+    waitKey();
+#endif
     }
+
 
     return accumProbability / int(ferns.size());
 }
@@ -259,7 +276,10 @@ int tldFernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &f
         static RNG rng;
         Scalar color(rng.uniform(0,255), rng.uniform(0,255), rng.uniform(0,255));
         line(debugOutput, p1, p2, color);
-        line(debugOutput, p1, p2, color);
+
+        vals.first = getPixelVale(image, p1);
+        vals.second = getPixelVale(image, p2);
+
 #endif
 
         if(getPixelVale(image, p1) < getPixelVale(image, p2))
@@ -271,14 +291,23 @@ int tldFernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &f
 
 void tldFernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
 {
+#ifdef USE_BLUR
+    Mat_<uchar> blurred;
+    GaussianBlur(image, blurred, Size(3,3), 0.);
+#endif
+
     for(size_t i = 0; i < ferns.size(); ++i)
     {
+#ifdef USE_BLUR
+        int position = code(blurred, ferns[i]);
+#else
         int position = code(image, ferns[i]);
+#endif
 
         if(isPositive)
         {
             precedents[i][position].x++;
-            if(precedents[i][position].y > 0)precedents[i][position].y--;
+            if(precedents[i][position].y > 0) precedents[i][position].y--;
         }
         else
         {
@@ -406,6 +435,12 @@ bool tldNNClassifier::isObject(const Mat_<uchar> &object) const
     else
         object.copyTo(normilizedPatch);
 
+#ifdef USE_BLUR
+    Mat_<uchar> blurred;
+    GaussianBlur(normilizedPatch, blurred, Size(3,3), 0.);
+    blurred.copyTo(normilizedPatch);
+#endif
+
     return Sr(normilizedPatch) > theta;
 }
 
@@ -455,6 +490,11 @@ void tldNNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<ucha
     else
         normilizedPatch = example;
 
+#ifdef USE_BLUR
+    Mat_<uchar> blurred;
+    GaussianBlur(normilizedPatch, blurred, Size(3,3), 0.);
+    blurred.copyTo(normilizedPatch);
+#endif
 
     if(storage.size() == maxNumberOfExamples)
     {
