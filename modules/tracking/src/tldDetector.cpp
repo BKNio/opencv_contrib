@@ -46,21 +46,22 @@ namespace cv
 namespace tld
 {
 
-tldCascadeClassifier::tldCascadeClassifier(const Mat_<uchar> &originalImage, const Rect &bb, int maxNumberOfExamples, int numberOfFerns, int numberOfMeasurements)
+tldCascadeClassifier::tldCascadeClassifier(const Mat_<uchar> &originalImage, const Rect &bb, int maxNumberOfExamples, int numberOfFerns, int numberOfMeasurements):
+    originalBBSize(bb.size()), frameSize(originalImage.size()), scaleStep(1.2f)
 {
     if(bb.width < minimalBBSize.width || bb.height < minimalBBSize.height)
         CV_Error(Error::StsBadArg, "Initial bounding box is too small");
 
     varianceClassifier = makePtr<tldVarianceClassifier>(originalImage, bb);
-    fernClassifier = makePtr<tldFernClassifier>();
+    fernClassifier = makePtr<tldFernClassifier>(numberOfMeasurements, numberOfFerns);
     nnClassifier = makePtr<tldNNClassifier>(maxNumberOfExamples, standardPath);
 }
 
-void tldCascadeClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const
+void tldCascadeClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &scaledImage, std::vector<bool> &answers) const
 {
-    varianceClassifier->isObjects(hypothesis, scaledImages, answers);
-    fernClassifier->isObjects(hypothesis, scaledImages, answers);
-    nnClassifier->isObjects(hypothesis, scaledImages, answers);
+    varianceClassifier->isObjects(hypothesis, scaledImage, answers);
+    fernClassifier->isObjects(hypothesis, scaledImage, answers);
+    nnClassifier->isObjects(hypothesis, scaledImage, answers);
 }
 
 void tldCascadeClassifier::addPositiveExample(const Mat_<uchar> &example)
@@ -73,6 +74,55 @@ void tldCascadeClassifier::addNegativeExample(const Mat_<uchar> &example)
 {
     fernClassifier->integrateNegativeExample(example);
     nnClassifier->integrateNegativeExample(example);
+}
+
+std::vector<Hypothesis> tldCascadeClassifier::generateHypothesis() const
+{
+    std::vector<Hypothesis> hypothesis;
+
+    const double scaleX = frameSize.width / originalBBSize.width;
+    const double scaleY = frameSize.height / originalBBSize.height;
+
+    const double scale = std::min(scaleX, scaleY);
+
+    const double power =log(scale) / log(scaleStep);
+    double correctedScale = pow(scaleStep, power);
+
+    CV_Assert(originalBBSize.width * correctedScale <= frameSize.width && originalBBSize.height * correctedScale <= frameSize.height);
+
+    for(;;)
+    {
+        Size correntBBSize(originalBBSize.width * correctedScale, originalBBSize.height * correctedScale);
+        if(correntBBSize.width < minimalBBSize.width || correntBBSize.height < minimalBBSize.height)
+            break;
+        addScanGrid(correntBBSize, frameSize, hypothesis);
+
+        /*{
+            for(std::vector<Hypothesis>::const_iterator it = hypothesis.begin(); it != hypothesis.end(); ++it)
+            {
+                Mat copy; image.copyTo(copy);
+                rectangle(copy, it->bb, Scalar::all(255));
+                imshow("copy", copy);
+                waitKey(1);
+            }
+            hypothesis.clear();
+        }*/
+
+        correctedScale /= scaleStep;
+    }
+    return hypothesis;
+}
+
+void tldCascadeClassifier::addScanGrid(const Size bbSize, const Size imageSize , std::vector<Hypothesis> &hypothesis)
+{
+    CV_Assert(bbSize.width > 20 && bbSize.height > 20);
+
+    const int dx = bbSize.width / 10;
+    const int dy = bbSize.height / 10;
+
+    for(int currentX = 0; currentX < imageSize.width - bbSize.width - dx; currentX += dx)
+        for(int currentY = 0; currentY < imageSize.height - bbSize.height - dy; currentY += dy)
+            hypothesis.push_back(Hypothesis(currentX, currentY, bbSize));
 }
 
 //void tldCascadeClassifier::detect(const Mat_<uchar>& img, std::vector<Response>& responses)

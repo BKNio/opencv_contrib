@@ -52,18 +52,17 @@ tldVarianceClassifier::tldVarianceClassifier(const Mat_<uchar> &originalImage, c
     originalVariance(variance(originalImage(bb))), threshold(actThreshold)
 {}
 
-void tldVarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const
+void tldVarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
 {
     CV_Assert(answers.empty());
     answers.reserve(hypothesis.size());
 
-    std::vector<std::pair< Mat_<double>, Mat_<double> > > integralScaledImages(scaledImages.size());
+    std::pair< Mat_<double>, Mat_<double> > integralScaledImages;
 
-    for(size_t i = 0; i < scaledImages.size(); ++i)
-        cv::integral(scaledImages[i], integralScaledImages[i].first, integralScaledImages[i].second, CV_64F, CV_64F);
+    cv::integral(image, integralScaledImages.first, integralScaledImages.second, CV_64F, CV_64F);
 
     for(std::vector<Hypothesis>::const_iterator it = hypothesis.begin(); it != hypothesis.end(); ++it)
-        answers.push_back(isObject(it->bb, integralScaledImages[it->scaleId].first, integralScaledImages[it->scaleId].second));
+        answers.push_back(isObject(it->bb, integralScaledImages.first, integralScaledImages.second));
 }
 
 bool tldVarianceClassifier::isObject(const Rect &bb, const Mat_<double> &sum, const Mat_<double> &sumSq) const
@@ -117,15 +116,13 @@ double tldVarianceClassifier::variance(const Mat_<double> &sum, const Mat_<doubl
 
 /*                   tldFernClassifier                   */
 
-
 tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize):
-    normilizedPatchSize(actNormilizedPatchSize), threshold(0.5)
+    normilizedPatchSize(actNormilizedPatchSize), threshold(0.5), minSqDist(9)
 {
     Ferns::value_type measurements;
-    /*measurements.reserve(normilizedPatchSize.area() * (normilizedPatchSize.width + normilizedPatchSize.height - 6));*/
 
     const int shift = 1;
-    for(int i = shift; i < normilizedPatchSize.width - shift; ++i) //generating all possible horizontal and vertical pixel comprations
+    for(int i = shift; i < normilizedPatchSize.width - shift; ++i)
     {
         for(int j = shift; j < normilizedPatchSize.height - shift; ++j)
         {
@@ -135,7 +132,7 @@ tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNum
             for(int kk = shift; kk < normilizedPatchSize.width - shift; ++kk)
             {
                 const Point diff = Point(kk, j) - firstPoint;
-                if(diff.dot(diff) < 9)
+                if(diff.dot(diff) < minSqDist)
                     continue;
 
                 measurements.push_back(std::make_pair(firstPoint, Point(kk, j)));
@@ -144,12 +141,11 @@ tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNum
             for(int kk = shift; kk < normilizedPatchSize.height -shift; ++kk)
             {
                 const Point diff = Point(i, kk) - firstPoint;
-                if(diff.dot(diff) < 9)
+                if(diff.dot(diff) < minSqDist)
                     continue;
 
                 measurements.push_back(std::make_pair(firstPoint, Point(i, kk)));
             }
-
 #else
             for(int ii = /*i + 1*/ shift; ii < normilizedPatchSize.width - shift; ++ii)
             {
@@ -193,35 +189,32 @@ tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNum
 
 }
 
-void tldFernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const
+void tldFernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const
 {
     CV_Assert(hypothesis.size() == answers.size());
 
     for(size_t i = 0; i < hypothesis.size(); ++i)
         if(answers[i])
-            answers[i] = isObject(scaledImages[hypothesis[i].scaleId](hypothesis[i].bb));
+            answers[i] = isObject(images(hypothesis[i].bb));
 }
 
 void tldFernClassifier::integratePositiveExample(const Mat_<uchar> &image)
 {
-//    CV_Assert(image.size() == normilizedPatchSize);
     integrateExample(image, true);
 }
 
 void tldFernClassifier::integrateNegativeExample(const Mat_<uchar> &image)
 {
-//    CV_Assert(image.size() == normilizedPatchSize);
     integrateExample(image, false);
 }
 
-bool tldFernClassifier::isObject(const Mat_<uchar> &object) const
+bool tldFernClassifier::isObject(const Mat_<uchar> &image) const
 {
-    return getProbability(object) > threshold;
+    return getProbability(image) > threshold;
 }
 
 double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
 {
-//    CV_Assert(image.size() == normilizedPatchSize);
 
 #ifdef USE_BLUR
     Mat_<uchar> blurred;
@@ -239,7 +232,6 @@ double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
 #else
         int position = code(image, ferns[i]);
 #endif
-
         int posNum = precedents[i][position].x, negNum = precedents[i][position].y;
 
         if (posNum != 0 || negNum != 0)
@@ -249,7 +241,6 @@ double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
     waitKey();
 #endif
     }
-
 
     return accumProbability / int(ferns.size());
 }
@@ -279,7 +270,6 @@ int tldFernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &f
 
         vals.first = getPixelVale(image, p1);
         vals.second = getPixelVale(image, p2);
-
 #endif
 
         if(getPixelVale(image, p1) < getPixelVale(image, p2))
@@ -305,15 +295,10 @@ void tldFernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositi
 #endif
 
         if(isPositive)
-        {
             precedents[i][position].x++;
-            if(precedents[i][position].y > 0) precedents[i][position].y--;
-        }
         else
-        {
-            if(precedents[i][position].x > 0) precedents[i][position].x--;
             precedents[i][position].y++;
-        }
+
     }
 }
 
@@ -368,7 +353,7 @@ tldNNClassifier::tldNNClassifier(size_t actMaxNumberOfExamples, Size actNormiliz
     normilizedPatchSize(actNormilizedPatchSize), normilizedPatch(normilizedPatchSize)
 {}
 
-void tldNNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const
+void tldNNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const
 {
     CV_Assert(hypothesis.size() == answers.size());
 
@@ -379,7 +364,7 @@ void tldNNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const
 
     for(size_t i = 0; i < hypothesis.size(); ++i)
         if(answers[i])
-            answers[i] = isObject(scaledImages[hypothesis[i].scaleId](hypothesis[i].bb));
+            answers[i] = isObject(images(hypothesis[i].bb));
 }
 
 std::pair<Mat, Mat> tldNNClassifier::outputModel() const
@@ -428,12 +413,12 @@ std::pair<Mat, Mat> tldNNClassifier::outputModel() const
     return std::make_pair(positivePrecedents, negativePrecedents);
 }
 
-bool tldNNClassifier::isObject(const Mat_<uchar> &object) const
+bool tldNNClassifier::isObject(const Mat_<uchar> &image) const
 {
-    if(object.size() != normilizedPatchSize)
-        resize(object, normilizedPatch, normilizedPatchSize/*, INTER_NEAREST*/);
+    if(image.size() != normilizedPatchSize)
+        resize(image, normilizedPatch, normilizedPatchSize/*, INTER_NEAREST*/);
     else
-        object.copyTo(normilizedPatch);
+        image.copyTo(normilizedPatch);
 
 #ifdef USE_BLUR
     Mat_<uchar> blurred;
@@ -486,7 +471,7 @@ void tldNNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<ucha
     CV_Assert(storage.size() <= maxNumberOfExamples);
 
     if(example.size() != normilizedPatchSize)
-        resize(example, normilizedPatch, normilizedPatchSize/*, INTER_NEAREST*/);
+        resize(example, normilizedPatch, normilizedPatchSize);
     else
         normilizedPatch = example;
 

@@ -39,6 +39,9 @@
 //
 //M*/
 
+#ifndef TLD_ENSEMBLE
+#define TLD_ENSEMBLE
+
 #include <list>
 #include <vector>
 
@@ -53,16 +56,16 @@ namespace tld
 
 struct Hypothesis
 {
-    Hypothesis() : bb(), scaleId(-1), confidence(-1.){}
+    Hypothesis() : bb(), confidence(-1.){}
+    Hypothesis(int x, int y, Size size) : bb(Point(x,y), size), confidence(-1.) {}
     Rect bb;
-    int scaleId;
     double confidence;
 };
 
 class tldIClassifier
 {
 public:
-    virtual void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const = 0;
+    virtual void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const = 0;
     virtual void integratePositiveExample(const Mat_<uchar> &image) = 0;
     virtual void integrateNegativeExample(const Mat_<uchar> &image) = 0;
 
@@ -74,7 +77,7 @@ class CV_EXPORTS_W tldVarianceClassifier : tldIClassifier
 {
 public:
     tldVarianceClassifier(const Mat_<uchar> &originalImage, const Rect &bb, double actThreshold = 0.5);
-    void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const;
+    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const;
     void integratePositiveExample(const Mat_<uchar> &) {}
     void integrateNegativeExample(const Mat_<uchar> &) {}
 
@@ -97,9 +100,9 @@ private:
 class CV_EXPORTS_W tldFernClassifier : public tldIClassifier
 {
 public:
-    tldFernClassifier(int numberOfMeasurementsPerFern = 13, int reqNumberOfFerns = 100, Size actNormilizedPatchSize = Size(15, 15));
+    tldFernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize = Size(15, 15));
 
-    void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const;
+    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const;
 
     void integratePositiveExample(const Mat_<uchar> &image);
     void integrateNegativeExample(const Mat_<uchar> &image);
@@ -112,16 +115,17 @@ public:
     const Size normilizedPatchSize;
     /*const int numberOfFerns, numberOfMeasurements;*/
     const double threshold;
+    const int minSqDist;
 
     typedef std::vector<std::vector<std::pair<Point, Point> > > Ferns;
     Ferns ferns;
 
-    typedef std::vector<std::vector<Point2i> > Precedents;
+    typedef std::vector<std::vector<Point_<unsigned long> > > Precedents;
     Precedents precedents;
 
 /*private:*/
 public:
-    bool isObject(const Mat_<uchar> &object) const;
+    bool isObject(const Mat_<uchar> &image) const;
     double getProbability(const Mat_<uchar> &image) const;
     int code(const Mat_<uchar> &image, const Ferns::value_type &fern) const;
     void integrateExample(const Mat_<uchar> &image, bool isPositive);
@@ -139,7 +143,7 @@ class CV_EXPORTS_W tldNNClassifier : public tldIClassifier
 public:
     tldNNClassifier(size_t actMaxNumberOfExamples = 500, Size actNormilizedPatchSize = Size(15, 15), double actTheta = 0.5);
 
-    void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const;
+    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const;
 
     void integratePositiveExample(const Mat_<uchar> &example) { addExample(example, positiveExamples); }
     void integrateNegativeExample(const Mat_<uchar> &example) { addExample(example, negativeExamples); }
@@ -159,7 +163,7 @@ private:
     RNG rng;
 
 private:
-    bool isObject(const Mat_<uchar> &object) const;
+    bool isObject(const Mat_<uchar> &image) const;
     double Sr(const Mat_<uchar>& patch) const;
     double Sc(const Mat_<uchar>& patch) const;
     void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
@@ -169,3 +173,5 @@ public:
 
 }
 }
+
+#endif

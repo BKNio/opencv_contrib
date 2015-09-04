@@ -43,7 +43,7 @@
 #define OPENCV_TLD_DETECTOR
 
 #include "precomp.hpp"
-#include "opencl_kernels_tracking.hpp"
+//#include "opencl_kernels_tracking.hpp"
 #include "tldEnsembleClassifier.hpp"
 #include "tldUtils.hpp"
 #include <opencv2/core.hpp>
@@ -53,7 +53,7 @@ namespace cv
 namespace tld
 {
 
-class tldCascadeClassifier
+class CV_EXPORTS_W tldCascadeClassifier
 {
 public:
     struct Response
@@ -65,15 +65,26 @@ public:
 public:
     tldCascadeClassifier(const Mat_<uchar> &originalImage, const Rect &bb, int actMaxNumberOfExamples, int numberOfFerns, int numberOfMeasurements);
 
-    void isObjects(const std::vector<Hypothesis> &hypothesis, const std::vector<Mat_<uchar> > &scaledImages, std::vector<bool> &answers) const;
+    void detect() const;
+    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &scaledImage, std::vector<bool> &answers) const;
 
     void addPositiveExample(const Mat_<uchar> &example);
     void addNegativeExample(const Mat_<uchar> &example);
 
-private:
+    std::vector<Hypothesis> generateHypothesis() const;
+
+/*private:*/
     Ptr<tldVarianceClassifier> varianceClassifier;
     Ptr<tldFernClassifier> fernClassifier;
     Ptr<tldNNClassifier> nnClassifier;
+
+    const Size originalBBSize;
+    const Size frameSize;
+    const double scaleStep;
+
+
+private:
+    static void addScanGrid(const Size bbSize, const Size imageSize, std::vector<Hypothesis> &hypothesis);
 
 };
 
