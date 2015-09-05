@@ -49,8 +49,9 @@ namespace tld
 tldCascadeClassifier::tldCascadeClassifier(const Mat_<uchar> &originalImage, const Rect &bb, int maxNumberOfExamples, int numberOfFerns, int numberOfMeasurements):
     originalBBSize(bb.size()), frameSize(originalImage.size()), scaleStep(1.2f)
 {
-    if(bb.width < minimalBBSize.width || bb.height < minimalBBSize.height)
-        CV_Error(Error::StsBadArg, "Initial bounding box is too small");
+
+    /*if(bb.width < minimalBBSize.width || bb.height < minimalBBSize.height)
+        CV_Error(Error::StsBadArg, "Initial bounding box is too small");*/
 
     varianceClassifier = makePtr<tldVarianceClassifier>(originalImage, bb);
     fernClassifier = makePtr<tldFernClassifier>(numberOfMeasurements, numberOfFerns);
@@ -88,11 +89,12 @@ std::vector<Hypothesis> tldCascadeClassifier::generateHypothesis() const
     const double power =log(scale) / log(scaleStep);
     double correctedScale = pow(scaleStep, power);
 
-    CV_Assert(originalBBSize.width * correctedScale <= frameSize.width && originalBBSize.height * correctedScale <= frameSize.height);
+    CV_Assert(int(originalBBSize.width * correctedScale) <= frameSize.width && int(originalBBSize.height * correctedScale) <= frameSize.height);
 
     for(;;)
     {
         Size correntBBSize(originalBBSize.width * correctedScale, originalBBSize.height * correctedScale);
+
         if(correntBBSize.width < minimalBBSize.width || correntBBSize.height < minimalBBSize.height)
             break;
         addScanGrid(correntBBSize, frameSize, hypothesis);
@@ -115,7 +117,7 @@ std::vector<Hypothesis> tldCascadeClassifier::generateHypothesis() const
 
 void tldCascadeClassifier::addScanGrid(const Size bbSize, const Size imageSize , std::vector<Hypothesis> &hypothesis)
 {
-    CV_Assert(bbSize.width > 20 && bbSize.height > 20);
+    CV_Assert(bbSize.width >= 20 && bbSize.height >= 20);
 
     const int dx = bbSize.width / 10;
     const int dy = bbSize.height / 10;

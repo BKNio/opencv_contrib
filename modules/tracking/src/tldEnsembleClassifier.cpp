@@ -420,7 +420,7 @@ bool tldNNClassifier::isObject(const Mat_<uchar> &image) const
     else
         image.copyTo(normilizedPatch);
 
-#ifdef USE_BLUR
+#ifdef USE_BLUR_NN
     Mat_<uchar> blurred;
     GaussianBlur(normilizedPatch, blurred, Size(3,3), 0.);
     blurred.copyTo(normilizedPatch);
@@ -433,11 +433,32 @@ double tldNNClassifier::Sr(const Mat_<uchar> &patch) const
 {
     double splus = 0., sminus = 0.;
 
+#ifdef NNDEBUG
+    double prevSplus = splus, prevSminus = sminus;
+    positive = positiveExamples.begin();
+    negative = negativeExamples.begin();
+#endif
+
     for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
+    {
         splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
+        if(prevSplus != splus)
+        {
+            positive = it;
+            prevSplus = splus;
+        }
+    }
 
     for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
+    {
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
+        if(prevSminus != sminus)
+        {
+            negative = it;
+            prevSminus = sminus;
+        }
+    }
+
 
     if (splus + sminus == 0.0)
         return 0.0;
@@ -457,8 +478,10 @@ double tldNNClassifier::Sc(const Mat_<uchar> &patch) const
     for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != end; ++it)
         splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
 
+
     for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != negativeExamples.end(); ++it)
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
+
 
     if (splus + sminus == 0.0)
         return 0.0;
@@ -475,7 +498,7 @@ void tldNNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<ucha
     else
         normilizedPatch = example;
 
-#ifdef USE_BLUR
+#ifdef USE_BLUR_NN
     Mat_<uchar> blurred;
     GaussianBlur(normilizedPatch, blurred, Size(3,3), 0.);
     blurred.copyTo(normilizedPatch);

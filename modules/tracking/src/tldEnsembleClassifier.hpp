@@ -137,11 +137,11 @@ public:
     mutable std::pair<uchar, uchar> vals;
 #endif
 };
-
+#define NNDEBUG
 class CV_EXPORTS_W tldNNClassifier : public tldIClassifier
 {
 public:
-    tldNNClassifier(size_t actMaxNumberOfExamples = 500, Size actNormilizedPatchSize = Size(15, 15), double actTheta = 0.5);
+    tldNNClassifier(size_t actMaxNumberOfExamples = 500, Size actNormilizedPatchSize = Size(20, 20), double actTheta = 0.5);
 
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const;
 
@@ -162,13 +162,32 @@ private:
     ExampleStorage positiveExamples, negativeExamples;
     RNG rng;
 
-private:
+public:
+/*private:*/
     bool isObject(const Mat_<uchar> &image) const;
     double Sr(const Mat_<uchar>& patch) const;
     double Sc(const Mat_<uchar>& patch) const;
     void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
 public:
     static float NCC(const Mat_<uchar>& patch1, const Mat_<uchar>& patch2);
+
+
+#ifdef NNDEBUG
+public:
+    mutable ExampleStorage::const_iterator positive, negative;
+    Mat_<uchar> outputPrecedents()
+    {
+        Mat_<uchar> precedents(cv::Size(200,200), 0u);
+
+        positive->copyTo(precedents(Rect(Point(), normilizedPatchSize)));
+        negative->copyTo(precedents(Rect(Point(normilizedPatchSize.width,0), normilizedPatchSize)));
+
+        return precedents;
+    }
+
+#endif
+
+
 };
 
 }

@@ -97,16 +97,16 @@ public:
     ClassifiersTest() : rng(/*std::time(NULL)*/), fontScaleRange(0.7f, 2.7f), angleRange(-15.f, 15.f), scaleRange(0.9f, 1.1f),
         shiftRange(-5, 5), thicknessRange(1, 3), minimalSize(20, 20), pathToTLDDataSet("/home/dinar/proj_src/test_data/TLD")
     {
-        testCases.push_back("01_david");
-        testCases.push_back("02_jumping");
-        testCases.push_back("03_pedestrian1");
-        testCases.push_back("04_pedestrian2");
-        testCases.push_back("05_pedestrian3");
-        testCases.push_back("06_car");
-        testCases.push_back("07_motocross");
-        testCases.push_back("08_volkswagen");
+//        testCases.push_back("01_david");
+//        testCases.push_back("02_jumping");
+//        testCases.push_back("03_pedestrian1");
+//        testCases.push_back("04_pedestrian2");
+//        testCases.push_back("05_pedestrian3");
+//        testCases.push_back("06_car");
+//        testCases.push_back("07_motocross");
+//        testCases.push_back("08_volkswagen");
         testCases.push_back("09_carchase");
-        testCases.push_back("10_panda");
+//        testCases.push_back("10_panda");
     }
 
 private:
@@ -575,14 +575,20 @@ bool ClassifiersTest::onlineTrainTest()
     return correctClassifiedFern / iterationsNumber > 0.95 && correctClassifiedFern / iterationsNumber > 0.95;
 }
 
+//#define SHOW_BAD_ROI
+//#define SHOW_MISCLASSIFIED
+//#define SHOW_TRAIN_DATA
+//#define SHOW_ADDITIONAL_EXAMPLES
+#define SIMPLE_TESTS
 bool ClassifiersTest::realDataTest()
 {
+
+    const int numberOfAdditionalExamples = 10;
     for(std::vector<std::string>::const_iterator testCase = testCases.begin(); testCase != testCases.end(); ++testCase)
     {
         const std::string path = pathToTLDDataSet + "/" + *testCase + "/";
         const std::string suffix = *testCase == "07_motocross" ? "%05d.png" : "%05d.jpg";
 
-        std::cout << path << std::endl;
         cv::VideoCapture capture(path + suffix);
 
         if(!capture.isOpened())
@@ -597,46 +603,202 @@ bool ClassifiersTest::realDataTest()
 
         CV_Assert(!gtBB.empty());
 
-        cv::Mat frame, grayFrame;
-
         std::vector<cv::Mat> frames; frames.reserve(gtBB.size());
-        /*std::vector<cv::Rect>::iterator actBB = gtBB.begin();*/
+        cv::Mat frame;
         while(capture >> frame, !frame.empty())
         {
-            /*CV_Assert(actBB != gtBB.end());*/
-
+            cv::Mat grayFrame;
             cv::cvtColor(frame, grayFrame, CV_BGR2GRAY);
-            frames.push_back(grayFrame.clone());
-            /*cv::rectangle(frame, *actBB, cv::Scalar(255, 25, 163), 2, cv::LINE_4);
-            cv::imshow(*testCase, frame);
-            cv::waitKey(1);
-            ++actBB;*/
+            frames.push_back(grayFrame);
         }
 
         CV_Assert(frames.size() == gtBB.size());
 
-        /*for(size_t index = 0; index < frames.size(); ++index)
-        {
-            cv::Mat copy; frames[index].copyTo(copy);
-            cv::rectangle(copy, gtBB[index], cv::Scalar::all(0));
-            cv::imshow("randomized", copy);
-            cv::waitKey(1);
-        }*/
-
-
         const size_t trainSize = gtBB.size() * 0.75;
         const size_t testSize = gtBB.size() - trainSize;
 
-        cv::Ptr<cv::tld::tldCascadeClassifier> cascadeClasifier = cv::makePtr<cv::tld::tldCascadeClassifier>(frames.front(), gtBB.front(), 500, -1, 13);
-        std::vector<cv::tld::Hypothesis> hypothesis = cascadeClasifier->generateHypothesis();
+        cv::Ptr<cv::tld::tldCascadeClassifier> cascadeClasifier = cv::makePtr<cv::tld::tldCascadeClassifier>(frames.front(), gtBB.front(), 300, 200, 7);
+        const std::vector<cv::tld::Hypothesis> hypothesis = cascadeClasifier->generateHypothesis();
 
-       for(size_t index = 0; index < frames.size(); ++index)
-       {
-            size_t randomIndex = rng.uniform(0, frames.size());
+        for(size_t index = 0; index < frames.size() / 2; ++index)
+        {
+            const size_t randomIndex = rng.uniform(int(frames.size() / 2), frames.size());
 
             std::swap(frames[randomIndex], frames[index]);
             std::swap(gtBB[randomIndex], gtBB[index]);
         }
+
+       float numberOfBadTrainExamples = 0.f, numberOfBadTestExamples = 0.f;
+       float miscalssifiedNN = 0.f, miscalssifiedFern = 0.f;
+
+       const cv::Rect roi(cv::Point(), frames.front().size());
+
+       std::cerr << "training..." << std::endl;
+
+       size_t dataSetIndex = 0;
+       for(; dataSetIndex < trainSize; ++dataSetIndex)
+       {
+           const cv::Rect &bb = gtBB[dataSetIndex];
+
+           if( bb.area() == 0 || (bb & roi).area() < bb.area())
+           {
+#ifdef SHOW_BAD_ROI
+               cv::Mat badROI;
+               cv::cvtColor(frames[dataSetIndex], badROI, CV_GRAY2BGR);
+               cv::rectangle(badROI, bb, cv::Scalar(255, 0, 139));
+               cv::imshow("badROI train", badROI);
+               cv::waitKey();
+#endif
+               ++numberOfBadTrainExamples;
+               continue;
+           }
+
+           cascadeClasifier->nnClassifier->integratePositiveExample(frames[dataSetIndex](bb));
+           //cascadeClasifier->fernClassifier->integratePositiveExample(frames[dataSetIndex](bb));
+
+           std::vector<cv::tld::Hypothesis> closestNPositive = getClosestN(hypothesis, bb, numberOfAdditionalExamples);
+
+           for(std::vector<cv::tld::Hypothesis>::const_iterator closestPositive = closestNPositive.begin(); closestPositive != closestNPositive.end(); ++closestPositive)
+           {
+#ifdef SHOW_ADDITIONAL_EXAMPLES
+                cv::Mat addPositiveExample; frames[dataSetIndex].copyTo(addPositiveExample);
+                cv::rectangle(addPositiveExample, closestPositive->bb, cv::Scalar::all(255));
+                cv::imshow("closest positive", addPositiveExample);
+                cv::waitKey();
+#endif
+                cascadeClasifier->nnClassifier->integratePositiveExample(frames[dataSetIndex](closestPositive->bb));
+                //cascadeClasifier->fernClassifier->integratePositiveExample(frames[dataSetIndex](closestPositive->bb));
+           }
+
+           std::vector<cv::tld::Hypothesis> closestNNegative = getClosestN(hypothesis, bb, numberOfAdditionalExamples, 0.01);
+
+           for(std::vector<cv::tld::Hypothesis>::const_iterator closestNegative = closestNNegative.begin(); closestNegative != closestNNegative.end(); ++closestNegative)
+           {
+#ifdef SHOW_ADDITIONAL_EXAMPLES
+                cv::Mat addNegativeExample; frames[dataSetIndex].copyTo(addNegativeExample);
+                cv::rectangle(addNegativeExample, closestNegative->bb, cv::Scalar::all(255));
+                cv::imshow("closes negative", addNegativeExample);
+                cv::waitKey();
+#endif
+               cascadeClasifier->nnClassifier->integrateNegativeExample(frames[dataSetIndex](closestNegative->bb));
+               //cascadeClasifier->fernClassifier->integrateNegativeExample(frames[dataSetIndex](closestNegative->bb));
+           }
+
+#ifdef SHOW_TRAIN_DATA
+           cv::Mat trainExample;
+           cv::cvtColor(frames[dataSetIndex], trainExample, CV_GRAY2BGR);
+           cv::rectangle(trainExample, bb, cv::Scalar(255, 0, 139));
+           cv::imshow("trainExample", trainExample);
+           cv::waitKey();
+#endif
+
+       }
+
+       std::cerr << "testing..." << std::endl;
+
+       for(; dataSetIndex < frames.size(); ++dataSetIndex)
+       {
+           const cv::Rect &bb = gtBB[dataSetIndex];
+
+#ifdef SIMPLE_TESTS
+           if( bb.area() == 0 || (bb & roi).area() < bb.area())
+           {
+#ifdef SHOW_BAD_ROI
+               cv::Mat badROI;
+               cv::cvtColor(frames[dataSetIndex], badROI, CV_GRAY2BGR);
+               cv::rectangle(badROI, bb, cv::Scalar(255, 0, 139));
+               cv::imshow("badROI test", badROI);
+               cv::waitKey();
+#endif
+               ++numberOfBadTestExamples;
+               continue;
+           }
+
+           bool nnAnswer = cascadeClasifier->nnClassifier->isObject(frames[dataSetIndex](gtBB[dataSetIndex]));
+           if(!nnAnswer)
+           {
+#ifdef SHOW_MISCLASSIFIED
+               cv::Mat miscalssified; frames[dataSetIndex].copyTo(miscalssified);
+               cv::rectangle(miscalssified, gtBB[dataSetIndex], cv::Scalar::all(255));
+               cv::imshow("error nnclassifier", miscalssified);
+               cv::waitKey();
+#endif
+
+               cv::Mat_<uchar> precedents =  cascadeClasifier->nnClassifier->outputPrecedents();
+               cv::imshow("last precedents", precedents);
+               cv::waitKey();
+
+               ++miscalssifiedNN;
+           }
+
+           //bool fernAnswer = cascadeClasifier->fernClassifier->isObject(frames[dataSetIndex](gtBB[dataSetIndex]));
+           //if(!fernAnswer)
+           {
+#ifdef SHOW_MISCLASSIFIED
+               //std::cout << gtBB[dataSetIndex] << std::endl;
+               cv::Mat miscalssified; frames[dataSetIndex].copyTo(miscalssified);
+               cv::rectangle(miscalssified, gtBB[dataSetIndex], cv::Scalar::all(255));
+               cv::imshow("error fernclassifier", miscalssified);
+               cv::waitKey();
+#endif
+               ++miscalssifiedFern;
+           }
+       }
+#else
+           if(bb.area() < 225)
+               continue;
+
+           std::vector<bool> fernAnswers(hypothesis.size(), true);
+           cascadeClasifier->fernClassifier->isObjects(hypothesis, frames[dataSetIndex], fernAnswers);
+
+           std::vector<bool> nnAnswers(hypothesis.size(), true);
+           cascadeClasifier->nnClassifier->isObjects(hypothesis, frames[dataSetIndex], nnAnswers);
+
+           CV_Assert(fernAnswers.size() == nnAnswers.size());
+           CV_Assert(hypothesis.size() == nnAnswers.size());
+
+           double tPFern = 0., tNFern = 0., fPFern = 0., fNFern = 0.;
+           double tPNN = 0., tNNN = 0., fPNN = 0., fNNN = 0.;
+           for(size_t answerIndex = 0; answerIndex < fernAnswers.size(); answerIndex++)
+           {
+                bool gt = overlap(hypothesis[answerIndex].bb, bb) > 0.5;
+
+                if(gt != nnAnswers[i])
+                    if(gt)
+                        fNNN++;
+                    else
+                        fPNN++;
+                else
+                    if(gt)
+                        tPNN++;
+                    else
+                        tNNN++;
+
+
+                if(gt != fernAnswers[i])
+                    if(gt)
+                        fNFern++;
+                    else
+                        fPFern++;
+                else
+                    if(gt)
+                        tPFern++;
+                    else
+                        tNFern++;
+
+           }
+
+#endif
+       std::cout << "-----" + *testCase + "-----" << std::endl;
+       /*std::cout << "Bad train examples: " << std::setprecision(3) << numberOfBadTrainExamples / trainSize << std::endl;
+       std::cout << "Bad test examples: " << std::setprecision(3) << numberOfBadTestExamples / testSize << std::endl;*/
+
+       if(miscalssifiedNN)
+           std::cout << "NN error " << std::setprecision(3) << miscalssifiedNN / (testSize - numberOfBadTestExamples) <<" abs value " << miscalssifiedNN << std::endl;
+
+       if(miscalssifiedFern)
+           std::cout << "Fern error " << std::setprecision(3) << miscalssifiedFern / (testSize - numberOfBadTestExamples) << " abs value " << miscalssifiedFern << std::endl;
+
 
     }
     return true;

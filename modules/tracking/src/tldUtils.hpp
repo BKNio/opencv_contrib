@@ -3,6 +3,7 @@
 
 #include "precomp.hpp"
 #include "opencv2/highgui.hpp"
+#include "tldEnsembleClassifier.hpp"
 
 namespace cv
 {
@@ -37,7 +38,7 @@ template<typename T> inline T CLIP(T x, T a, T b){ return std::min(std::max(x, a
 
 /** Computes overlap between the two given rectangles. Overlap is computed as ratio of rectangles' intersection to that
         * of their union.*/
-double overlap(const Rect &r1, const Rect &r2);
+double CV_EXPORTS_W overlap(const Rect &r1, const Rect &r2);
 
 /** Resamples the area surrounded by r2 in img so it matches the size of samples, where it is written.*/
 void resample(const Mat& img, const RotatedRect& r2, Mat_<uchar>& samples);
@@ -54,7 +55,7 @@ double variance(const Mat_<double>& intImgP, const Mat_<double>& intImgP2, Point
 typedef std::vector<std::pair<size_t, double> > Overlaps;
 bool comparartor(Overlaps::value_type a, Overlaps::value_type b);
 
-void getClosestN(const std::vector<Rect> &scanGrid, const Rect &bBox, int n, std::vector<Rect> &res);
+std::vector<Hypothesis> CV_EXPORTS_W getClosestN(const std::vector<Hypothesis> &hypothesis, const Rect &bBox, size_t n, double maxOverlap = 1.);
 
 double scaleAndBlur(const Mat& originalImg, int scale, Mat& scaledImg, Mat& blurredImg, Size GaussBlurKernelSize, double scaleStep);
 
