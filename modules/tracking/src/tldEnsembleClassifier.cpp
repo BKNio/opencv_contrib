@@ -48,8 +48,8 @@ namespace tld
 
 /*                   tldVarianceClassifier                   */
 
-tldVarianceClassifier::tldVarianceClassifier(const Mat_<uchar> &originalImage, const Rect &bb, double actThreshold) :
-    originalVariance(variance(originalImage(bb))), threshold(actThreshold)
+tldVarianceClassifier::tldVarianceClassifier(const Mat_<uchar> &ooi, double actThreshold) :
+    originalVariance(variance(ooi)), threshold(actThreshold)
 {}
 
 void tldVarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const

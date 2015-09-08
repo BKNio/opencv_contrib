@@ -76,18 +76,18 @@ public:
 class CV_EXPORTS_W tldVarianceClassifier : tldIClassifier
 {
 public:
-    tldVarianceClassifier(const Mat_<uchar> &originalImage, const Rect &bb, double actThreshold = 0.5);
+    tldVarianceClassifier(const Mat_<uchar> &originalImage, double actThreshold = 0.5);
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const;
     void integratePositiveExample(const Mat_<uchar> &) {}
     void integrateNegativeExample(const Mat_<uchar> &) {}
 
     ~tldVarianceClassifier() {}
 
-private:
+/*private:*/
     const double originalVariance;
     const double threshold;
 
-private:
+/*private:*/
     bool isObject(const Rect &bb, const Mat_<double> &sum, const Mat_<double> &sumSq) const;
 
     static double variance(const Mat_<uchar>& img);
@@ -96,7 +96,7 @@ private:
 };
 
 //#define FERN_DEBUG
-#define USE_BLUR
+//#define USE_BLUR
 class CV_EXPORTS_W tldFernClassifier : public tldIClassifier
 {
 public:
@@ -141,7 +141,7 @@ public:
 class CV_EXPORTS_W tldNNClassifier : public tldIClassifier
 {
 public:
-    tldNNClassifier(size_t actMaxNumberOfExamples = 500, Size actNormilizedPatchSize = Size(20, 20), double actTheta = 0.5);
+    tldNNClassifier(size_t actMaxNumberOfExamples = 500, Size actNormilizedPatchSize = Size(15, 15), double actTheta = 0.5);
 
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const;
 
@@ -175,12 +175,18 @@ public:
 #ifdef NNDEBUG
 public:
     mutable ExampleStorage::const_iterator positive, negative;
-    Mat_<uchar> outputPrecedents()
+    Mat_<uchar> outputPrecedents(const Mat_<uchar> &object)
     {
-        Mat_<uchar> precedents(cv::Size(200,200), 0u);
+        Mat_<uchar> resizeObject;
+
+        if(!object.empty())
+            resize(object, resizeObject, normilizedPatchSize);
+        Mat_<uchar> precedents(cv::Size(3*normilizedPatchSize.width, normilizedPatchSize.height), 0u);
 
         positive->copyTo(precedents(Rect(Point(), normilizedPatchSize)));
         negative->copyTo(precedents(Rect(Point(normilizedPatchSize.width,0), normilizedPatchSize)));
+        if(!object.empty())
+            resizeObject.copyTo(precedents(Rect(Point(2*normilizedPatchSize.width,0), normilizedPatchSize)));
 
         return precedents;
     }

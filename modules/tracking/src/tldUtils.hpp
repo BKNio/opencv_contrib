@@ -11,21 +11,21 @@ namespace tld
 {
 extern Rect2d etalon;
 
-const int STANDARD_PATCH_SIZE = 15;
-const int NEG_EXAMPLES_IN_INIT_MODEL = 300;
-const int MAX_EXAMPLES_IN_MODEL = 500;
-const int MEASURES_PER_CLASSIFIER = 13;
-const int GRIDSIZE = STANDARD_PATCH_SIZE;
-const int DOWNSCALE_MODE = cv::INTER_LINEAR;
-const double THETA_NN = 0.6;
-const double CORE_THRESHOLD = 0.5;
-const double SCALE_STEP = 1.2;
-const double ENSEMBLE_THRESHOLD = 0.5;
-const double VARIANCE_THRESHOLD = 0.5;
-const double NEXPERT_THRESHOLD = 0.2;
-const cv::Size GaussBlurKernelSize(3, 3);
-const Size standardPath = Size(15, 15);
-const Size minimalBBSize = Size(20,20);
+//const int STANDARD_PATCH_SIZE = 15;
+//const int NEG_EXAMPLES_IN_INIT_MODEL = 300;
+//const int MAX_EXAMPLES_IN_MODEL = 500;
+//const int MEASURES_PER_CLASSIFIER = 13;
+//const int GRIDSIZE = STANDARD_PATCH_SIZE;
+//const int DOWNSCALE_MODE = cv::INTER_LINEAR;
+//const double THETA_NN = 0.6;
+//const double CORE_THRESHOLD = 0.5;
+//const double SCALE_STEP = 1.2;
+//const double ENSEMBLE_THRESHOLD = 0.5;
+//const double VARIANCE_THRESHOLD = 0.5;
+//const double NEXPERT_THRESHOLD = 0.2;
+//const cv::Size GaussBlurKernelSize(3, 3);
+//const Size standardPath = Size(15, 15);
+//const Size minimalBBSize = Size(20,20);
 
 void myassert(const Mat& img);
 void printPatch(const Mat_<uchar>& standardPatch);
@@ -55,14 +55,15 @@ double variance(const Mat_<double>& intImgP, const Mat_<double>& intImgP2, Point
 typedef std::vector<std::pair<size_t, double> > Overlaps;
 bool comparartor(Overlaps::value_type a, Overlaps::value_type b);
 
-std::vector<Hypothesis> CV_EXPORTS_W getClosestN(const std::vector<Hypothesis> &hypothesis, const Rect &bBox, size_t n, double maxOverlap = 1.);
+//std::vector<Hypothesis> CV_EXPORTS_W getClosestN(const std::vector<Hypothesis> &hypothesis, const Rect &bBox, size_t n, double maxOverlap = 1.);
+//std::pair<std::vector<Rect>, std::vector<Rect> > CV_EXPORTS_W generateClosestN(const Rect &bBox, size_t N);
 
 double scaleAndBlur(const Mat& originalImg, int scale, Mat& scaledImg, Mat& blurredImg, Size GaussBlurKernelSize, double scaleStep);
 
 int getMedian(const std::vector<int>& values, int size = -1);
 
-void generateScanGrid(const Size &imageSize, const Size &actBBSize, std::vector<Rect>& res);
-void generateScanGridInternal(const Size &imageSize, const Size2d &bbSize, std::vector<Rect>& res);
+//void generateScanGridInternal(const Size &imageSize, const Size2d &bbSize, std::vector<Rect>& res);
+
 
 ///////////////////////////////////////////////////////////
 std::pair<double, Rect2d> augmentedOverlap(const Rect2d rect, const Rect2d bb);

@@ -82,7 +82,7 @@ bool TrackerTLDImpl::initImpl(const Mat& image, const Rect2d& boundingBox)
     if( scale != 1. )
     {
         Mat image_proxy;
-        resize(image_gray, image_proxy, Size(cvRound(image.cols * scale), cvRound(image.rows * scale)), 0, 0, DOWNSCALE_MODE);
+        //resize(image_gray, image_proxy, Size(cvRound(image.cols * scale), cvRound(image.rows * scale)), 0, 0, DOWNSCALE_MODE);
         image_proxy.copyTo(image_gray);
     }
     model = makePtr<TrackerTLDModel>(params, image_gray, data->getInternalBB());
@@ -275,9 +275,9 @@ int TrackerTLDImpl::Pexpert::additionalExamples(std::vector<Mat_<uchar> >& examp
 
 bool TrackerTLDImpl::Nexpert::operator()(Rect2d box)
 {
-    if( overlap(resultBox_, box) < NEXPERT_THRESHOLD )
-        return false;
-    else
+//    if( overlap(resultBox_, box) < NEXPERT_THRESHOLD )
+//        return false;
+//    else
         return true;
 }
 

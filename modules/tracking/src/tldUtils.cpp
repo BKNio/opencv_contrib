@@ -41,6 +41,8 @@
 
 #include "tldUtils.hpp"
 
+#include <map>
+#include <iterator>
 
 namespace cv
 {
@@ -188,51 +190,51 @@ std::pair<double, Rect2d> augmentedOverlap(const Rect2d rect, const Rect2d bb)
     return std::make_pair(overlap(rect,bb), bb);
 }
 
-void generateScanGrid(const Size &imageSize, const Size &actBBSize, std::vector<Rect> &res)
-{
-    Size2d bbSize = actBBSize;
+//void generateScanGrid(const Size &imageSize, const Size &actBBSize, std::vector<Rect> &res)
+//{
+//    Size2d bbSize = actBBSize;
 
-    generateScanGridInternal(imageSize, bbSize, res);
+//    generateScanGridInternal(imageSize, bbSize, res);
 
-    bool isDownScaleDone = false;
-    bool isUpScaleDone = false;
+//    bool isDownScaleDone = false;
+//    bool isUpScaleDone = false;
 
-    double upScale = 1., downScale = 1.;
+//    double upScale = 1., downScale = 1.;
 
-    while(!isDownScaleDone || !isUpScaleDone)
-    {
-        if(!isDownScaleDone)
-        {
-            downScale /= SCALE_STEP;
-            Size2d downSize = bbSize * downScale;
-            if(downSize.height < 20 || downSize.width < 20)
-                isDownScaleDone = true;
-            else
-                generateScanGrid(imageSize, downSize, res);
-        }
+//    while(!isDownScaleDone || !isUpScaleDone)
+//    {
+//        if(!isDownScaleDone)
+//        {
+//            downScale /= SCALE_STEP;
+//            Size2d downSize = bbSize * downScale;
+//            if(downSize.height < 20 || downSize.width < 20)
+//                isDownScaleDone = true;
+//            else
+//                generateScanGrid(imageSize, downSize, res);
+//        }
 
-        if(!isUpScaleDone)
-        {
-            upScale *= SCALE_STEP;
-            Size2d upSize = bbSize * upScale;
-            if(upSize.height > imageSize.height / 2 || upSize.width > imageSize.width / 2)
-                isUpScaleDone = true;
-            else
-                generateScanGridInternal(imageSize, upSize, res);
-        }
-    }
-}
+//        if(!isUpScaleDone)
+//        {
+//            upScale *= SCALE_STEP;
+//            Size2d upSize = bbSize * upScale;
+//            if(upSize.height > imageSize.height / 2 || upSize.width > imageSize.width / 2)
+//                isUpScaleDone = true;
+//            else
+//                generateScanGridInternal(imageSize, upSize, res);
+//        }
+//    }
+//}
 
-void generateScanGridInternal(const Size &imageSize, const Size2d &bbSize, std::vector<Rect> &res)
-{
-    double h = bbSize.height, w = bbSize.width;
-    for (double x = 0; x + w + 1.0 <= imageSize.width; x += 0.1 * w)
-    {
-        for (double y = 0; y + h + 1.0 <= imageSize.height; y += 0.1 * h)
-            res.push_back(Rect(x, y, w, h));
-    }
+//void generateScanGridInternal(const Size &imageSize, const Size2d &bbSize, std::vector<Rect> &res)
+//{
+//    double h = bbSize.height, w = bbSize.width;
+//    for (double x = 0; x + w + 1.0 <= imageSize.width; x += 0.1 * w)
+//    {
+//        for (double y = 0; y + h + 1.0 <= imageSize.height; y += 0.1 * h)
+//            res.push_back(Rect(x, y, w, h));
+//    }
 
-}
+//}
 
 }
 }

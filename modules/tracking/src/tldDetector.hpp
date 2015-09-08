@@ -42,11 +42,11 @@
 #ifndef OPENCV_TLD_DETECTOR
 #define OPENCV_TLD_DETECTOR
 
+#include <opencv2/core.hpp>
+
 #include "precomp.hpp"
-//#include "opencl_kernels_tracking.hpp"
 #include "tldEnsembleClassifier.hpp"
 #include "tldUtils.hpp"
-#include <opencv2/core.hpp>
 
 namespace cv
 {
@@ -63,29 +63,43 @@ public:
     };
 
 public:
-    tldCascadeClassifier(const Mat_<uchar> &originalImage, const Rect &bb, int actMaxNumberOfExamples, int numberOfFerns, int numberOfMeasurements);
+    tldCascadeClassifier(const Mat_<uchar> &originalImage, const Rect &bb, int numberOfFerns, int actMaxNumberOfExamples, int numberOfMeasurements);
 
     void detect() const;
-    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &scaledImage, std::vector<bool> &answers) const;
+    std::vector<Rect> detect(const Mat_<uchar> &scaledImage) const;
+
+    void addSyntheticPositive(const Mat_<uchar> &image, const Rect bb, int numberOfsurroundBbs, int numberOfSyntheticWarped);
 
     void addPositiveExample(const Mat_<uchar> &example);
     void addNegativeExample(const Mat_<uchar> &example);
 
-    std::vector<Hypothesis> generateHypothesis() const;
 
 /*private:*/
     Ptr<tldVarianceClassifier> varianceClassifier;
     Ptr<tldFernClassifier> fernClassifier;
     Ptr<tldNNClassifier> nnClassifier;
+    RNG rng;
 
+    const Size minimalBBSize;
+    const Size standardPatchSize;
     const Size originalBBSize;
     const Size frameSize;
     const double scaleStep;
+    const std::vector<Hypothesis> hypothesis;
+    mutable std::vector<bool> answers;
 
 
-private:
-    static void addScanGrid(const Size bbSize, const Size imageSize, std::vector<Hypothesis> &hypothesis);
+/*private:*/
+    std::vector<Rect> generateClosestN(const Rect &bBox, size_t N) const;
+    std::vector<Rect> generateSurroundingRects(const Rect &bBox, size_t N) const;
+    std::vector<Rect> generateAndSelectRects(const Rect &bBox, int n, float rangeStart, float rangeEnd) const;
+    std::vector<Rect> prepareFinalResult() const;
 
+    bool isRectOK(const cv::Rect &rect) const;
+
+    Mat_<uchar> randomWarp(const Mat_<uchar> &originalFrame, Rect bb, float shiftRangePercent, float scaleRangePercent, float rotationRangeDegrees);
+    static std::vector<Hypothesis> generateHypothesis(const Size frameSize, const Size bbSize, const Size minimalBBSize, double scaleStep);
+    static void addScanGrid(const Size frameSize, const Size bbSize, const Size minimalBBSize, std::vector<Hypothesis> &hypothesis);
 };
 
 }
