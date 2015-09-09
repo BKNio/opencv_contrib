@@ -42,8 +42,6 @@
 #ifndef OPENCV_TLD_DETECTOR
 #define OPENCV_TLD_DETECTOR
 
-#include <opencv2/core.hpp>
-
 #include "precomp.hpp"
 #include "tldEnsembleClassifier.hpp"
 #include "tldUtils.hpp"
@@ -65,7 +63,6 @@ public:
 public:
     tldCascadeClassifier(const Mat_<uchar> &originalImage, const Rect &bb, int numberOfFerns, int actMaxNumberOfExamples, int numberOfMeasurements);
 
-    void detect() const;
     std::vector<Rect> detect(const Mat_<uchar> &scaledImage) const;
 
     void addSyntheticPositive(const Mat_<uchar> &image, const Rect bb, int numberOfsurroundBbs, int numberOfSyntheticWarped);

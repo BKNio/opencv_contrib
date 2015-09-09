@@ -65,7 +65,7 @@ tldCascadeClassifier::tldCascadeClassifier(const Mat_<uchar> &zeroFrame, const R
     const Mat_<uchar> ooi = zeroFrame(bb);
 
     varianceClassifier = makePtr<tldVarianceClassifier>(ooi);
-    fernClassifier = makePtr<tldFernClassifier>(numberOfMeasurements, numberOfFerns);
+    fernClassifier = makePtr<tldFernClassifier>(numberOfMeasurements, numberOfFerns, originalBBSize);
     nnClassifier = makePtr<tldNNClassifier>(maxNumberOfExamples, standardPatchSize);
 
     addPositiveExample(ooi);
@@ -91,24 +91,27 @@ tldCascadeClassifier::tldCascadeClassifier(const Mat_<uchar> &zeroFrame, const R
 
 std::vector<Rect> tldCascadeClassifier::detect(const Mat_<uchar> &scaledImage) const
 {
-    timeval varianceStart, fernStart, nnStart, nnStop;
+    timeval varianceStart, fernStart, nnStart, nnStop, mergeStop;
 
     answers.clear();
     gettimeofday(&varianceStart, NULL);
     varianceClassifier->isObjects(hypothesis, scaledImage, answers);
     gettimeofday(&fernStart, NULL);
-    Mat_<uchar> blurred;
-    GaussianBlur(scaledImage, blurred, Size(3,3), 0.);
-    fernClassifier->isObjects(hypothesis, blurred, answers);
+    fernClassifier->isObjects(hypothesis, scaledImage, answers);
     gettimeofday(&nnStart, NULL);
-//    nnClassifier->isObjects(hypothesis, scaledImage, answers);
+    nnClassifier->isObjects(hypothesis, scaledImage, answers);
     gettimeofday(&nnStop, NULL);
+    const std::vector<Rect> &result = prepareFinalResult();
+    gettimeofday(&mergeStop, NULL);
 
-    return prepareFinalResult();
 
-    /*std::cout << "var time " << fernStart.tv_sec - varianceStart.tv_sec + double(fernStart.tv_usec - varianceStart.tv_usec) / 1e6 << std::endl;
-    std::cout << "fern time " << nnStart.tv_sec - fernStart.tv_sec + double(nnStart.tv_usec - fernStart.tv_usec) / 1e6 << std::endl;
-    std::cout << "nn time " << nnStop.tv_sec - nnStart.tv_sec + double(nnStop.tv_usec - nnStart.tv_usec) / 1e6 << std::endl;*/
+    std::cout << " var " << std::fixed << fernStart.tv_sec - varianceStart.tv_sec + double(fernStart.tv_usec - varianceStart.tv_usec) / 1e6;
+    std::cout << " fern " << std::fixed << nnStart.tv_sec - fernStart.tv_sec + double(nnStart.tv_usec - fernStart.tv_usec) / 1e6;
+    std::cout << " nn " << std::fixed << nnStop.tv_sec - nnStart.tv_sec + double(nnStop.tv_usec - nnStart.tv_usec) / 1e6;
+    std::cout << " merge " << std::fixed << mergeStop.tv_sec - nnStop.tv_sec + double(mergeStop.tv_usec - nnStop.tv_usec) / 1e6;
+    std::cout << " total " << std::fixed << mergeStop.tv_sec - varianceStart.tv_sec + double(mergeStop.tv_usec - varianceStart.tv_usec) / 1e6 << std::endl;
+
+    return result;
 }
 
 void tldCascadeClassifier::addSyntheticPositive(const Mat_<uchar> &image, const Rect bb, int numberOfsurroundBbs, int numberOfSyntheticWarped)
@@ -161,7 +164,7 @@ std::vector<Hypothesis> tldCascadeClassifier::generateHypothesis(const Size fram
 
     for(;;)
     {
-        Size currentBBSize(bbSize.width * correctedScale, bbSize.height * correctedScale);
+        Size currentBBSize(cvRound(bbSize.width * correctedScale), cvRound(bbSize.height * correctedScale));
 
         if(currentBBSize.width < minimalBBSize.width || currentBBSize.height < minimalBBSize.height)
             break;
@@ -240,39 +243,19 @@ std::vector<Rect> tldCascadeClassifier::generateAndSelectRects(const Rect &bBox,
 
 std::vector<Rect> tldCascadeClassifier::prepareFinalResult() const
 {
-    std::vector<Rect> rects;
+    std::vector<Rect> result;
 
-    CV_Assert(hypothesis.size() == answers.size());
     for(size_t index = 0; index < hypothesis.size(); ++index)
     {
         if(answers[index])
         {
-            for(size_t innerIndex = 0; innerIndex < rects.size(); ++innerIndex)
-            {
-                cv::Rect intersect = rects[innerIndex] & hypothesis[index];
-                if(float(intersect.area()) / (rects[innerIndex].area() + hypothesis[index].area() - intersect.area()) > .5f)
-                {
-
-                }
-            }
+            result.push_back(hypothesis[index].bb);
         }
     }
 
-    std::vector<Rect> result;
+    cv::groupRectangles(result, 1, 0.3);
 
-    for(size_t resultsIndex = 0; resultsIndex < numberOfPrecedents.size(); ++resultsIndex)
-    {
-
-        const Point cSumPoint = sumPoints[resultsIndex];
-        const Size cSumSize = sumSize[resultsIndex];
-        const int cNumberOfPrecedents = numberOfPrecedents[resultsIndex];
-
-        Point tl(cSumPoint.x / cNumberOfPrecedents, cSumPoint.y / cNumberOfPrecedents);
-        Size rectSize(cSumSize.width / cNumberOfPrecedents, cSumSize.height / cNumberOfPrecedents);
-        result.push_back(Rect(tl, rectSize));
-    }
-
-    return rects;
+    return result;
 }
 
 bool tldCascadeClassifier::isRectOK(const Rect &rect) const

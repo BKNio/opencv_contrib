@@ -45,6 +45,7 @@
 #include "opencv2/tracking.hpp"
 #include "opencv2/core/utility.hpp"
 #include "opencv2/core/ocl.hpp"
+#include <opencv2/objdetect.hpp>
 
 namespace cv
 {

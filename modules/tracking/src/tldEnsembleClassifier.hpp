@@ -48,6 +48,7 @@
 #include "precomp.hpp"
 
 //#define FERN_DEBUG
+//#define FERN_PROFILE
 
 namespace cv
 {
@@ -85,6 +86,7 @@ public:
 
 /*private:*/
     const double originalVariance;
+    const double coefficient;
     const double threshold;
 
 /*private:*/
@@ -97,12 +99,13 @@ public:
 
 //#define FERN_DEBUG
 //#define USE_BLUR
+//#define FERN_PROFILE
 class CV_EXPORTS_W tldFernClassifier : public tldIClassifier
 {
 public:
     tldFernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize = Size(15, 15));
 
-    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const;
+    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const;
 
     void integratePositiveExample(const Mat_<uchar> &image);
     void integrateNegativeExample(const Mat_<uchar> &image);
@@ -119,6 +122,7 @@ public:
 
     typedef std::vector<std::vector<std::pair<Point, Point> > > Ferns;
     Ferns ferns;
+    Ferns::value_type measurements;
 
     typedef std::vector<std::vector<Point_<unsigned long> > > Precedents;
     Precedents precedents;
@@ -136,8 +140,15 @@ public:
     mutable cv::Mat debugOutput;
     mutable std::pair<uchar, uchar> vals;
 #endif
+
+#ifdef FERN_PROFILE
+    mutable double codeTime;
+    mutable double acsessTime;
+    mutable double calcTime;
+#endif
+
 };
-#define NNDEBUG
+//#define NNDEBUG
 class CV_EXPORTS_W tldNNClassifier : public tldIClassifier
 {
 public:

@@ -39,7 +39,10 @@
 //
 //M*/
 
+#include <sys/time.h>
+
 #include "tldEnsembleClassifier.hpp"
+
 
 namespace cv
 {
@@ -49,7 +52,7 @@ namespace tld
 /*                   tldVarianceClassifier                   */
 
 tldVarianceClassifier::tldVarianceClassifier(const Mat_<uchar> &ooi, double actThreshold) :
-    originalVariance(variance(ooi)), threshold(actThreshold)
+    originalVariance(variance(ooi)), coefficient(actThreshold), threshold(originalVariance > 20. ? 0.5*originalVariance : originalVariance)
 {}
 
 void tldVarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
@@ -67,7 +70,7 @@ void tldVarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis,
 
 bool tldVarianceClassifier::isObject(const Rect &bb, const Mat_<double> &sum, const Mat_<double> &sumSq) const
 {
-    return variance(sum, sumSq, bb) >= originalVariance * threshold;
+    return variance(sum, sumSq, bb) >= threshold;
 }
 
 double tldVarianceClassifier::variance(const Mat_<uchar>& img)
@@ -119,8 +122,6 @@ double tldVarianceClassifier::variance(const Mat_<double> &sum, const Mat_<doubl
 tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize):
     normilizedPatchSize(actNormilizedPatchSize), threshold(0.5), minSqDist(9)
 {
-    Ferns::value_type measurements;
-
     const int shift = 1;
     for(int i = shift; i < normilizedPatchSize.width - shift; ++i)
     {
@@ -189,13 +190,34 @@ tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNum
 
 }
 
-void tldFernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const
+void tldFernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
 {
     CV_Assert(hypothesis.size() == answers.size());
 
+#ifdef FERN_PROFILE
+    timeval start, stop;
+    gettimeofday(&start, NULL);
+    codeTime = 0.;
+    calcTime = 0.;
+    acsessTime = 0.;
+#endif
+
+    Mat_<uchar> blurred;
+    GaussianBlur(image, blurred, Size(3,3), 0.);
+
     for(size_t i = 0; i < hypothesis.size(); ++i)
         if(answers[i])
-            answers[i] = isObject(images(hypothesis[i].bb));
+            answers[i] = isObject(blurred(hypothesis[i].bb));
+
+#ifdef FERN_PROFILE
+    gettimeofday(&stop, NULL);
+    std::cout << "------------------" << std::endl;
+    std::cout << "fern isObject total " << stop.tv_sec - start.tv_sec + double(stop.tv_usec - start.tv_usec) / 1e6 << std::endl;
+    std::cout << "fern code time " << codeTime << std::endl;
+    std::cout << "fern calcTime " << calcTime << std::endl;
+    std::cout << "fern acsessTime " << acsessTime << std::endl;
+    std::cout << "------------------" << std::endl;
+#endif
 }
 
 void tldFernClassifier::integratePositiveExample(const Mat_<uchar> &image)
@@ -215,27 +237,28 @@ bool tldFernClassifier::isObject(const Mat_<uchar> &image) const
 
 double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
 {
-
-#ifdef USE_BLUR
-    Mat_<uchar> blurred;
-    GaussianBlur(image, blurred, Size(3,3), 0.);
-#endif
-
-    double accumProbability = 0.;
+    float accumProbability = 0.;
     for(size_t i = 0; i < ferns.size(); ++i)
     {
 #ifdef FERN_DEBUG
     debugOutput = Mat();
 #endif
-#ifdef USE_BLUR
-        int position = code(blurred, ferns[i]);
-#else
-        int position = code(image, ferns[i]);
-#endif
-        int posNum = precedents[i][position].x, negNum = precedents[i][position].y;
 
-        if (posNum != 0 || negNum != 0)
-            accumProbability += double(posNum) / (posNum + negNum);
+#ifdef FERN_PROFILE
+    timeval start, stop;
+    gettimeofday(&start, NULL);
+#endif
+    int position = code(image, ferns[i]);
+
+#ifdef FERN_PROFILE
+    gettimeofday(&stop, NULL);
+    codeTime += stop.tv_sec - start.tv_sec + double(stop.tv_usec - start.tv_usec) / 1e6;
+#endif
+
+    int posNum = precedents[i][position].x, negNum = precedents[i][position].y;
+
+    if (posNum != 0 || negNum != 0)
+        accumProbability += float(posNum) / (posNum + negNum);
 #ifdef FERN_DEBUG
     imshow("debugOutput", debugOutput);
     waitKey();
@@ -256,9 +279,16 @@ int tldFernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &f
     {
         position <<= 1;
 
-        const Point2f p1(measureIt->first.x * coeffX, measureIt->first.y * coeffY);
-        const Point2f p2(measureIt->second.x * coeffX, measureIt->second.y * coeffY);
-
+#ifdef FERN_PROFILE
+    timeval startCalc, stopCalc, stopAcsess;
+    gettimeofday(&startCalc, NULL);
+#endif
+    const Point p1(measureIt->first.x * coeffX, measureIt->first.y * coeffY);
+    const Point p2(measureIt->second.x * coeffX, measureIt->second.y * coeffY);
+#ifdef FERN_PROFILE
+    gettimeofday(&stopCalc, NULL);
+    calcTime += stopCalc.tv_sec - startCalc.tv_sec + double(stopCalc.tv_usec - startCalc.tv_usec) / 1e6;
+#endif
 
 #ifdef FERN_DEBUG
         if(debugOutput.empty())
@@ -272,8 +302,13 @@ int tldFernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &f
         vals.second = getPixelVale(image, p2);
 #endif
 
-        if(getPixelVale(image, p1) < getPixelVale(image, p2))
+        if(image.at<uchar>(p1) < image.at<uchar>(p2))
             position++;
+
+#ifdef FERN_PROFILE
+    gettimeofday(&stopAcsess, NULL);
+    acsessTime += stopAcsess.tv_sec - stopCalc.tv_sec + double(stopAcsess.tv_usec - stopCalc.tv_usec) / 1e6;
+#endif
 
     }
     return position;
@@ -281,14 +316,14 @@ int tldFernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &f
 
 void tldFernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
 {
-#ifdef USE_BLUR
+#ifndef USE_BLUR
     Mat_<uchar> blurred;
     GaussianBlur(image, blurred, Size(3,3), 0.);
 #endif
 
     for(size_t i = 0; i < ferns.size(); ++i)
     {
-#ifdef USE_BLUR
+#ifndef USE_BLUR
         int position = code(blurred, ferns[i]);
 #else
         int position = code(image, ferns[i]);
@@ -302,16 +337,16 @@ void tldFernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositi
     }
 }
 
-uchar tldFernClassifier::getPixelVale(const Mat_<uchar> &image, const Point2f point)
-{
-    CV_Assert(point.x >= 0.f && point.y >= 0.f);
-    CV_Assert(point.x < image.cols && point.y < image.rows);
+//uchar tldFernClassifier::getPixelVale(const Mat_<uchar> &image, const Point2f point)
+//{
+//    CV_Assert(point.x >= 0.f && point.y >= 0.f);
+//    CV_Assert(point.x < image.cols && point.y < image.rows);
 
-    uchar ret;
-    cv::getRectSubPix(image, cv::Size(1,1), point, cv::_OutputArray(&ret, 1));
+//    uchar ret;
+//    cv::getRectSubPix(image, cv::Size(1,1), point, cv::_OutputArray(&ret, 1));
 
-    return ret;
-}
+//    return ret;
+//}
 
 std::vector<Mat> tldFernClassifier::outputFerns(const Size &displaySize) const
 {
@@ -442,21 +477,25 @@ double tldNNClassifier::Sr(const Mat_<uchar> &patch) const
     for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
     {
         splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
+#ifdef NNDEBUG
         if(prevSplus != splus)
         {
             positive = it;
             prevSplus = splus;
         }
+#endif
     }
 
     for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
     {
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
+#ifdef NNDEBUG
         if(prevSminus != sminus)
         {
             negative = it;
             prevSminus = sminus;
         }
+#endif
     }
 
 
