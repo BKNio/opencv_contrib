@@ -52,7 +52,7 @@ namespace tld
 /*                   tldVarianceClassifier                   */
 
 tldVarianceClassifier::tldVarianceClassifier(const Mat_<uchar> &ooi, double actThreshold) :
-    originalVariance(variance(ooi)), coefficient(actThreshold), threshold(originalVariance > 20. ? 0.5*originalVariance : originalVariance)
+    originalVariance(variance(ooi)), coefficient(actThreshold), threshold(coefficient*originalVariance > 20. ? coefficient*originalVariance : originalVariance)
 {}
 
 void tldVarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
@@ -119,8 +119,8 @@ double tldVarianceClassifier::variance(const Mat_<double> &sum, const Mat_<doubl
 
 /*                   tldFernClassifier                   */
 
-tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize):
-    normilizedPatchSize(actNormilizedPatchSize), threshold(0.5), minSqDist(9)
+tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize, double actThreshold):
+    normilizedPatchSize(actNormilizedPatchSize), threshold(actThreshold), minSqDist(4)
 {
     const int shift = 1;
     for(int i = shift; i < normilizedPatchSize.width - shift; ++i)
@@ -171,6 +171,8 @@ tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNum
 
     if(int(measurements.size()) < reqNumberOfFerns * numberOfMeasurementsPerFern)
         CV_Error(cv::Error::StsBadArg, "Not enough measurements");
+
+    std::srand(0);
 
     std::random_shuffle(measurements.begin(), measurements.end());
 
@@ -238,7 +240,11 @@ bool tldFernClassifier::isObject(const Mat_<uchar> &image) const
 double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
 {
     float accumProbability = 0.;
-    for(size_t i = 0; i < ferns.size(); ++i)
+
+    const int fernsSize = int(ferns.size());
+    //const float coeff = 1.f / fernsSize;
+
+    for(int i = 0; i < fernsSize; ++i)
     {
 #ifdef FERN_DEBUG
     debugOutput = Mat();
@@ -263,9 +269,16 @@ double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
     imshow("debugOutput", debugOutput);
     waitKey();
 #endif
+
+    if(accumProbability / fernsSize > threshold)
+        return 1.;
+
+    if((accumProbability + (fernsSize - i)) / fernsSize < threshold)
+        return 0.;
+
     }
 
-    return accumProbability / int(ferns.size());
+    return accumProbability / fernsSize;
 }
 
 int tldFernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern) const
@@ -336,17 +349,6 @@ void tldFernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositi
 
     }
 }
-
-//uchar tldFernClassifier::getPixelVale(const Mat_<uchar> &image, const Point2f point)
-//{
-//    CV_Assert(point.x >= 0.f && point.y >= 0.f);
-//    CV_Assert(point.x < image.cols && point.y < image.rows);
-
-//    uchar ret;
-//    cv::getRectSubPix(image, cv::Size(1,1), point, cv::_OutputArray(&ret, 1));
-
-//    return ret;
-//}
 
 std::vector<Mat> tldFernClassifier::outputFerns(const Size &displaySize) const
 {
@@ -451,17 +453,21 @@ std::pair<Mat, Mat> tldNNClassifier::outputModel() const
 bool tldNNClassifier::isObject(const Mat_<uchar> &image) const
 {
     if(image.size() != normilizedPatchSize)
-        resize(image, normilizedPatch, normilizedPatchSize/*, INTER_NEAREST*/);
+        resize(image, normilizedPatch, normilizedPatchSize);
     else
         image.copyTo(normilizedPatch);
 
-#ifdef USE_BLUR_NN
-    Mat_<uchar> blurred;
-    GaussianBlur(normilizedPatch, blurred, Size(3,3), 0.);
-    blurred.copyTo(normilizedPatch);
-#endif
-
     return Sr(normilizedPatch) > theta;
+}
+
+double tldNNClassifier::calcConfidence(const Mat_<uchar> &image) const
+{
+    if(image.size() != normilizedPatchSize)
+        resize(image, normilizedPatch, normilizedPatchSize);
+    else
+        image.copyTo(normilizedPatch);
+
+    return Sc(normilizedPatch);
 }
 
 double tldNNClassifier::Sr(const Mat_<uchar> &patch) const
@@ -518,7 +524,7 @@ double tldNNClassifier::Sc(const Mat_<uchar> &patch) const
         splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
 
 
-    for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != negativeExamples.end(); ++it)
+    for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
 
 

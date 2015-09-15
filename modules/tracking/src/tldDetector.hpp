@@ -61,36 +61,41 @@ public:
     };
 
 public:
-    tldCascadeClassifier(const Mat_<uchar> &originalImage, const Rect &bb, int numberOfFerns, int actMaxNumberOfExamples, int numberOfMeasurements);
+    tldCascadeClassifier(const Mat_<uchar> &originalImage, const Rect &bb, int maxNumberOfExamples, int numberOfMeasurements, int numberOfFerns, Size patchSize, int preMeasure, int preFerns, double actThreshold);
 
-    std::vector<Rect> detect(const Mat_<uchar> &scaledImage) const;
+    std::vector<std::pair<Rect, double> > detect(const Mat_<uchar> &scaledImage) const;
 
     void addSyntheticPositive(const Mat_<uchar> &image, const Rect bb, int numberOfsurroundBbs, int numberOfSyntheticWarped);
 
     void addPositiveExample(const Mat_<uchar> &example);
     void addNegativeExample(const Mat_<uchar> &example);
 
+    static inline bool greater(const std::pair<Rect, double> &item1, const std::pair<Rect, double> &item2)
+    {
+        return item1.second > item2.second;
+    }
+
 
 /*private:*/
     Ptr<tldVarianceClassifier> varianceClassifier;
+    Ptr<tldFernClassifier> preFernClassifier;
     Ptr<tldFernClassifier> fernClassifier;
     Ptr<tldNNClassifier> nnClassifier;
-    RNG rng;
+    mutable RNG rng;
 
     const Size minimalBBSize;
     const Size standardPatchSize;
     const Size originalBBSize;
     const Size frameSize;
     const double scaleStep;
-    const std::vector<Hypothesis> hypothesis;
+    mutable std::vector<Hypothesis> hypothesis;
     mutable std::vector<bool> answers;
-
 
 /*private:*/
     std::vector<Rect> generateClosestN(const Rect &bBox, size_t N) const;
     std::vector<Rect> generateSurroundingRects(const Rect &bBox, size_t N) const;
     std::vector<Rect> generateAndSelectRects(const Rect &bBox, int n, float rangeStart, float rangeEnd) const;
-    std::vector<Rect> prepareFinalResult() const;
+    std::vector< std::pair<Rect, double> > prepareFinalResult(const Mat_<uchar> &image) const;
 
     bool isRectOK(const cv::Rect &rect) const;
 

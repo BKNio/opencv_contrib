@@ -54,7 +54,8 @@ namespace cv
 namespace tld
 {
 
-tldCascadeClassifier::tldCascadeClassifier(const Mat_<uchar> &zeroFrame, const Rect &bb, int numberOfMeasurements, int numberOfFerns, int maxNumberOfExamples):
+tldCascadeClassifier::tldCascadeClassifier(const Mat_<uchar> &zeroFrame, const Rect &bb, int maxNumberOfExamples, int numberOfMeasurements,
+                                           int numberOfFerns, Size patchSize, int preMeasure, int preFerns, double actThreshold):
     minimalBBSize(15, 15), standardPatchSize(15, 15),originalBBSize(bb.size()),
     frameSize(zeroFrame.size()), scaleStep(1.2f), hypothesis(generateHypothesis(frameSize, originalBBSize, minimalBBSize, scaleStep))
 {
@@ -65,51 +66,43 @@ tldCascadeClassifier::tldCascadeClassifier(const Mat_<uchar> &zeroFrame, const R
     const Mat_<uchar> ooi = zeroFrame(bb);
 
     varianceClassifier = makePtr<tldVarianceClassifier>(ooi);
-    fernClassifier = makePtr<tldFernClassifier>(numberOfMeasurements, numberOfFerns, originalBBSize);
-    nnClassifier = makePtr<tldNNClassifier>(maxNumberOfExamples, standardPatchSize);
+    preFernClassifier = makePtr<tldFernClassifier>(preMeasure, preFerns, standardPatchSize, actThreshold);
+    fernClassifier = makePtr<tldFernClassifier>(numberOfMeasurements, numberOfFerns, patchSize);
+    nnClassifier = makePtr<tldNNClassifier>(maxNumberOfExamples, standardPatchSize, 0.4);
 
-    addPositiveExample(ooi);
+    addSyntheticPositive(zeroFrame, bb, 10, 20);
+
 #ifdef SHOW_POSITIVE_EXAMPLE
     imshow("positive example ooi", ooi);
     waitKey();
 #endif
 
 
-    addSyntheticPositive(zeroFrame, bb, 10, 20);
-
-    std::vector<Rect> surroundingRects = generateSurroundingRects(bb, 10);
-    for(std::vector<Rect>::const_iterator negatievRect = surroundingRects.begin(); negatievRect != surroundingRects.end(); ++negatievRect)
-    {
-        addPositiveExample(zeroFrame(*negatievRect));
-#ifdef SHOW_ADDITIONAL_NEGATIVE
-        imshow("additional negative", zeroFrame(*negatievRect));
-        waitKey();
-#endif
-    }
 
 }
 
-std::vector<Rect> tldCascadeClassifier::detect(const Mat_<uchar> &scaledImage) const
+std::vector< std::pair<Rect, double> > tldCascadeClassifier::detect(const Mat_<uchar> &scaledImage) const
 {
     timeval varianceStart, fernStart, nnStart, nnStop, mergeStop;
 
     answers.clear();
-    gettimeofday(&varianceStart, NULL);
+    //gettimeofday(&varianceStart, NULL);
     varianceClassifier->isObjects(hypothesis, scaledImage, answers);
-    gettimeofday(&fernStart, NULL);
+    //gettimeofday(&fernStart, NULL);
+    preFernClassifier->isObjects(hypothesis, scaledImage, answers);
     fernClassifier->isObjects(hypothesis, scaledImage, answers);
-    gettimeofday(&nnStart, NULL);
+    //gettimeofday(&nnStart, NULL);
     nnClassifier->isObjects(hypothesis, scaledImage, answers);
-    gettimeofday(&nnStop, NULL);
-    const std::vector<Rect> &result = prepareFinalResult();
-    gettimeofday(&mergeStop, NULL);
+    //gettimeofday(&nnStop, NULL);
+    const std::vector< std::pair<Rect, double> > &result = prepareFinalResult(scaledImage);
+    //gettimeofday(&mergeStop, NULL);
 
 
-    std::cout << " var " << std::fixed << fernStart.tv_sec - varianceStart.tv_sec + double(fernStart.tv_usec - varianceStart.tv_usec) / 1e6;
-    std::cout << " fern " << std::fixed << nnStart.tv_sec - fernStart.tv_sec + double(nnStart.tv_usec - fernStart.tv_usec) / 1e6;
-    std::cout << " nn " << std::fixed << nnStop.tv_sec - nnStart.tv_sec + double(nnStop.tv_usec - nnStart.tv_usec) / 1e6;
-    std::cout << " merge " << std::fixed << mergeStop.tv_sec - nnStop.tv_sec + double(mergeStop.tv_usec - nnStop.tv_usec) / 1e6;
-    std::cout << " total " << std::fixed << mergeStop.tv_sec - varianceStart.tv_sec + double(mergeStop.tv_usec - varianceStart.tv_usec) / 1e6 << std::endl;
+    //std::cout << " var " << std::fixed << fernStart.tv_sec - varianceStart.tv_sec + double(fernStart.tv_usec - varianceStart.tv_usec) / 1e6;
+    //std::cout << " fern " << std::fixed << nnStart.tv_sec - fernStart.tv_sec + double(nnStart.tv_usec - fernStart.tv_usec) / 1e6;
+    //std::cout << " nn " << std::fixed << nnStop.tv_sec - nnStart.tv_sec + double(nnStop.tv_usec - nnStart.tv_usec) / 1e6;
+    //std::cout << " merge " << std::fixed << mergeStop.tv_sec - nnStop.tv_sec + double(mergeStop.tv_usec - nnStop.tv_usec) / 1e6;
+    //std::cout << " total " << std::fixed << mergeStop.tv_sec - varianceStart.tv_sec + double(mergeStop.tv_usec - varianceStart.tv_usec) / 1e6 << std::endl;
 
     return result;
 }
@@ -120,30 +113,44 @@ void tldCascadeClassifier::addSyntheticPositive(const Mat_<uchar> &image, const 
     const float scaleRange = .01f;
     const float angleRangeDegree = 10.f;
 
+    addPositiveExample(image(bb));
+
     std::vector<Rect> NClosestRects = generateClosestN(bb, numberOfsurroundBbs);
+    numberOfSyntheticWarped = NClosestRects.size();
+
+
+    Mat_<uchar> copy; image.copyTo(copy);
     for(std::vector<Rect>::const_iterator positiveRect = NClosestRects.begin(); positiveRect != NClosestRects.end(); ++positiveRect)
     {
+        rectangle(copy, *positiveRect, Scalar::all(255), 1);
         for(int syntheticWarp = 0; syntheticWarp < numberOfSyntheticWarped; ++syntheticWarp)
         {
-            const Mat_<uchar> &warpedOOI = randomWarp(image, *positiveRect, shiftRangePercent, scaleRange, angleRangeDegree);
+            Mat_<uchar> warpedOOI = randomWarp(image, *positiveRect, shiftRangePercent, scaleRange, angleRangeDegree);
+
+            for(int j = 0; j < warpedOOI.rows; ++j)
+                for(int i = 0; i < warpedOOI.cols; ++i)
+                    warpedOOI.at<uchar>(j,i) += rng.gaussian(5.);
+
             addPositiveExample(warpedOOI);
-#ifdef SHOW_ADDITIONAL_POSITIVE
-            imshow("additional positive", warpedOOI);
-            imshow("additional bb", image(*positiveRect));
-            waitKey();
-#endif
         }
     }
+
+    rectangle(copy, bb, Scalar::all(0), 1);
+    imshow("rects", copy);
+    waitKey(1);
+
 }
 
 void tldCascadeClassifier::addPositiveExample(const Mat_<uchar> &example)
 {
+    preFernClassifier->integratePositiveExample(example);
     fernClassifier->integratePositiveExample(example);
     nnClassifier->integratePositiveExample(example);
 }
 
 void tldCascadeClassifier::addNegativeExample(const Mat_<uchar> &example)
 {
+    preFernClassifier->integrateNegativeExample(example);
     fernClassifier->integrateNegativeExample(example);
     nnClassifier->integrateNegativeExample(example);
 }
@@ -170,17 +177,6 @@ std::vector<Hypothesis> tldCascadeClassifier::generateHypothesis(const Size fram
             break;
         addScanGrid(frameSize, currentBBSize, minimalBBSize, hypothesis);
 
-//        {
-//            for(std::vector<Hypothesis>::const_iterator it = hypothesis.begin(); it < hypothesis.end(); ++it)
-//            {
-//                Mat_<uchar> copy(frameSize, 0);
-//                rectangle(copy, it->bb, Scalar::all(255));
-//                imshow("copy", copy);
-//                waitKey(1);
-//            }
-//            hypothesis.clear();
-//        }
-
         correctedScale /= scaleStep;
     }
     return hypothesis;
@@ -188,7 +184,7 @@ std::vector<Hypothesis> tldCascadeClassifier::generateHypothesis(const Size fram
 
 std::vector<Rect> tldCascadeClassifier::generateClosestN(const Rect &bBox, size_t N) const
 {
-    return generateAndSelectRects(bBox, N, 0.99f, 0.5f);
+    return generateAndSelectRects(bBox, N, 1.0f, 0.75f);
 }
 
 std::vector<Rect> tldCascadeClassifier::generateSurroundingRects(const Rect &bBox, size_t N) const
@@ -198,64 +194,107 @@ std::vector<Rect> tldCascadeClassifier::generateSurroundingRects(const Rect &bBo
 
 std::vector<Rect> tldCascadeClassifier::generateAndSelectRects(const Rect &bBox, int n, float rangeStart, float rangeEnd) const
 {
-    CV_Assert(n > 0);
+    CV_Assert(n >= 0);
 
     std::vector<Rect> ret; ret.reserve(n);
 
-    const float dx = float(bBox.width) / 10;
-    const float dy = float(bBox.height) / 10;
+    if(n == 0)
+        return ret;
+
+    const float dx = float(bBox.width) / 5;
+    const float dy = float(bBox.height) / 5;
 
     const Point tl = bBox.tl();
+//    Vec2f sumUp(0.f, 0.f);
 
-    std::multimap<float, Rect> storage;
+//    std::multimap<float, Rect> storage;
 
-    for(int stepX = -n; stepX <= n; ++stepX)
+//    for(int stepX = -n; stepX <= n; ++stepX)
+//    {
+//        for(int stepY = -n; stepY <= n; ++stepY)
+//        {
+//            const Rect actRect(Point(cvRound(tl.x + dx*stepX), cvRound(tl.y + dy*stepY)), bBox.size());
+
+//            sumUp += Vec2f(actRect.tl().x, actRect.tl().y);
+
+//            const Rect overlap = bBox & actRect;
+
+//            const float overlapValue = float(overlap.area()) / (actRect.area() + bBox.area() - overlap.area());
+
+//            storage.insert(std::make_pair(overlapValue, actRect));
+//        }
+//    }
+
+//    sumUp -= Vec2f(actRect.tl().x, actRect.tl().y);
+
+//    sumUp /= 4*n*n;
+
+
+//    std::cout << "shit " << Vec2f(tl.x, tl.y) - sumUp << std::endl;
+
+//    std::multimap<float, Rect>::iterator closestIt = storage.lower_bound(rangeStart);
+
+//    CV_Assert(closestIt != storage.end());
+//    CV_Assert(closestIt != storage.begin());
+
+//    for(; closestIt != storage.begin(); --closestIt)
+//    {
+//        if(closestIt->first <= rangeStart && closestIt->first > rangeEnd)
+//            if(isRectOK(closestIt->second))
+//            {
+//                closestIt->second.x += sumUp[0];
+//                closestIt->second.y += sumUp[1];
+//                ret.push_back(closestIt->second);
+//            }
+//    }
+
+    ret.push_back(bBox);
+
+    while(ret.size() < n)
     {
-        for(int stepY = -n; stepY <= n; ++stepY)
+        const float rdx = rng.uniform(-dx, dx);
+        const float rdy = rng.uniform(-dy, dy);
+
+        if(tl.x - rdx < 0.f || tl.y - rdy < 0.f || tl.x + rdx < 0.f || tl.y + rdy < 0.f)
+            continue;
+
+        const cv::Rect randomRect1(Point(cvRound(tl.x + rdx), cvRound(tl.y + rdy)), bBox.size());
+        const cv::Rect randomRect2(Point(cvRound(tl.x - rdx), cvRound(tl.y - rdy)), bBox.size());
+
+        const Rect overlap1 = bBox & randomRect1;
+        const Rect overlap2 = bBox & randomRect2;
+
+        const float overlapValue1 = float(overlap1.area()) / (randomRect1.area() + bBox.area() - overlap1.area());
+        const float overlapValue2 = float(overlap2.area()) / (randomRect2.area() + bBox.area() - overlap2.area());
+
+        if(overlapValue1 >= rangeEnd && overlapValue2 >= rangeEnd)
         {
-            const Rect actRect(Point(tl.x + dx*stepX, tl.y + dy*stepY), bBox.size());
-            const Rect overlap = bBox & actRect;
-
-            const float overlapValue = float(overlap.area()) / (actRect.area() + bBox.area() - overlap.area());
-
-            storage.insert(std::make_pair(overlapValue, actRect));
-
+            ret.push_back(randomRect1), ret.push_back(randomRect2);
         }
-    }
 
-    std::multimap<float, Rect>::iterator closestIt = storage.lower_bound(rangeStart);
-
-    CV_Assert(closestIt != storage.end());
-    CV_Assert(closestIt != storage.begin());
-
-    for(; closestIt != storage.begin(); --closestIt)
-    {
-        if(closestIt->first <= rangeStart && closestIt->first > rangeEnd)
-            if(isRectOK(closestIt->second))
-                ret.push_back(closestIt->second);
-
-        if(ret.size() == size_t(n))
-            break;
     }
 
     return ret;
 }
 
-std::vector<Rect> tldCascadeClassifier::prepareFinalResult() const
+std::vector< std::pair<Rect, double> > tldCascadeClassifier::prepareFinalResult(const Mat_<uchar> &image) const
 {
-    std::vector<Rect> result;
+    std::vector<Rect> intermediateResults;
 
     for(size_t index = 0; index < hypothesis.size(); ++index)
-    {
         if(answers[index])
-        {
-            result.push_back(hypothesis[index].bb);
-        }
-    }
+            intermediateResults.push_back(hypothesis[index].bb);
 
-    cv::groupRectangles(result, 1, 0.3);
+    cv::groupRectangles(intermediateResults, 1, 0.3);
 
-    return result;
+    std::vector< std::pair<Rect, double> > results;
+
+    for(std::vector<Rect>::const_iterator intermediateRest = intermediateResults.begin(); intermediateRest != intermediateResults.end(); ++intermediateRest)
+        results.push_back(std::make_pair(*intermediateRest, nnClassifier->calcConfidence(image(*intermediateRest))));
+
+    std::sort(results.begin(), results.end(), greater);
+
+    return results;
 }
 
 bool tldCascadeClassifier::isRectOK(const Rect &rect) const
@@ -274,7 +313,7 @@ Mat_<uchar> tldCascadeClassifier::randomWarp(const Mat_<uchar> &originalFrame, R
 
     Mat scaleTransform = cv::Mat::eye(3, 3, CV_32F);
     scaleTransform.at<float>(0,0) = 1 - rng.uniform(-scaleRangePercent, scaleRangePercent);
-    scaleTransform.at<float>(1,1) = 1 - rng.uniform(-scaleRangePercent, scaleRangePercent);
+    scaleTransform.at<float>(1,1) = scaleTransform.at<float>(0,0); //1 - rng.uniform(-scaleRangePercent, scaleRangePercent);
 
     Mat rotationShiftTransform = cv::Mat::eye(3, 3, CV_32F);
     rotationShiftTransform.at<float>(0,2) = bb.tl().x + float(bb.width) / 2;
@@ -293,6 +332,7 @@ Mat_<uchar> tldCascadeClassifier::randomWarp(const Mat_<uchar> &originalFrame, R
     Mat_<uchar> dst;
     warpAffine(originalFrame, dst, resultTransform(cv::Rect(0,0,3,2)), dst.size());
 
+    //std::cout << bb << std::endl;
     return dst(bb);
 }
 
@@ -309,99 +349,6 @@ void tldCascadeClassifier::addScanGrid(const Size frameSize, const Size bbSize, 
         for(int currentY = 0; currentY < frameSize.height - bbSize.height - dy; currentY += dy)
             hypothesis.push_back(Hypothesis(currentX, currentY, bbSize));
 }
-
-//void tldCascadeClassifier::detect(const Mat_<uchar>& img, std::vector<Response>& responses)
-//{
-//    Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-//    Mat tmp;
-//    int dx = initSize.width / 10, dy = initSize.height / 10;
-//    Size2d size = img.size();
-//    double scale = 1.0;
-//    int scaleID;
-//    std::vector <Mat> resized_imgs, blurred_imgs;
-//    std::vector <Point> varBuffer, ensBuffer;
-//    std::vector <int> varScaleIDs, ensScaleIDs;
-
-//    scaleID = 0;
-//    resized_imgs.push_back(img);
-//    blurred_imgs.push_back(imgBlurred);
-
-//    do
-//    {
-//        /////////////////////////////////////////////////
-//        //Mat bigVarPoints; resized_imgs[scaleID].copyTo(bigVarPoints);
-//        /////////////////////////////////////////////////
-
-//        Mat_<double> intImgP, intImgP2;
-
-//        computeIntegralImages(resized_imgs[scaleID], intImgP, intImgP2);
-
-//        for (int i = 0, imax = cvFloor((0.0 + resized_imgs[scaleID].cols - initSize.width) / dx); i < imax; i++)
-//        {
-//            for (int j = 0, jmax = cvFloor((0.0 + resized_imgs[scaleID].rows - initSize.height) / dy); j < jmax; j++)
-//            {
-//                if (!patchVariance(intImgP, intImgP2, Point(dx * i, dy * j), initSize))
-//                    continue;
-
-//                varBuffer.push_back(Point(dx * i, dy * j));
-//                varScaleIDs.push_back(scaleID);
-
-//                ///////////////////////////////////////////////////////
-//                //circle(bigVarPoints, *(varBuffer.end() - 1) + Point(initSize.width / 2, initSize.height / 2), 1, cv::Scalar::all(0));
-//                ///////////////////////////////////////////////////////
-//            }
-//        }
-//        scaleID++;
-//        size.width /= SCALE_STEP;
-//        size.height /= SCALE_STEP;
-//        scale *= SCALE_STEP;
-//        resize(img, tmp, size, 0, 0, DOWNSCALE_MODE);
-//        resized_imgs.push_back(tmp.clone());
-
-//        GaussianBlur(resized_imgs[scaleID], tmp, GaussBlurKernelSize, .0f);
-//        blurred_imgs.push_back(tmp.clone());
-
-//        ///////////////////////////////////////////////////////
-//        //imshow("big variance", bigVarPoints);
-//        //waitKey();
-//        ///////////////////////////////////////////////////////
-
-//    } while (size.width >= initSize.width && size.height >= initSize.height);
-
-//    for (int i = 0; i < (int)varBuffer.size(); i++)
-//    {
-//        prepareClassifiers(static_cast<int> (blurred_imgs[varScaleIDs[i]].step[0]));
-//        if (ensembleClassifierNum(&blurred_imgs[varScaleIDs[i]].at<uchar>(varBuffer[i].y, varBuffer[i].x)) <= ENSEMBLE_THRESHOLD)
-//            continue;
-//        ensBuffer.push_back(varBuffer[i]);
-//        ensScaleIDs.push_back(varScaleIDs[i]);
-
-//        //////////////////////////////////////////////////////
-//        //Mat ensembleOutPut; blurred_imgs[varScaleIDs[i]].copyTo(ensembleOutPut);
-//        //rectangle(ensembleOutPut, Rect(varBuffer[i], initSize), Scalar::all(0));
-//        //imshow("ensembleOutPut", ensembleOutPut);
-//        //waitKey();
-//        //////////////////////////////////////////////////////
-
-//    }
-
-
-//    for (int i = 0; i < (int)ensBuffer.size(); i++)
-//    {
-//        resample(resized_imgs[ensScaleIDs[i]], Rect2d(ensBuffer[i], initSize), standardPatch);
-
-//        double srValue = Sr(standardPatch);
-
-//        if(srValue > srValue)
-//        {
-//            Response response;
-//            response.confidence = srValue;
-//            double curScale = pow(SCALE_STEP, ensScaleIDs[i]);
-//            response.bb = Rect2d(ensBuffer[i].x*curScale, ensBuffer[i].y*curScale, initSize.width * curScale, initSize.height * curScale);
-//            responses.push_back(response);
-//        }
-    //    }
-//}
 
 }
 }

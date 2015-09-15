@@ -97,16 +97,16 @@ public:
     ClassifiersTest() : rng(/*std::time(NULL)*/), fontScaleRange(0.7f, 2.7f), angleRange(-15.f, 15.f), scaleRange(0.9f, 1.1f),
         shiftRange(-5, 5), thicknessRange(1, 3), minimalSize(20, 20), pathToTLDDataSet("/home/dinar/proj_src/test_data/TLD")
     {
-                testCases.push_back("01_david");
-//                testCases.push_back("02_jumping");
-//                testCases.push_back("03_pedestrian1");
-//                testCases.push_back("04_pedestrian2");
-                testCases.push_back("05_pedestrian3");
-                testCases.push_back("06_car");
-//                testCases.push_back("07_motocross");
-//                testCases.push_back("08_volkswagen");
-                testCases.push_back("09_carchase");
-//                testCases.push_back("10_panda");
+        //testCases.push_back("01_david");
+        //testCases.push_back("02_jumping");
+        //testCases.push_back("03_pedestrian1");
+        //testCases.push_back("04_pedestrian2");
+        //testCases.push_back("05_pedestrian3");
+        testCases.push_back("06_car");
+        //testCases.push_back("07_motocross");
+        //testCases.push_back("08_volkswagen");
+        //testCases.push_back("09_carchase");
+        //testCases.push_back("10_panda");
     }
 
 private:
@@ -186,23 +186,23 @@ private:
 
 void ClassifiersTest::run()
 {
-//    if(!nccRandomFill())
-//        FAIL() << "nccRandom test failed" << std::endl;
+    //    if(!nccRandomFill())
+    //        FAIL() << "nccRandom test failed" << std::endl;
 
-//    if(!nccRandomCharacters())
-//        FAIL() << "nccCharacter test failed" << std::endl;
+    //    if(!nccRandomCharacters())
+    //        FAIL() << "nccCharacter test failed" << std::endl;
 
-//    if(!emptyTest())
-//        FAIL() << "empty test failed" << std::endl;
+    //    if(!emptyTest())
+    //        FAIL() << "empty test failed" << std::endl;
 
-//    if(!simpleTest())
-//        FAIL() << "simple test failed" << std::endl;
+    //    if(!simpleTest())
+    //        FAIL() << "simple test failed" << std::endl;
 
-//    if(!syntheticDataTest())
-//        FAIL() << "syntheticData test failed" << std::endl;
+    //    if(!syntheticDataTest())
+    //        FAIL() << "syntheticData test failed" << std::endl;
 
-//    if(!onlineTrainTest())
-//        FAIL() << "onlineTrain test failed" << std::endl;
+    //    if(!onlineTrainTest())
+    //        FAIL() << "onlineTrain test failed" << std::endl;
 
     if(!realDataTest())
         FAIL() << "realData test failed" << std::endl;
@@ -522,28 +522,28 @@ bool ClassifiersTest::onlineTrainTest()
         hypothesis[0].bb = cv::Rect(cv::Point(), example.size());
 
         std::vector<bool> answers(1);
-//        answers[0] = true;
+        //        answers[0] = true;
 
-//        nnclasifier->isObjects(hypothesis, example, answers);
+        //        nnclasifier->isObjects(hypothesis, example, answers);
 
-//        if(answers[0] != isObject)
-//        {
-//            if(isObject)
-//                nnclasifier->integratePositiveExample(example);
-//            else
-//                nnclasifier->integrateNegativeExample(example);
+        //        if(answers[0] != isObject)
+        //        {
+        //            if(isObject)
+        //                nnclasifier->integratePositiveExample(example);
+        //            else
+        //                nnclasifier->integrateNegativeExample(example);
 
-//            misclassifiedNN += 1.f;
+        //            misclassifiedNN += 1.f;
 
-//            answers[0] = true;
+        //            answers[0] = true;
 
-//            nnclasifier->isObjects(hypothesis, example, answers);
+        //            nnclasifier->isObjects(hypothesis, example, answers);
 
-//            if(answers[0] != isObject)
-//                return false;
-//        }
-//        else
-//            correctClassifiedNN += 1.f;
+        //            if(answers[0] != isObject)
+        //                return false;
+        //        }
+        //        else
+        //            correctClassifiedNN += 1.f;
 
         answers[0] = true;
         fernclassifier->isObjects(hypothesis, example, answers);
@@ -575,125 +575,184 @@ bool ClassifiersTest::onlineTrainTest()
 //#define SHOW_ADDITIONAL_EXAMPLES
 bool ClassifiersTest::realDataTest()
 {
-    for(std::vector<std::string>::const_iterator testCase = testCases.begin(); testCase != testCases.end(); ++testCase)
-    {
-        std::cout << "-------" << std::endl;
-        std::cout << *testCase << std::endl;
+    std::vector<int> measurementsRange, fernsRange, storageSizeRange, warpedExamplesNumbers, positiveExampleNumbers, preMeasures, preFerns;
+    std::vector<cv::Size> sizes;
+    std::vector<double> thresholds;
 
-        const std::string path = pathToTLDDataSet + "/" + *testCase + "/";
-        const std::string suffix = *testCase == "07_motocross" ? "%05d.png" : "%05d.jpg";
+    measurementsRange.push_back(13);
+    //measurementsRange.push_back(14);
+    //measurementsRange.push_back(14);
 
-        cv::VideoCapture capture(path + suffix);
+    fernsRange.push_back(200);
 
-        if(!capture.isOpened())
-            return std::cerr << "unable to open " + path + suffix, false;
+    storageSizeRange.push_back(700);
 
-        std::fstream gtData((path + "/gt.txt").c_str());
-        if(!gtData.is_open())
-            return std::cerr << "unable to open " + path + "/gt.txt", false;
+    warpedExamplesNumbers.push_back(10);
+//    warpedExamplesNumbers.push_back(5);
+//    warpedExamplesNumbers.push_back(9);
 
-        std::vector<cv::Rect> gtBB;
-        std::copy(std::istream_iterator<cv::Rect>(gtData), std::istream_iterator<cv::Rect>(), std::back_inserter(gtBB));
+//    positiveExampleNumbers.push_back(1);
+    positiveExampleNumbers.push_back(1);
 
-        CV_Assert(!gtBB.empty());
+    //sizes.push_back(cv::Size(22, 22));
+    //sizes.push_back(cv::Size(25, 25));
+    sizes.push_back(cv::Size(25, 25));
 
-        std::vector<cv::Mat> frames; frames.reserve(gtBB.size());
-        cv::Mat frame;
-        while(capture >> frame, !frame.empty())
-        {
-            cv::Mat grayFrame;
-            cv::cvtColor(frame, grayFrame, CV_BGR2GRAY);
-            frames.push_back(grayFrame);
-        }
+//    preMeasures.push_back(12);
+    preMeasures.push_back(12);
 
-        CV_Assert(frames.size() == gtBB.size());
-
-        const cv::Rect roi(cv::Point(), frames.front().size());
-
-//        const size_t trainSize = gtBB.size() * 0.75;
-//        const size_t testSize = gtBB.size() - trainSize;
+//    preFerns.push_back(5);
+    preFerns.push_back(10);
 
 
-//        for(size_t index = 0; index < frames.size() / 2; ++index)
-//        {
-//            const size_t randomIndex = rng.uniform(int(frames.size() / 2), frames.size());
-
-//            std::swap(frames[randomIndex], frames[index]);
-//            std::swap(gtBB[randomIndex], gtBB[index]);
-//        }
-
-        /*--------------------------------------------*/
-        //timeval trainStart, trainStop, testStop;
-        //gettimeofday(&trainStart, NULL);
-        /*--------------------------------------------*/
-
-        //        float numberOfBadTrainExamples = 0.f, numberOfBadTestExamples = 0.f;
-        //        float miscalssifiedNN = 0.f, miscalssifiedFern = 0.f;
+//    thresholds.push_back(0.5);
+    thresholds.push_back(0.5);
 
 
-        std::cerr << "starting..." << std::endl;
 
-        float fP = .0f, tP = .0f, numberOfExamples = .0f;
+    for(std::vector<int>::const_iterator measurements = measurementsRange.begin(); measurements != measurementsRange.end(); measurements++)
+        for(std::vector<int>::const_iterator fernsSize = fernsRange.begin(); fernsSize != fernsRange.end(); fernsSize++)
+            for(std::vector<int>::const_iterator storageSize = storageSizeRange.begin(); storageSize != storageSizeRange.end(); storageSize++)
+                for(std::vector<int>::const_iterator warpedSize = warpedExamplesNumbers.begin(); warpedSize != warpedExamplesNumbers.end(); warpedSize++)
+                    for(std::vector<int>::const_iterator positiveSize = positiveExampleNumbers.begin(); positiveSize != positiveExampleNumbers.end(); positiveSize++)
+                        for(std::vector<cv::Size>::const_iterator patchSize = sizes.begin(); patchSize != sizes.end(); ++patchSize)
+                            for(std::vector<int>::const_iterator preMeasure = preMeasures.begin(); preMeasure != preMeasures.end(); preMeasure++)
+                                for(std::vector<int>::const_iterator preFern = preFerns.begin(); preFern != preFerns.end(); preFern++)
+                                    for(std::vector<double>::const_iterator threshold = thresholds.begin(); threshold != thresholds.end(); ++threshold)
+                    {
+                        float avgRecall = 0.f, avgPrecision = 0.f;
+                        double avgTime = 0.;
 
-        cv::Ptr<cv::tld::tldCascadeClassifier> cascadeClasifier = cv::makePtr<cv::tld::tldCascadeClassifier>(frames.front(), gtBB.front(), 14, 150, 500);
+                        const int numberOfTries = 1;
+                        for(int i = 0; i < numberOfTries; ++i)
+                        {
+                            float fP = .0f, tP = .0f, numberOfExamples = .0f;
+                            for(std::vector<std::string>::const_iterator testCase = testCases.begin(); testCase != testCases.end(); ++testCase)
+                            {
+                                const std::string path = pathToTLDDataSet + "/" + *testCase + "/";
+                                const std::string suffix = *testCase == "07_motocross" ? "%05d.png" : "%05d.jpg";
 
-        for(size_t trainIteration = 1; trainIteration < gtBB.size() && trainIteration < 51; ++trainIteration)
-        {
-            const cv::Mat &currentFrame = frames[trainIteration];
-            const cv::Rect &gtRect = gtBB[trainIteration];
+                                cv::VideoCapture capture(path + suffix);
 
-            if( gtRect.area() == 0 || (gtRect & roi).area() < gtRect.area() || gtRect.area() < 225)
-                continue;
+                                if(!capture.isOpened())
+                                    return std::cerr << "unable to open " + path + suffix, false;
 
-            numberOfExamples++;
+                                std::fstream gtData((path + "/gt.txt").c_str());
+                                if(!gtData.is_open())
+                                    return std::cerr << "unable to open " + path + "/gt.txt", false;
 
-            const std::vector<cv::Rect> &objects = cascadeClasifier->detect(currentFrame);
+                                std::vector<cv::Rect> gtBB;
+                                std::copy(std::istream_iterator<cv::Rect>(gtData), std::istream_iterator<cv::Rect>(), std::back_inserter(gtBB));
 
-            cv::Mat copy;
-            cv::cvtColor(frames[trainIteration], copy, CV_GRAY2BGR);
+                                CV_Assert(!gtBB.empty());
 
-            bool isObjectFound = false;
+                                std::vector<cv::Mat> frames; frames.reserve(gtBB.size());
+                                cv::Mat frame;
+                                while(capture >> frame, !frame.empty())
+                                {
+                                    cv::Mat grayFrame;
+                                    cv::cvtColor(frame, grayFrame, CV_BGR2GRAY);
+                                    frames.push_back(grayFrame);
+                                }
 
-            for(std::vector<cv::Rect>::const_iterator object = objects.begin(); object != objects.end(); ++object)
-            {
-                 bool isTrue = float((gtRect & *object).area()) / (gtRect.area() + object->area() - (gtRect & *object).area()) >= 0.5f;
+                                CV_Assert(frames.size() == gtBB.size());
 
-                 isObjectFound |= isTrue;
+                                const cv::Rect roi(cv::Point(), frames.front().size());
 
-                 if(isTrue)
-                 {
-                     tP++;
-                     cv::rectangle(copy, *object, cv::Scalar(255, 0, 139));
-                 }
-                 else
-                 {
-                     fP++;
-                     cv::rectangle(copy, *object, cv::Scalar(0,0,255));
-                     cascadeClasifier->addNegativeExample(currentFrame(*object));
-                 }
+                                /*--------------------------------------------*/
+                                timeval trainStart, trainStop;
+                                gettimeofday(&trainStart, NULL);
+                                /*--------------------------------------------*/
 
-            }
+                                cv::Ptr<cv::tld::tldCascadeClassifier> cascadeClasifier =
+                                        cv::makePtr<cv::tld::tldCascadeClassifier>(frames.front(), gtBB.front(), *storageSize,
+                                                                                   *measurements, *fernsSize, *patchSize, *preMeasure, *preFern, *threshold);
 
-            cascadeClasifier->addSyntheticPositive(frames[trainIteration], gtRect, 10, 10);
+                               for(size_t trainIteration = 1; trainIteration < gtBB.size(); ++trainIteration)
+                                {
+                                    cv::Mat currentFrame;
+                                    cv::cvtColor(frames[trainIteration], currentFrame, CV_GRAY2BGR);
+                                    const cv::Rect &gtRect = gtBB[trainIteration];
+                                    cv::Rect detectedObject;
+                                    bool isObjectPresents = false;
 
-            std::stringstream ss; ss << "# " << trainIteration;
-            cv::putText(copy, ss.str(), cv::Point(2,18), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(255, 127, 0));
+                                    if(gtRect.area() > 0)
+                                    {
+                                        isObjectPresents = true;
+                                        cv::rectangle(currentFrame, gtRect, cv::Scalar(0, 255, 0), 1);
+                                    }
 
-            cv::imshow("iteration results", copy);
-            cv::waitKey(1);
+                                    bool isObjectDetected = false;
+                                    const std::vector< std::pair<cv::Rect, double> > &detectedObjects = cascadeClasifier->detect(frames[trainIteration]);
+
+                                    if(!detectedObjects.empty() && detectedObjects.front().second > 0.5)
+                                    {
+                                        detectedObject = detectedObjects.front().first;
+                                        isObjectDetected = true;
+                                        //cv::rectangle(currentFrame, detectedObject, cv::Scalar(255, 0, 139), 2);
+                                    }
+
+                                    if(isObjectPresents)
+                                    {
+                                        numberOfExamples++;
+
+                                        if(isObjectDetected)
+                                        {
+                                            const cv::Rect &overlap = gtRect & detectedObject;
+                                            if(double(overlap.area()) / (gtRect.area() + detectedObject.area() - overlap.area()) >= 0.5)
+                                            {
+                                                cv::rectangle(currentFrame, detectedObject, cv::Scalar(255,0, 139), 3);
+                                                cv::rectangle(currentFrame, detectedObject, cv::Scalar::all(255), 1);
+                                                tP++;
+                                                cascadeClasifier->addSyntheticPositive(frames[trainIteration], detectedObject, *positiveSize, *warpedSize);
+                                                if(!detectedObjects.empty())
+                                                {
+                                                    for(std::vector<std::pair<cv::Rect, double> >::const_iterator result = detectedObjects.begin() + 1; result != detectedObjects.end(); ++result)
+                                                    {
+                                                        cv::Rect object =  result->first;
+                                                        cv::rectangle(currentFrame, object, cv::Scalar(255, 0, 139), 3);
+                                                        cv::rectangle(currentFrame, object, cv::Scalar::all(0), 1);
+                                                        cascadeClasifier->addNegativeExample(frames[trainIteration](object));
+                                                    }
+                                                }
+                                            }
+                                            else
+                                                cv::rectangle(currentFrame, detectedObject, cv::Scalar::all(0), 2);
+                                        }
+                                    }
+                                    else
+                                        if(isObjectDetected)
+                                        {
+                                            cv::rectangle(currentFrame, detectedObject, cv::Scalar::all(0), 2);
+                                            fP++;
+                                        }
+
+                                    std::stringstream ss; ss << "# " << trainIteration;
+                                    cv::putText(currentFrame, ss.str(), cv::Point(2,18), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(255, 127, 0));
+
+                                    cv::imshow("iteration results", currentFrame);
+                                    cv::waitKey(1);
 
 
-        }
+                                }
 
-        std::cout << "recall " << tP / numberOfExamples << " precision " <<  tP / (tP + fP) << std::endl;
+                                gettimeofday(&trainStop, NULL);
+                                avgTime += trainStop.tv_sec - trainStart.tv_sec + double(trainStop.tv_usec - trainStart.tv_usec) / 1e6;
+                            }
 
-        /*--------------------------------------------*/
-        //gettimeofday(&trainStop, NULL);
-        //std::cout << "train time" << trainStop.tv_sec - trainStart.tv_sec + double(trainStop.tv_usec - trainStart.tv_usec) / 1e6 << std::endl;
-        /*--------------------------------------------*/
+                            avgRecall += tP / numberOfExamples;
+                            avgPrecision += tP / (tP + fP);
+                        }
 
+                        avgPrecision /= numberOfTries;
+                        avgRecall /= numberOfTries;
+                        avgTime /= numberOfTries;
 
-}
+                        /*--------------------------------------------*/
+                        std::cout << *measurements << " " << *fernsSize << " " << *storageSize << " " << *positiveSize << " " << *warpedSize << " " << *patchSize;
+                        std::cout << " " << *preMeasure << " " << *preFern << " " << *threshold << " " << avgRecall << " " << avgPrecision << " " << avgTime << std::endl;
+                        /*--------------------------------------------*/
+                    }
     return true;
 }
 

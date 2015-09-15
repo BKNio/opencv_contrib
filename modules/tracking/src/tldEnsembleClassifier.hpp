@@ -103,7 +103,7 @@ public:
 class CV_EXPORTS_W tldFernClassifier : public tldIClassifier
 {
 public:
-    tldFernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize = Size(15, 15));
+    tldFernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize = Size(15, 15), double actThreshold = 0.5);
 
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const;
 
@@ -176,6 +176,7 @@ private:
 public:
 /*private:*/
     bool isObject(const Mat_<uchar> &image) const;
+    double calcConfidence(const Mat_<uchar> &image) const;
     double Sr(const Mat_<uchar>& patch) const;
     double Sc(const Mat_<uchar>& patch) const;
     void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
