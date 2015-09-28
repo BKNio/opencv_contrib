@@ -91,41 +91,41 @@ std::string type2str(const Mat& mat)
 
 bool comparartor(Overlaps::value_type a, Overlaps::value_type b) { return a.second > b.second;}
 
-std::vector<Hypothesis> getClosestN(const std::vector<Hypothesis> &hypothesis, const Rect &bBox, size_t n, double maxOverlap)
-{
-    std::vector<Hypothesis> res; res.reserve(n);
+//std::vector<Hypothesis> getClosestN(const std::vector<Hypothesis> &hypothesis, const Rect &bBox, size_t n, double maxOverlap)
+//{
+//    std::vector<Hypothesis> res; res.reserve(n);
 
-    if(n == 0)
-        return res;
+//    if(n == 0)
+//        return res;
 
-    if(n >= hypothesis.size())
-        return hypothesis;
-    else
-    {
-        Overlaps overlaps;
-        overlaps.reserve(hypothesis.size());
+//    if(n >= hypothesis.size())
+//        return hypothesis;
+//    else
+//    {
+//        Overlaps overlaps;
+//        overlaps.reserve(hypothesis.size());
 
-        for(size_t i = 0; i < hypothesis.size(); ++i)
-            overlaps.push_back(std::make_pair(i, overlap(bBox, hypothesis[i].bb)));
+//        for(size_t i = 0; i < hypothesis.size(); ++i)
+//            overlaps.push_back(std::make_pair(i, overlap(bBox, hypothesis[i].bb)));
 
-        std::sort(overlaps.begin(), overlaps.end(), std::ptr_fun(comparartor));
+//        std::sort(overlaps.begin(), overlaps.end(), std::ptr_fun(comparartor));
 
-        Overlaps::const_iterator it = overlaps.begin();
-        while(res.size() < n && it != overlaps.end())
-        {
-            if(it->second < maxOverlap)
-            {
-                double ratio = double(hypothesis[it->first].bb.area()) / bBox.area();
-                if( 0.8 < ratio && ratio < 1.4)
-                    res.push_back(hypothesis[it->first]);
-            }
-            ++it;
-        }
+//        Overlaps::const_iterator it = overlaps.begin();
+//        while(res.size() < n && it != overlaps.end())
+//        {
+//            if(it->second < maxOverlap)
+//            {
+//                double ratio = double(hypothesis[it->first].bb.area()) / bBox.area();
+//                if( 0.8 < ratio && ratio < 1.4)
+//                    res.push_back(hypothesis[it->first]);
+//            }
+//            ++it;
+//        }
 
-    }
+//    }
 
-    return res;
-}
+//    return res;
+//}
 
 int getMedian(const std::vector<int>& values, int size)
 {

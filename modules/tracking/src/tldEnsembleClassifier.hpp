@@ -64,33 +64,31 @@ struct Hypothesis
     double scale;
 };
 
-class tldIClassifier
+//class tldIClassifier
+//{
+//public:
+//    virtual void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const = 0;
+//    virtual void integratePositiveExample(const Mat_<uchar> &image) = 0;
+//    virtual void integrateNegativeExample(const Mat_<uchar> &image) = 0;
+
+//    virtual ~tldIClassifier() {}
+
+//};
+
+class CV_EXPORTS_W VarianceClassifier /*: public tldIClassifier*/
 {
 public:
-    virtual void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const = 0;
-    virtual void integratePositiveExample(const Mat_<uchar> &image) = 0;
-    virtual void integrateNegativeExample(const Mat_<uchar> &image) = 0;
-
-    virtual ~tldIClassifier() {}
-
-};
-
-class CV_EXPORTS_W tldVarianceClassifier : tldIClassifier
-{
-public:
-    tldVarianceClassifier(const Mat_<uchar> &originalImage, double actThreshold = 0.5);
+    VarianceClassifier(double actLowCoeff = 0.5, double actHighCoeff = 1.5);
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const;
-    void integratePositiveExample(const Mat_<uchar> &) {}
-    void integrateNegativeExample(const Mat_<uchar> &) {}
+    void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
 
-    ~tldVarianceClassifier() {}
+    ~VarianceClassifier() {}
 
-/*private:*/
-    const double originalVariance;
-    const double coefficient;
-    const double threshold;
+private:
+    double actVariance;
+    const double lowCoeff, hightCoeff;
 
-/*private:*/
+private:
     bool isObject(const Rect &bb, const Mat_<double> &sum, const Mat_<double> &sumSq) const;
 
     static double variance(const Mat_<uchar>& img);
@@ -101,22 +99,22 @@ public:
 //#define FERN_DEBUG
 //#define USE_BLUR
 //#define FERN_PROFILE
-class CV_EXPORTS_W tldFernClassifier : public tldIClassifier
+class CV_EXPORTS_W FernClassifier /*: public tldIClassifier*/
 {
 public:
-    tldFernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize = Size(15, 15), double actThreshold = 0.5);
+    FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize, double actThreshold = 0.5);
 
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const;
 
-    void integratePositiveExample(const Mat_<uchar> &image);
-    void integrateNegativeExample(const Mat_<uchar> &image);
+    void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
+    void integrateNegativeExamples(const std::vector< Mat_<uchar> > &examples);
 
     std::vector<Mat> outputFerns(const Size &displaySize) const;
 
-    ~tldFernClassifier() {}
+    ~FernClassifier() {}
 
 /*private:*/
-    const Size normilizedPatchSize;
+    const Size patchSize;
     /*const int numberOfFerns, numberOfMeasurements;*/
     const double threshold;
     const int minSqDist;
@@ -150,19 +148,20 @@ public:
 
 };
 //#define NNDEBUG
-class CV_EXPORTS_W tldNNClassifier : public tldIClassifier
+class CV_EXPORTS_W NNClassifier /*: public tldIClassifier*/
 {
 public:
-    tldNNClassifier(size_t actMaxNumberOfExamples = 500, Size actNormilizedPatchSize = Size(15, 15), double actTheta = 0.5);
+    NNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize
+                 , double actTheta = 0.5);
 
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const;
 
-    void integratePositiveExample(const Mat_<uchar> &example) { addExample(example, positiveExamples); }
-    void integrateNegativeExample(const Mat_<uchar> &example) { addExample(example, negativeExamples); }
+    void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
+    void integrateNegativeExamples(const std::vector< Mat_<uchar> > &examples);
 
     std::pair<cv::Mat, cv::Mat> outputModel() const;
 
-    ~tldNNClassifier() {}
+    ~NNClassifier() {}
 
 //private:
     const double theta;

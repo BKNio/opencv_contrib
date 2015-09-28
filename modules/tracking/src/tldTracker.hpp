@@ -42,131 +42,163 @@
 #ifndef OPENCV_TLD_TRACKER
 #define OPENCV_TLD_TRACKER
 
+#include <algorithm>
+#include <climits>
+#include <map>
+#include <numeric>
+
+
 #include"precomp.hpp"
 #include"opencv2/video/tracking.hpp"
 #include"opencv2/imgproc.hpp"
 #include"tldModel.hpp"
-#include<algorithm>
-#include<limits.h>
 
 namespace cv
 {
 
-TrackerTLD::Params::Params(){}
+TrackerTLD::Params::Params()
+{
+    preFernMeasurements = 13;
+    preFerns = 15;
+    preFernPatchSize = Size(15, 15);
 
-void TrackerTLD::Params::read(const cv::FileNode& /*fn*/){}
+    numberOfMeasurements = 13;
+    numberOfFerns = 100;
+    fernPatchSize = Size(26, 26);
 
-void TrackerTLD::Params::write(cv::FileStorage& /*fs*/) const {}
+    numberOfExamples = 150;
+    examplePatchSize = Size(15, 15);
+
+    numberOfInitPositiveExamples = 13;
+    numberOfInitWarpedPositiveExamples = 20;
+
+    numberOfPositiveExamples = 5;
+    numberOfWarpedPositiveExamples = 5;
+
+    groupRectanglesTheta = 0.25;
+}
+
+void TrackerTLD::Params::read(const cv::FileNode& fn)
+{
+    fn["preFernMeasurements"] >> preFernMeasurements;
+    fn["preFerns"] >> preFerns;
+    fn["preFernPatchSize"] >> preFernPatchSize;
+
+    fn["numberOfMeasurements"] >> numberOfMeasurements;
+    fn["numberOfFerns"] >> numberOfFerns;
+    fn["fernPatchSize"] >> fernPatchSize;
+
+    fn["numberOfExamples"] >> numberOfExamples;
+    fn["examplePatchSize"] >> examplePatchSize;
+
+    fn["numberOfInitPositiveExamples"] >> numberOfInitPositiveExamples;
+    fn["numberOfInitWarpedPositiveExamples"] >> numberOfInitWarpedPositiveExamples;
+
+    fn["numberOfPositiveExamples"] >> numberOfPositiveExamples;
+    fn["numberOfWarpedPositiveExamples"] >> numberOfWarpedPositiveExamples;
+
+    fn["groupRectanglesTheta"] >> groupRectanglesTheta;
+}
+
+void TrackerTLD::Params::write(cv::FileStorage& fs) const
+{
+    fs << "preFernMeasurements" << preFernMeasurements;
+    fs << "preFerns" << preFerns;
+    fs << "preFernPatchSize" << preFernPatchSize;
+
+    fs << "numberOfMeasurements" << numberOfMeasurements;
+    fs << "numberOfFerns" << numberOfFerns;
+    fs << "fernPatchSize" << fernPatchSize;
+
+    fs << "numberOfExamples" << numberOfExamples;
+    fs << "examplePatchSize" << examplePatchSize;
+
+    fs << "numberOfInitPositiveExamples" << numberOfInitPositiveExamples;
+    fs << "numberOfInitWarpedPositiveExamples" << numberOfInitWarpedPositiveExamples;
+
+    fs << "numberOfPositiveExamples" << numberOfPositiveExamples;
+    fs << "numberOfWarpedPositiveExamples" << numberOfWarpedPositiveExamples;
+
+    fs << "groupRectanglesTheta" << groupRectanglesTheta;
+}
 
 namespace tld
 {
 class TrackerProxy
 {
 public:
-	virtual bool init(const Mat& image, const Rect2d& boundingBox) = 0;
-	virtual bool update(const Mat& image, Rect2d& boundingBox) = 0;
-	virtual ~TrackerProxy(){}
+    virtual bool init(const Mat& image, const Rect2d& boundingBox) = 0;
+    virtual bool update(const Mat& image, Rect2d& boundingBox) = 0;
+    virtual ~TrackerProxy(){}
 };
 
+//template<class T, class Tparams>
+//class TrackerProxyImpl : public TrackerProxy
+//{
+//public:
+//    TrackerProxyImpl(Tparams params = Tparams()) :params_(params){}
+//    bool init(const Mat& image, const Rect2d& boundingBox)
+//    {
+//        trackerPtr = T::createTracker();
+//        return trackerPtr->init(image, boundingBox);
+//    }
+//    bool update(const Mat& image, Rect2d& boundingBox)
+//    {
+//        return trackerPtr->update(image, boundingBox);
+//    }
+//private:
+//    Ptr<T> trackerPtr;
+//    Tparams params_;
+//    Rect2d boundingBox_;
+//};
 
-class MyMouseCallbackDEBUG
-{
-public:
-	MyMouseCallbackDEBUG(Mat& img, Mat& imgBlurred, tldCascadeClassifier* detector) :img_(img), imgBlurred_(imgBlurred), detector_(detector){}
-	static void onMouse(int event, int x, int y, int, void* obj){ ((MyMouseCallbackDEBUG*)obj)->onMouse(event, x, y); }
-	MyMouseCallbackDEBUG& operator = (const MyMouseCallbackDEBUG& /*other*/){ return *this; }
-private:
-	void onMouse(int event, int x, int y);
-	Mat& img_, imgBlurred_;
-	tldCascadeClassifier* detector_;
-};
-
-
-class Data
-{
-public:
-	Data(Rect2d initBox);
-    Rect getInternalBB(){ return internalBB; }
-	double getScale(){ return scale; }
-	bool confident;
-	bool failedLastTime;
-	int frameNum;
-	void printme(FILE*  port = stdout);
-private:
-	double scale;
-    Rect internalBB;
-};
-
-template<class T, class Tparams>
-class TrackerProxyImpl : public TrackerProxy
-{
-public:
-	TrackerProxyImpl(Tparams params = Tparams()) :params_(params){}
-	bool init(const Mat& image, const Rect2d& boundingBox)
-	{
-		trackerPtr = T::createTracker();
-		return trackerPtr->init(image, boundingBox);
-	}
-	bool update(const Mat& image, Rect2d& boundingBox)
-	{
-		return trackerPtr->update(image, boundingBox);
-	}
-private:
-	Ptr<T> trackerPtr;
-	Tparams params_;
-	Rect2d boundingBox_;
-};
-
-
-#define BLUR_AS_VADIM
-#undef CLOSED_LOOP
 
 class TrackerTLDImpl : public TrackerTLD
 {
 public:
-	TrackerTLDImpl(const TrackerTLD::Params &parameters = TrackerTLD::Params());
-	void read(const FileNode& fn);
-	void write(FileStorage& fs) const;
+    TrackerTLDImpl(const TrackerTLD::Params &parameters = TrackerTLD::Params());
+    void read(const FileNode& fn);
+    void write(FileStorage& fs) const;
 
 protected:
-	class Pexpert
-	{
-	public:
-		Pexpert(const Mat& img_in, const Mat& imgBlurred_in, Rect2d& resultBox_in,
-			const tldCascadeClassifier* detector_in, TrackerTLD::Params params_in, Size initSize_in) :
-			img_(img_in), imgBlurred_(imgBlurred_in), resultBox_(resultBox_in), detector_(detector_in), params_(params_in), initSize_(initSize_in){}
-		bool operator()(Rect2d /*box*/){ return false; }
-		int additionalExamples(std::vector<Mat_<uchar> >& examplesForModel, std::vector<Mat_<uchar> >& examplesForEnsemble);
-	protected:
-		Pexpert(){}
-		Mat img_, imgBlurred_;
-		Rect2d resultBox_;
-		const tldCascadeClassifier* detector_;
-		TrackerTLD::Params params_;
-		RNG rng;
-		Size initSize_;
-	};
+    class PExpert
+    {
+    public:
+        PExpert(Size actFrameSize) : frameSize(actFrameSize) {}
+        std::vector<Mat_<uchar> > generatePositiveExamples(const Mat_<uchar> &image, const Rect &bb, int numberOfsurroundBbs, int numberOfSyntheticWarped);
 
-	class Nexpert : public Pexpert
-	{
-	public:
-		Nexpert(const Mat& img_in, Rect2d& resultBox_in, const tldCascadeClassifier* detector_in, TrackerTLD::Params params_in)
-		{
-			img_ = img_in; resultBox_ = resultBox_in; detector_ = detector_in; params_ = params_in;
-		}
-		bool operator()(Rect2d box);
-		int additionalExamples(std::vector<Mat_<uchar> >& examplesForModel, std::vector<Mat_<uchar> >& examplesForEnsemble)
-		{
-			examplesForModel.clear(); examplesForEnsemble.clear(); return 0;
-		}
-	};
+    private:
+        mutable RNG rng;
+        const Size frameSize;
 
-	bool initImpl(const Mat& image, const Rect2d& boundingBox);
-	bool updateImpl(const Mat& image, Rect2d& boundingBox);
+    private:
+        bool isRectOK(const cv::Rect &rect) const;
+        std::vector<Rect> generateClosestN(const Rect &bBox, int n) const;
+        std::vector<float> generateRandomValues(float range, int quantity) const ;
+        Mat_<uchar> getWarped(const Mat_<uchar> &originalFrame, Rect bb, float shiftX, float shiftY, float scale, float rotation);
+    };
 
-	TrackerTLD::Params params;
-	Ptr<Data> data;
-	Ptr<TrackerProxy> trackerProxy;
+    class NExpert
+    {
+    public:
+        NExpert() {}
+        std::vector< Mat_<uchar> > getNegativeExamples(const Mat_<uchar> &image, const Rect &object, std::vector<Rect> &detectedObjects);
+    };
+
+
+private:
+    TrackerTLD::Params params;
+    bool isTrackerOK;
+    Ptr<PExpert> pExpert;
+    Ptr<NExpert> nExpert;
+
+private:
+
+    bool initImpl(const Mat& image, const Rect2d& boundingBox);
+    bool updateImpl(const Mat& image, Rect2d& boundingBox);
+
+    Ptr<TrackerMedianFlow> medianFlow;
+    Ptr<CascadeClassifier> cascadeClassifier;
 
 };
 

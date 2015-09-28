@@ -51,7 +51,7 @@ namespace cv
 namespace tld
 {
 
-class CV_EXPORTS_W tldCascadeClassifier
+class CV_EXPORTS_W CascadeClassifier
 {
 public:
     struct Response
@@ -61,48 +61,42 @@ public:
     };
 
 public:
-    tldCascadeClassifier(const Mat_<uchar> &originalImage, const Rect &bb, int maxNumberOfExamples, int numberOfMeasurements, int numberOfFerns, Size patchSize, int preMeasure, int preFerns, double actThreshold);
+    CascadeClassifier(int preFernMeasurements, int preFerns, Size preFernPatchSize,
+                         int numberOfMeasurements, int numberOfFerns, Size fernPatchSize,
+                         int numberOfExamples, Size examplePatchSize, double actGroupTheta);
 
-    std::vector<std::pair<Rect, double> > detect(const Mat_<uchar> &scaledImage) const;
+    void init(const Mat_<uchar> &zeroFrame, const Rect &bb, const std::vector<Mat_<uchar> > &examples);
 
-    void addSyntheticPositive(const Mat_<uchar> &image, const Rect bb, int numberOfsurroundBbs, int numberOfSyntheticWarped);
+    std::vector<Rect> detect(const Mat_<uchar> &scaledImage) const;
 
-    void addPositiveExample(const Mat_<uchar> &example);
-    void addNegativeExample(const Mat_<uchar> &example);
+    void addPositiveExamples(const std::vector< Mat_<uchar> > &examples);
+    void addNegativeExamples(const std::vector<Mat_<uchar> > &examples);
 
-    static inline bool greater(const std::pair<Rect, double> &item1, const std::pair<Rect, double> &item2)
-    {
-        return item1.second > item2.second;
-    }
+    static inline bool greater(const std::pair<Rect, double> &item1, const std::pair<Rect, double> &item2) { return item1.second > item2.second; }
+    static inline Rect strip(const std::pair<Rect, double> &item) { return item.first; }
 
 
 /*private:*/
-    Ptr<tldVarianceClassifier> varianceClassifier;
-    Ptr<tldFernClassifier> preFernClassifier;
-    Ptr<tldFernClassifier> fernClassifier;
-    Ptr<tldNNClassifier> nnClassifier;
+    Ptr<VarianceClassifier> varianceClassifier;
+    Ptr<FernClassifier> preFernClassifier;
+    Ptr<FernClassifier> fernClassifier;
+    Ptr<NNClassifier> nnClassifier;
     mutable RNG rng;
 
     const Size minimalBBSize;
     const Size standardPatchSize;
-    const Size originalBBSize;
-    const Size frameSize;
     const double scaleStep;
-    mutable std::vector<Hypothesis> hypothesis;
+    const double groupRectanglesTheta;
+
+    Size originalBBSize;
+    Size frameSize;
+    std::vector<Hypothesis> hypothesis;
+    bool isInited;
+
     mutable std::vector<bool> answers;
 
-/*private:*/
-    std::vector<Rect> generateClosestN(const Rect &bBox, size_t N) const;
-    std::vector<Rect> generateSurroundingRects(const Rect &bBox, size_t N) const;
-    std::vector<Rect> generateAndSelectRects(const Rect &bBox, int n, float rangeStart, float rangeEnd) const;
-    std::vector< std::pair<Rect, double> > prepareFinalResult(const Mat_<uchar> &image) const;
-     std::vector<float> generateRandomValues(float range, int quantity) const ;
-
+    std::vector<Rect> prepareFinalResult(const Mat_<uchar> &image) const;
     void myGroupRectangles(std::vector<Rect>& rectList, double eps) const;
-
-    bool isRectOK(const cv::Rect &rect) const;
-
-    Mat_<uchar> getWarped(const Mat_<uchar> &originalFrame, Rect bb, float shiftX, float shiftY, float scale, float rotation);
     static std::vector<Hypothesis> generateHypothesis(const Size frameSize, const Size bbSize, const Size minimalBBSize, double scaleStep);
     static void addScanGrid(const Size frameSize, const Size bbSize, const Size minimalBBSize, std::vector<Hypothesis> &hypothesis, double scale);
 };

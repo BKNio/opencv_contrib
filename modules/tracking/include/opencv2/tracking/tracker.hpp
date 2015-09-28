@@ -1179,8 +1179,28 @@ class CV_EXPORTS_W TrackerTLD : public Tracker
   struct CV_EXPORTS Params
   {
     Params();
-    void read( const FileNode& /*fn*/ );
-    void write( FileStorage& /*fs*/ ) const;
+    void read(const FileNode& fn);
+    void write(FileStorage& fs) const;
+
+    int preFernMeasurements;
+    int preFerns;
+    Size preFernPatchSize;
+
+    int numberOfMeasurements;
+    int numberOfFerns;
+    Size fernPatchSize;
+
+    int numberOfExamples;
+    Size examplePatchSize;
+
+    int numberOfInitPositiveExamples;
+    int numberOfInitWarpedPositiveExamples;
+
+    int numberOfPositiveExamples;
+    int numberOfWarpedPositiveExamples;
+
+    double groupRectanglesTheta;
+
   };
 
   /** @brief Constructor

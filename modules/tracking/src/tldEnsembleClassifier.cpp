@@ -41,6 +41,8 @@
 
 #include <sys/time.h>
 
+#include <numeric>
+
 #include "tldEnsembleClassifier.hpp"
 
 
@@ -51,13 +53,13 @@ namespace tld
 
 /*                   tldVarianceClassifier                   */
 
-tldVarianceClassifier::tldVarianceClassifier(const Mat_<uchar> &ooi, double actThreshold) :
-    originalVariance(variance(ooi)), coefficient(actThreshold), threshold(coefficient*originalVariance > 20. ? coefficient*originalVariance : originalVariance)
-{}
+VarianceClassifier::VarianceClassifier(double actLowCoeff, double actHighCoeff) : actVariance(-1.), lowCoeff(actLowCoeff), hightCoeff(actHighCoeff) {}
 
-void tldVarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
+void VarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
 {
     CV_Assert(answers.empty());
+    CV_Assert(actVariance > 0.);
+
     answers.reserve(hypothesis.size());
 
     std::pair< Mat_<double>, Mat_<double> > integralScaledImages;
@@ -68,12 +70,24 @@ void tldVarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis,
         answers.push_back(isObject(it->bb, integralScaledImages.first, integralScaledImages.second));
 }
 
-bool tldVarianceClassifier::isObject(const Rect &bb, const Mat_<double> &sum, const Mat_<double> &sumSq) const
+void VarianceClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &examples)
 {
-    return variance(sum, sumSq, bb) >= threshold;
+    std::vector<double> variances; variances.reserve(examples.size());
+
+    for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
+        variances.push_back(variance(*example));
+
+    actVariance = std::accumulate(variances.begin(), variances.end(), 0.) / double(examples.size());
+
 }
 
-double tldVarianceClassifier::variance(const Mat_<uchar>& img)
+bool VarianceClassifier::isObject(const Rect &bb, const Mat_<double> &sum, const Mat_<double> &sumSq) const
+{
+    const double curVariance = variance(sum, sumSq, bb);
+    return curVariance >= lowCoeff * actVariance && curVariance <= hightCoeff * actVariance;
+}
+
+double VarianceClassifier::variance(const Mat_<uchar>& img)
 {
     double p = 0., p2 = 0.;
     for( int i = 0; i < img.rows; i++ )
@@ -89,7 +103,7 @@ double tldVarianceClassifier::variance(const Mat_<uchar>& img)
     return p2 - p * p;
 }
 
-double tldVarianceClassifier::variance(const Mat_<double> &sum, const Mat_<double> &sumSq, const Rect &bb)
+double VarianceClassifier::variance(const Mat_<double> &sum, const Mat_<double> &sumSq, const Rect &bb)
 {
     const Point pt = bb.tl();
     const Size size = bb.size();
@@ -119,19 +133,19 @@ double tldVarianceClassifier::variance(const Mat_<double> &sum, const Mat_<doubl
 
 /*                   tldFernClassifier                   */
 
-tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize, double actThreshold):
-    normilizedPatchSize(actNormilizedPatchSize), threshold(actThreshold), minSqDist(4)
+FernClassifier::FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize, double actThreshold):
+    patchSize(actNormilizedPatchSize), threshold(actThreshold), minSqDist(4)
 {
     Ferns::value_type measurements;
     const int shift = 1;
-    for(int i = shift; i < normilizedPatchSize.width - shift; ++i)
+    for(int i = shift; i < patchSize.width - shift; ++i)
     {
-        for(int j = shift; j < normilizedPatchSize.height - shift; ++j)
+        for(int j = shift; j < patchSize.height - shift; ++j)
         {
             Point firstPoint(i,j);
 
 #if 1
-            for(int kk = shift; kk < normilizedPatchSize.width - shift; ++kk)
+            for(int kk = shift; kk < patchSize.width - shift; ++kk)
             {
                 const Point diff = Point(kk, j) - firstPoint;
                 if(diff.dot(diff) < minSqDist)
@@ -140,7 +154,7 @@ tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNum
                 measurements.push_back(std::make_pair(firstPoint, Point(kk, j)));
             }
 
-            for(int kk = shift; kk < normilizedPatchSize.height -shift; ++kk)
+            for(int kk = shift; kk < patchSize.height -shift; ++kk)
             {
                 const Point diff = Point(i, kk) - firstPoint;
                 if(diff.dot(diff) < minSqDist)
@@ -193,7 +207,7 @@ tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNum
 
 }
 
-void tldFernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
+void FernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
 {
     CV_Assert(hypothesis.size() == answers.size());
 
@@ -223,22 +237,24 @@ void tldFernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, con
 #endif
 }
 
-void tldFernClassifier::integratePositiveExample(const Mat_<uchar> &image)
+void FernClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &examples)
 {
-    integrateExample(image, true);
+    for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
+        integrateExample(*example, true);
 }
 
-void tldFernClassifier::integrateNegativeExample(const Mat_<uchar> &image)
+void FernClassifier::integrateNegativeExamples(const std::vector<Mat_<uchar> > &examples)
 {
-    integrateExample(image, false);
+    for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
+        integrateExample(*example, false);
 }
 
-bool tldFernClassifier::isObject(const Mat_<uchar> &image) const
+bool FernClassifier::isObject(const Mat_<uchar> &image) const
 {
     return getProbability(image) > threshold;
 }
 
-double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
+double FernClassifier::getProbability(const Mat_<uchar> &image) const
 {
     float accumProbability = 0.;
 
@@ -282,12 +298,12 @@ double tldFernClassifier::getProbability(const Mat_<uchar> &image) const
     return accumProbability / fernsSize;
 }
 
-int tldFernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern) const
+int FernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern) const
 {
     int position = 0;
 
-    const float coeffX = float(image.cols - 1) / normilizedPatchSize.width;
-    const float coeffY = float(image.rows - 1) / normilizedPatchSize.height;
+    const float coeffX = float(image.cols - 1) / patchSize.width;
+    const float coeffY = float(image.rows - 1) / patchSize.height;
 
     for(Ferns::value_type::const_iterator measureIt = fern.begin(); measureIt != fern.end(); ++measureIt)
     {
@@ -328,7 +344,7 @@ int tldFernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &f
     return position;
 }
 
-void tldFernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
+void FernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
 {
 #ifndef USE_BLUR
     Mat_<uchar> blurred;
@@ -351,12 +367,12 @@ void tldFernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositi
     }
 }
 
-std::vector<Mat> tldFernClassifier::outputFerns(const Size &displaySize) const
+std::vector<Mat> FernClassifier::outputFerns(const Size &displaySize) const
 {
     RNG rng;
 
-    float scaleW = float(displaySize.width) / normilizedPatchSize.width;
-    float scaleH = float(displaySize.height) / normilizedPatchSize.height;
+    float scaleW = float(displaySize.width) / patchSize.width;
+    float scaleH = float(displaySize.height) / patchSize.height;
 
     const Mat black(displaySize, CV_8UC3, Scalar::all(0));
 
@@ -386,12 +402,12 @@ std::vector<Mat> tldFernClassifier::outputFerns(const Size &displaySize) const
 
 /*                   tldNNClassifier                   */
 
-tldNNClassifier::tldNNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize, double actTheta) :
+NNClassifier::NNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize, double actTheta) :
     theta(actTheta), maxNumberOfExamples(actMaxNumberOfExamples),
     normilizedPatchSize(actNormilizedPatchSize), normilizedPatch(normilizedPatchSize)
 {}
 
-void tldNNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const
+void NNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const
 {
     CV_Assert(hypothesis.size() == answers.size());
 
@@ -405,7 +421,19 @@ void tldNNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const
             answers[i] = isObject(images(hypothesis[i].bb));
 }
 
-std::pair<Mat, Mat> tldNNClassifier::outputModel() const
+void NNClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &examples)
+{
+    for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
+        addExample(*example, positiveExamples);
+}
+
+void NNClassifier::integrateNegativeExamples(const std::vector<Mat_<uchar> > &examples)
+{
+    for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
+        addExample(*example, negativeExamples);
+}
+
+std::pair<Mat, Mat> NNClassifier::outputModel() const
 {
     const int sqrtSize = cvRound(std::sqrt(std::max(positiveExamples.size(), negativeExamples.size())) + 0.5f);
     const int outputWidth = sqrtSize * normilizedPatchSize.width, outputHeight = sqrtSize * normilizedPatchSize.height;
@@ -451,7 +479,7 @@ std::pair<Mat, Mat> tldNNClassifier::outputModel() const
     return std::make_pair(positivePrecedents, negativePrecedents);
 }
 
-bool tldNNClassifier::isObject(const Mat_<uchar> &image) const
+bool NNClassifier::isObject(const Mat_<uchar> &image) const
 {
     if(image.size() != normilizedPatchSize)
         resize(image, normilizedPatch, normilizedPatchSize);
@@ -461,7 +489,7 @@ bool tldNNClassifier::isObject(const Mat_<uchar> &image) const
     return Sr(normilizedPatch) > theta;
 }
 
-double tldNNClassifier::calcConfidence(const Mat_<uchar> &image) const
+double NNClassifier::calcConfidence(const Mat_<uchar> &image) const
 {
     if(image.size() != normilizedPatchSize)
         resize(image, normilizedPatch, normilizedPatchSize);
@@ -471,7 +499,7 @@ double tldNNClassifier::calcConfidence(const Mat_<uchar> &image) const
     return Sc(normilizedPatch);
 }
 
-double tldNNClassifier::Sr(const Mat_<uchar> &patch) const
+double NNClassifier::Sr(const Mat_<uchar> &patch) const
 {
     double splus = 0., sminus = 0.;
 
@@ -512,7 +540,7 @@ double tldNNClassifier::Sr(const Mat_<uchar> &patch) const
     return splus / (sminus + splus);
 }
 
-double tldNNClassifier::Sc(const Mat_<uchar> &patch) const
+double NNClassifier::Sc(const Mat_<uchar> &patch) const
 {
     double splus = 0., sminus = 0.;
 
@@ -533,7 +561,7 @@ double tldNNClassifier::Sc(const Mat_<uchar> &patch) const
     return splus / (sminus + splus);
 }
 
-void tldNNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage)
+void NNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage)
 {
     CV_Assert(storage.size() <= maxNumberOfExamples);
 
@@ -561,7 +589,7 @@ void tldNNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<ucha
     storage.push_back(normilizedPatch.clone());
 }
 
-float tldNNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
+float NNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
 {
     CV_Assert(patch1.size() == patch2.size());
 
@@ -598,7 +626,6 @@ float tldNNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
 
     return (p1p2Sum / N - p1Mean * p2Mean) / std::sqrt(p1Dev * p2Dev);
 }
-
 
 }
 }
