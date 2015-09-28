@@ -122,6 +122,7 @@ double tldVarianceClassifier::variance(const Mat_<double> &sum, const Mat_<doubl
 tldFernClassifier::tldFernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize, double actThreshold):
     normilizedPatchSize(actNormilizedPatchSize), threshold(actThreshold), minSqDist(4)
 {
+    Ferns::value_type measurements;
     const int shift = 1;
     for(int i = shift; i < normilizedPatchSize.width - shift; ++i)
     {
@@ -296,8 +297,8 @@ int tldFernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &f
     timeval startCalc, stopCalc, stopAcsess;
     gettimeofday(&startCalc, NULL);
 #endif
-    const Point p1(measureIt->first.x * coeffX, measureIt->first.y * coeffY);
-    const Point p2(measureIt->second.x * coeffX, measureIt->second.y * coeffY);
+    const Point p1(cvRound(measureIt->first.x * coeffX), cvRound(measureIt->first.y * coeffY));
+    const Point p2(cvRound(measureIt->second.x * coeffX), cvRound(measureIt->second.y * coeffY));
 #ifdef FERN_PROFILE
     gettimeofday(&stopCalc, NULL);
     calcTime += stopCalc.tv_sec - startCalc.tv_sec + double(stopCalc.tv_usec - startCalc.tv_usec) / 1e6;
@@ -523,10 +524,8 @@ double tldNNClassifier::Sc(const Mat_<uchar> &patch) const
     for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != end; ++it)
         splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
 
-
     for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
-
 
     if (splus + sminus == 0.0)
         return 0.0;

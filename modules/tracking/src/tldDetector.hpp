@@ -96,12 +96,15 @@ public:
     std::vector<Rect> generateSurroundingRects(const Rect &bBox, size_t N) const;
     std::vector<Rect> generateAndSelectRects(const Rect &bBox, int n, float rangeStart, float rangeEnd) const;
     std::vector< std::pair<Rect, double> > prepareFinalResult(const Mat_<uchar> &image) const;
+     std::vector<float> generateRandomValues(float range, int quantity) const ;
+
+    void myGroupRectangles(std::vector<Rect>& rectList, double eps) const;
 
     bool isRectOK(const cv::Rect &rect) const;
 
-    Mat_<uchar> randomWarp(const Mat_<uchar> &originalFrame, Rect bb, float shiftRangePercent, float scaleRangePercent, float rotationRangeDegrees);
+    Mat_<uchar> getWarped(const Mat_<uchar> &originalFrame, Rect bb, float shiftX, float shiftY, float scale, float rotation);
     static std::vector<Hypothesis> generateHypothesis(const Size frameSize, const Size bbSize, const Size minimalBBSize, double scaleStep);
-    static void addScanGrid(const Size frameSize, const Size bbSize, const Size minimalBBSize, std::vector<Hypothesis> &hypothesis);
+    static void addScanGrid(const Size frameSize, const Size bbSize, const Size minimalBBSize, std::vector<Hypothesis> &hypothesis, double scale);
 };
 
 }

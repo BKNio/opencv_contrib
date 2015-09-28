@@ -58,9 +58,10 @@ namespace tld
 struct Hypothesis
 {
     Hypothesis() : bb(), confidence(-1.){}
-    Hypothesis(int x, int y, Size size) : bb(Point(x,y), size), confidence(-1.) {}
+    Hypothesis(int x, int y, Size size, double actScale) : bb(Point(x,y), size), confidence(-1.), scale(actScale) {}
     Rect bb;
     double confidence;
+    double scale;
 };
 
 class tldIClassifier
@@ -122,7 +123,7 @@ public:
 
     typedef std::vector<std::vector<std::pair<Point, Point> > > Ferns;
     Ferns ferns;
-    Ferns::value_type measurements;
+    //Ferns::value_type measurements;
 
     typedef std::vector<std::vector<Point_<unsigned long> > > Precedents;
     Precedents precedents;
@@ -163,7 +164,7 @@ public:
 
     ~tldNNClassifier() {}
 
-private:
+//private:
     const double theta;
     const size_t maxNumberOfExamples;
     const Size normilizedPatchSize;

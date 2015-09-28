@@ -97,16 +97,16 @@ public:
     ClassifiersTest() : rng(/*std::time(NULL)*/), fontScaleRange(0.7f, 2.7f), angleRange(-15.f, 15.f), scaleRange(0.9f, 1.1f),
         shiftRange(-5, 5), thicknessRange(1, 3), minimalSize(20, 20), pathToTLDDataSet("/home/dinar/proj_src/test_data/TLD")
     {
-        //testCases.push_back("01_david");
-        //testCases.push_back("02_jumping");
+        testCases.push_back("01_david");
+        testCases.push_back("02_jumping");
         //testCases.push_back("03_pedestrian1");
         //testCases.push_back("04_pedestrian2");
         //testCases.push_back("05_pedestrian3");
         testCases.push_back("06_car");
         //testCases.push_back("07_motocross");
         //testCases.push_back("08_volkswagen");
-        //testCases.push_back("09_carchase");
-        //testCases.push_back("10_panda");
+        testCases.push_back("09_carchase");
+        testCases.push_back("10_panda");
     }
 
 private:
@@ -186,23 +186,23 @@ private:
 
 void ClassifiersTest::run()
 {
-    //    if(!nccRandomFill())
-    //        FAIL() << "nccRandom test failed" << std::endl;
+//        if(!nccRandomFill())
+//            FAIL() << "nccRandom test failed" << std::endl;
 
-    //    if(!nccRandomCharacters())
-    //        FAIL() << "nccCharacter test failed" << std::endl;
+//        if(!nccRandomCharacters())
+//            FAIL() << "nccCharacter test failed" << std::endl;
 
-    //    if(!emptyTest())
-    //        FAIL() << "empty test failed" << std::endl;
+//        if(!emptyTest())
+//            FAIL() << "empty test failed" << std::endl;
 
-    //    if(!simpleTest())
-    //        FAIL() << "simple test failed" << std::endl;
+//        if(!simpleTest())
+//            FAIL() << "simple test failed" << std::endl;
 
-    //    if(!syntheticDataTest())
-    //        FAIL() << "syntheticData test failed" << std::endl;
+//        if(!syntheticDataTest())
+//            FAIL() << "syntheticData test failed" << std::endl;
 
-    //    if(!onlineTrainTest())
-    //        FAIL() << "onlineTrain test failed" << std::endl;
+//        if(!onlineTrainTest())
+//            FAIL() << "onlineTrain test failed" << std::endl;
 
     if(!realDataTest())
         FAIL() << "realData test failed" << std::endl;
@@ -580,32 +580,23 @@ bool ClassifiersTest::realDataTest()
     std::vector<double> thresholds;
 
     measurementsRange.push_back(13);
-    //measurementsRange.push_back(14);
-    //measurementsRange.push_back(14);
 
-    fernsRange.push_back(200);
+    fernsRange.push_back(100);
+    storageSizeRange.push_back(150);
 
-    storageSizeRange.push_back(700);
+    //warpedExamplesNumbers.push_back(10);
+    warpedExamplesNumbers.push_back(5);
 
-    warpedExamplesNumbers.push_back(10);
-//    warpedExamplesNumbers.push_back(5);
-//    warpedExamplesNumbers.push_back(9);
+    //positiveExampleNumbers.push_back(1);
+    positiveExampleNumbers.push_back(5);
 
-//    positiveExampleNumbers.push_back(1);
-    positiveExampleNumbers.push_back(1);
-
-    //sizes.push_back(cv::Size(22, 22));
     //sizes.push_back(cv::Size(25, 25));
-    sizes.push_back(cv::Size(25, 25));
+    sizes.push_back(cv::Size(26, 26));
 
-//    preMeasures.push_back(12);
-    preMeasures.push_back(12);
+    preMeasures.push_back(13);
 
-//    preFerns.push_back(5);
-    preFerns.push_back(10);
+    preFerns.push_back(15);
 
-
-//    thresholds.push_back(0.5);
     thresholds.push_back(0.5);
 
 
@@ -668,7 +659,7 @@ bool ClassifiersTest::realDataTest()
                                         cv::makePtr<cv::tld::tldCascadeClassifier>(frames.front(), gtBB.front(), *storageSize,
                                                                                    *measurements, *fernsSize, *patchSize, *preMeasure, *preFern, *threshold);
 
-                               for(size_t trainIteration = 1; trainIteration < gtBB.size(); ++trainIteration)
+                               for(size_t trainIteration = 1; trainIteration < gtBB.size() && trainIteration < 300 ; ++trainIteration)
                                 {
                                     cv::Mat currentFrame;
                                     cv::cvtColor(frames[trainIteration], currentFrame, CV_GRAY2BGR);
@@ -685,8 +676,9 @@ bool ClassifiersTest::realDataTest()
                                     bool isObjectDetected = false;
                                     const std::vector< std::pair<cv::Rect, double> > &detectedObjects = cascadeClasifier->detect(frames[trainIteration]);
 
-                                    if(!detectedObjects.empty() && detectedObjects.front().second > 0.5)
+                                    if(!detectedObjects.empty())
                                     {
+                                        //CV_Assert(detectedObjects.front().second >= 0.5);
                                         detectedObject = detectedObjects.front().first;
                                         isObjectDetected = true;
                                         //cv::rectangle(currentFrame, detectedObject, cv::Scalar(255, 0, 139), 2);
@@ -696,43 +688,58 @@ bool ClassifiersTest::realDataTest()
                                     {
                                         numberOfExamples++;
 
+                                        if((gtRect & roi).area() == gtRect.area())
+                                            cascadeClasifier->addSyntheticPositive(frames[trainIteration], gtRect, *positiveSize, *warpedSize);
+
                                         if(isObjectDetected)
                                         {
                                             const cv::Rect &overlap = gtRect & detectedObject;
                                             if(double(overlap.area()) / (gtRect.area() + detectedObject.area() - overlap.area()) >= 0.5)
                                             {
-                                                cv::rectangle(currentFrame, detectedObject, cv::Scalar(255,0, 139), 3);
-                                                cv::rectangle(currentFrame, detectedObject, cv::Scalar::all(255), 1);
+                                                cv::rectangle(currentFrame, detectedObject, cv::Scalar(255,0, 139), 2);
                                                 tP++;
-                                                cascadeClasifier->addSyntheticPositive(frames[trainIteration], detectedObject, *positiveSize, *warpedSize);
-                                                if(!detectedObjects.empty())
-                                                {
-                                                    for(std::vector<std::pair<cv::Rect, double> >::const_iterator result = detectedObjects.begin() + 1; result != detectedObjects.end(); ++result)
-                                                    {
-                                                        cv::Rect object =  result->first;
-                                                        cv::rectangle(currentFrame, object, cv::Scalar(255, 0, 139), 3);
-                                                        cv::rectangle(currentFrame, object, cv::Scalar::all(0), 1);
-                                                        cascadeClasifier->addNegativeExample(frames[trainIteration](object));
-                                                    }
-                                                }
+
                                             }
                                             else
-                                                cv::rectangle(currentFrame, detectedObject, cv::Scalar::all(0), 2);
+                                            {
+                                                cv::rectangle(currentFrame, detectedObject, cv::Scalar(0,0, 255), 2);
+                                                cascadeClasifier->addNegativeExample(frames[trainIteration](detectedObject));
+                                            }
                                         }
+                                    }else if(isObjectDetected)
+                                    {
+                                        fP++;
+                                        cv::rectangle(currentFrame, detectedObject, cv::Scalar(0,0, 255), 2);
                                     }
-                                    else
-                                        if(isObjectDetected)
-                                        {
-                                            cv::rectangle(currentFrame, detectedObject, cv::Scalar::all(0), 2);
-                                            fP++;
-                                        }
+
+
+//                                    timeval start, stop;
+//                                    gettimeofday(&start, NULL);
+                                    if(!detectedObjects.empty())
+                                        for(std::vector< std::pair<cv::Rect, double> >::const_iterator detectedObjectIt = detectedObjects.begin() + 1;
+                                            detectedObjectIt != detectedObjects.end(); ++detectedObjectIt)
+                                    {
+                                            const cv::Rect &overlap = gtRect & detectedObjectIt->first;
+                                            if(double(overlap.area()) / (gtRect.area() + detectedObjectIt->first.area() - overlap.area()) >= 0.5)
+                                            {
+                                                //cv::rectangle(currentFrame, detectedObjectIt->first, cv::Scalar(255,255, 0), 1);
+                                            }
+                                            else
+                                            {
+                                                cv::rectangle(currentFrame, detectedObjectIt->first, cv::Scalar(0,165, 255), 2);
+                                                cascadeClasifier->addNegativeExample(frames[trainIteration](detectedObjectIt->first));
+                                            }
+                                    }
+//                                    gettimeofday(&stop, NULL);
+//                                    std::cout << " add negative " << std::fixed << stop.tv_sec - start.tv_sec + double(stop.tv_usec - start.tv_usec) / 1e6 << std::endl;
+
+
 
                                     std::stringstream ss; ss << "# " << trainIteration;
                                     cv::putText(currentFrame, ss.str(), cv::Point(2,18), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(255, 127, 0));
 
                                     cv::imshow("iteration results", currentFrame);
                                     cv::waitKey(1);
-
 
                                 }
 
