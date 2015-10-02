@@ -63,11 +63,15 @@ public:
 public:
     CascadeClassifier(int preFernMeasurements, int preFerns, Size preFernPatchSize,
                          int numberOfMeasurements, int numberOfFerns, Size fernPatchSize,
-                         int numberOfExamples, Size examplePatchSize, double actGroupTheta);
+                         int numberOfExamples, Size examplePatchSize,
+                         int actPositiveExampleNumbers, int actWrappedExamplesNumber, double actGroupTheta);
 
-    void init(const Mat_<uchar> &zeroFrame, const Rect &bb, const std::vector<Mat_<uchar> > &examples);
+    void init(const Mat_<uchar> &zeroFrame, const Rect &bb);
 
     std::vector<Rect> detect(const Mat_<uchar> &scaledImage) const;
+
+    void startPExpert(const Mat_<uchar> &image, const Rect &bb);
+    void startNExpert(const Mat_<uchar> &image, const Rect &bb, const std::vector<Rect> &detections);
 
     void addPositiveExamples(const std::vector< Mat_<uchar> > &examples);
     void addNegativeExamples(const std::vector<Mat_<uchar> > &examples);
@@ -75,23 +79,56 @@ public:
     static inline bool greater(const std::pair<Rect, double> &item1, const std::pair<Rect, double> &item2) { return item1.second > item2.second; }
     static inline Rect strip(const std::pair<Rect, double> &item) { return item.first; }
 
+private:
 
+    class PExpert
+    {
+    public:
+        PExpert(Size actFrameSize) : frameSize(actFrameSize) {}
+        std::vector<Mat_<uchar> > generatePositiveExamples(const Mat_<uchar> &image, const Rect &bb, int numberOfsurroundBbs, int numberOfSyntheticWarped);
+        bool isRectOK(const cv::Rect &rect) const;
+
+    private:
+        RNG rng;
+        const Size frameSize;
+
+    private:
+        std::vector<Rect> generateClosestN(const Rect &bBox, int n);
+        std::vector<float> generateRandomValues(float range, int quantity) ;
+        Mat_<uchar> getWarped(const Mat_<uchar> &originalFrame, Rect bb, float shiftX, float shiftY, float scale, float rotation);
+    };
+
+    class NExpert
+    {
+    public:
+        NExpert() {}
+        std::vector< Mat_<uchar> > getNegativeExamples(const Mat_<uchar> &image, const Rect &object, const std::vector<Rect> &detectedObjects);
+    };
+
+public:
 /*private:*/
     Ptr<VarianceClassifier> varianceClassifier;
     Ptr<FernClassifier> preFernClassifier;
     Ptr<FernClassifier> fernClassifier;
     Ptr<NNClassifier> nnClassifier;
+
+
+private:
+    Ptr<PExpert> pExpert;
+    Ptr<NExpert> nExpert;
+
     mutable RNG rng;
 
     const Size minimalBBSize;
     const Size standardPatchSize;
     const double scaleStep;
     const double groupRectanglesTheta;
+    const int positiveExampleNumbers, wrappedExamplesNumber;
 
+    bool isInited;
     Size originalBBSize;
     Size frameSize;
     std::vector<Hypothesis> hypothesis;
-    bool isInited;
 
     mutable std::vector<bool> answers;
 

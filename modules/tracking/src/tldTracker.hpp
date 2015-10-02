@@ -63,17 +63,17 @@ TrackerTLD::Params::Params()
     preFernPatchSize = Size(15, 15);
 
     numberOfMeasurements = 13;
-    numberOfFerns = 100;
-    fernPatchSize = Size(26, 26);
+    numberOfFerns = 200;
+    fernPatchSize = Size(25, 25);
 
-    numberOfExamples = 150;
+    numberOfExamples = 200;
     examplePatchSize = Size(15, 15);
 
     numberOfInitPositiveExamples = 13;
     numberOfInitWarpedPositiveExamples = 20;
 
     numberOfPositiveExamples = 5;
-    numberOfWarpedPositiveExamples = 5;
+    numberOfWarpedPositiveExamples = 10;
 
     groupRectanglesTheta = 0.25;
 }
@@ -124,13 +124,13 @@ void TrackerTLD::Params::write(cv::FileStorage& fs) const
 
 namespace tld
 {
-class TrackerProxy
-{
-public:
-    virtual bool init(const Mat& image, const Rect2d& boundingBox) = 0;
-    virtual bool update(const Mat& image, Rect2d& boundingBox) = 0;
-    virtual ~TrackerProxy(){}
-};
+//class TrackerProxy
+//{
+//public:
+//    virtual bool init(const Mat& image, const Rect2d& boundingBox) = 0;
+//    virtual bool update(const Mat& image, Rect2d& boundingBox) = 0;
+//    virtual ~TrackerProxy(){}
+//};
 
 //template<class T, class Tparams>
 //class TrackerProxyImpl : public TrackerProxy
@@ -153,6 +153,39 @@ public:
 //};
 
 
+class Integrator
+{
+public:
+    Integrator(int actNumberOfConfirmations) : numberOfConfirmations(actNumberOfConfirmations), isTrajectoryReliable(true) {}
+
+    Rect getObjectToTrainFrom(const Mat_<uchar> &frame, const std::pair<Rect, double> &objectFromTracker, const std::pair<Rect, double> &objectFromDetector);
+
+private:
+    struct Candidate
+    {
+        Candidate() {CV_Assert(0);}
+        Candidate(const Mat_<uchar> &frame, Rect bb);
+
+        Mat_<int> hints;
+        Ptr<TrackerMedianFlow> medianFlow;
+        Rect2d prevRect;
+
+        std::vector<Rect> rects;
+
+    };
+
+private:
+    const int numberOfConfirmations;
+    bool isTrajectoryReliable;
+
+    std::vector<Candidate> candidates;
+
+private:
+    static void updateCandidate(Candidate candidate, Mat_<uchar> &frame);
+    static bool selectCandidateForInc(Candidate candidate, const Rect &bb);
+    static bool selectCandidateForRemove(Candidate candidate);
+};
+
 class TrackerTLDImpl : public TrackerTLD
 {
 public:
@@ -160,37 +193,9 @@ public:
     void read(const FileNode& fn);
     void write(FileStorage& fs) const;
 
-protected:
-    class PExpert
-    {
-    public:
-        PExpert(Size actFrameSize) : frameSize(actFrameSize) {}
-        std::vector<Mat_<uchar> > generatePositiveExamples(const Mat_<uchar> &image, const Rect &bb, int numberOfsurroundBbs, int numberOfSyntheticWarped);
-
-    private:
-        mutable RNG rng;
-        const Size frameSize;
-
-    private:
-        bool isRectOK(const cv::Rect &rect) const;
-        std::vector<Rect> generateClosestN(const Rect &bBox, int n) const;
-        std::vector<float> generateRandomValues(float range, int quantity) const ;
-        Mat_<uchar> getWarped(const Mat_<uchar> &originalFrame, Rect bb, float shiftX, float shiftY, float scale, float rotation);
-    };
-
-    class NExpert
-    {
-    public:
-        NExpert() {}
-        std::vector< Mat_<uchar> > getNegativeExamples(const Mat_<uchar> &image, const Rect &object, std::vector<Rect> &detectedObjects);
-    };
-
-
 private:
     TrackerTLD::Params params;
     bool isTrackerOK;
-    Ptr<PExpert> pExpert;
-    Ptr<NExpert> nExpert;
 
 private:
 
@@ -199,6 +204,7 @@ private:
 
     Ptr<TrackerMedianFlow> medianFlow;
     Ptr<CascadeClassifier> cascadeClassifier;
+    Ptr<Integrator> integrator;
 
 };
 

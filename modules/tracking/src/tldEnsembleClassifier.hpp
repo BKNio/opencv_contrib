@@ -42,10 +42,10 @@
 #ifndef TLD_ENSEMBLE
 #define TLD_ENSEMBLE
 
+#include "precomp.hpp"
+
 #include <list>
 #include <vector>
-
-#include "precomp.hpp"
 
 //#define FERN_DEBUG
 //#define FERN_PROFILE
@@ -64,23 +64,24 @@ struct Hypothesis
     double scale;
 };
 
-//class tldIClassifier
-//{
-//public:
-//    virtual void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const = 0;
-//    virtual void integratePositiveExample(const Mat_<uchar> &image) = 0;
-//    virtual void integrateNegativeExample(const Mat_<uchar> &image) = 0;
-
-//    virtual ~tldIClassifier() {}
-
-//};
-
-class CV_EXPORTS_W VarianceClassifier /*: public tldIClassifier*/
+class tldIClassifier
 {
 public:
-    VarianceClassifier(double actLowCoeff = 0.5, double actHighCoeff = 1.5);
+    virtual void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const = 0;
+    virtual void integratePositiveExamples(const std::vector< Mat_<uchar> > &) = 0;
+    virtual void integrateNegativeExamples(const std::vector< Mat_<uchar> > &) = 0;
+
+    virtual ~tldIClassifier() {}
+
+};
+
+class CV_EXPORTS_W VarianceClassifier : public tldIClassifier
+{
+public:
+    VarianceClassifier(double actLowCoeff = 0.5, double actHighCoeff = 2.);
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const;
     void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
+    void integrateNegativeExamples(const std::vector< Mat_<uchar> > &) {CV_Assert(0);}
 
     ~VarianceClassifier() {}
 
@@ -88,7 +89,8 @@ private:
     double actVariance;
     const double lowCoeff, hightCoeff;
 
-private:
+public:
+//private:
     bool isObject(const Rect &bb, const Mat_<double> &sum, const Mat_<double> &sumSq) const;
 
     static double variance(const Mat_<uchar>& img);
@@ -99,7 +101,7 @@ private:
 //#define FERN_DEBUG
 //#define USE_BLUR
 //#define FERN_PROFILE
-class CV_EXPORTS_W FernClassifier /*: public tldIClassifier*/
+class CV_EXPORTS_W FernClassifier : public tldIClassifier
 {
 public:
     FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize, double actThreshold = 0.5);
@@ -148,7 +150,7 @@ public:
 
 };
 //#define NNDEBUG
-class CV_EXPORTS_W NNClassifier /*: public tldIClassifier*/
+class CV_EXPORTS_W NNClassifier : public tldIClassifier
 {
 public:
     NNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize

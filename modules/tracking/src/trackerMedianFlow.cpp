@@ -77,7 +77,7 @@ namespace cv
 class TrackerMedianFlowImpl : public TrackerMedianFlow
 {
 public:
-    TrackerMedianFlowImpl(TrackerMedianFlow::Params paramsIn):termcrit(TermCriteria::COUNT|TermCriteria::EPS,20,0.3){params=paramsIn;isInit=false;}
+    TrackerMedianFlowImpl(TrackerMedianFlow::Params paramsIn):termcrit(TermCriteria::COUNT | TermCriteria::EPS, 30, 0.3) {params=paramsIn;isInit=false;}
     void read( const FileNode& fn );
     void write( FileStorage& fs ) const;
 private:
@@ -121,7 +121,7 @@ protected:
  * Parameters
  */
 TrackerMedianFlow::Params::Params(){
-    pointsInGrid=10;
+    pointsInGrid=20;
 }
 
 void TrackerMedianFlow::Params::read( const cv::FileNode& fn ){

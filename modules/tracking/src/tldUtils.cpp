@@ -190,6 +190,56 @@ std::pair<double, Rect2d> augmentedOverlap(const Rect2d rect, const Rect2d bb)
     return std::make_pair(overlap(rect,bb), bb);
 }
 
+Rect myGroupRectangles(std::vector<Rect> &rectList, double eps)
+{
+
+    CV_Assert(rectList.size() >= 3);
+
+    std::vector<int> labels;
+    int nclasses = partition(rectList, labels, SimilarRects(eps));
+
+    CV_Assert(nclasses == 1);
+
+    int i, nlabels = (int)labels.size();
+    std::vector<int> rweights(nclasses, 0);
+    std::vector<Rect> rrects;
+    std::vector<std::vector<int> > x(nclasses), y(nclasses), width(nclasses), height(nclasses);
+
+    for( i = 0; i < nlabels; i++ )
+    {
+        int cls = labels[i];
+        x[cls].push_back(rectList[i].x);
+        y[cls].push_back(rectList[i].y);
+        width[cls].push_back(rectList[i].width);
+        height[cls].push_back(rectList[i].height);
+        rweights[cls]++;
+    }
+
+    for( i = 0; i < nclasses; i++ )
+    {
+        std::vector<int> &_x = x[i];
+        std::vector<int> &_y = y[i];
+        std::vector<int> &_width = width[i];
+        std::vector<int> &_height = height[i];
+
+        {
+            std::sort(_x.begin(), _x.end());
+            std::sort(_y.begin(), _y.end());
+            std::sort(_width.begin(), _width.end());
+            std::sort(_height.begin(), _height.end());
+
+            Rect rect( _x[_x.size() / 2], _y[_y.size() / 2], _width[_width.size() / 2],_height[_height.size() / 2]);
+
+            return rect;
+        }
+    }
+
+    CV_Assert(0);
+    return Rect();
+
+}
+
+
 //void generateScanGrid(const Size &imageSize, const Size &actBBSize, std::vector<Rect> &res)
 //{
 //    Size2d bbSize = actBBSize;

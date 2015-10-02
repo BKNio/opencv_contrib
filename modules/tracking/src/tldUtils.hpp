@@ -64,6 +64,8 @@ int getMedian(const std::vector<int>& values, int size = -1);
 
 //void generateScanGridInternal(const Size &imageSize, const Size2d &bbSize, std::vector<Rect>& res);
 
+Rect myGroupRectangles(std::vector<Rect> &rectList, double eps = 1);
+
 
 ///////////////////////////////////////////////////////////
 std::pair<double, Rect2d> augmentedOverlap(const Rect2d rect, const Rect2d bb);

@@ -58,7 +58,9 @@ VarianceClassifier::VarianceClassifier(double actLowCoeff, double actHighCoeff) 
 void VarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
 {
     CV_Assert(answers.empty());
+
     CV_Assert(actVariance > 0.);
+
 
     answers.reserve(hypothesis.size());
 
@@ -72,13 +74,15 @@ void VarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, co
 
 void VarianceClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &examples)
 {
+    if(examples.empty())
+        return;
+
     std::vector<double> variances; variances.reserve(examples.size());
 
     for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
         variances.push_back(variance(*example));
 
     actVariance = std::accumulate(variances.begin(), variances.end(), 0.) / double(examples.size());
-
 }
 
 bool VarianceClassifier::isObject(const Rect &bb, const Mat_<double> &sum, const Mat_<double> &sumSq) const
