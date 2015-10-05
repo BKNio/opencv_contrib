@@ -66,7 +66,7 @@ TrackerTLD::Params::Params()
     numberOfFerns = 200;
     fernPatchSize = Size(25, 25);
 
-    numberOfExamples = 200;
+    numberOfExamples = 1000;
     examplePatchSize = Size(15, 15);
 
     numberOfInitPositiveExamples = 13;

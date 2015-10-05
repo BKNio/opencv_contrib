@@ -77,12 +77,13 @@ namespace cv
 class TrackerMedianFlowImpl : public TrackerMedianFlow
 {
 public:
-    TrackerMedianFlowImpl(TrackerMedianFlow::Params paramsIn):termcrit(TermCriteria::COUNT | TermCriteria::EPS, 30, 0.3) {params=paramsIn;isInit=false;}
+    TrackerMedianFlowImpl(TrackerMedianFlow::Params paramsIn):termcrit(TermCriteria::COUNT|TermCriteria::EPS,20,0.3){params=paramsIn;isInit=false;}
     void read( const FileNode& fn );
     void write( FileStorage& fs ) const;
 private:
     bool initImpl( const Mat& image, const Rect2d& boundingBox );
     bool updateImpl( const Mat& image, Rect2d& boundingBox );
+
     bool medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& oldBox);
     Rect2d vote(const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,const Rect2d& oldRect,Point2f& mD);
     //FIXME: this can be optimized: current method uses sort->select approach, there are O(n) selection algo for median; besides
@@ -121,7 +122,7 @@ protected:
  * Parameters
  */
 TrackerMedianFlow::Params::Params(){
-    pointsInGrid=20;
+    pointsInGrid=10;
 }
 
 void TrackerMedianFlow::Params::read( const cv::FileNode& fn ){
@@ -203,18 +204,22 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
         cvtColor( oldImage, oldImage_gray, COLOR_BGR2GRAY );
     else if(oldImage.type() == CV_8U)
         oldImage.copyTo(oldImage_gray);
-    else CV_Assert(0);
+    else
+        CV_Assert(0);
+
 
     if(newImage.type() == CV_8UC3)
         cvtColor( newImage, newImage_gray, COLOR_BGR2GRAY );
     else if(newImage.type() == CV_8U)
         newImage.copyTo(newImage_gray);
-    else CV_Assert(0);
-
+    else
+        CV_Assert(0);
 
     //"open ended" grid
-    for(int i=0;i<params.pointsInGrid;i++){
-        for(int j=0;j<params.pointsInGrid;j++){
+    for(int i=0;i<params.pointsInGrid;i++)
+    {
+        for(int j=0;j<params.pointsInGrid;j++)
+        {
             pointsToTrackOld.push_back(
                         Point2f((float)(oldBox.x+((1.0*oldBox.width)/params.pointsInGrid)*j+.5*oldBox.width/params.pointsInGrid),
                                 (float)(oldBox.y+((1.0*oldBox.height)/params.pointsInGrid)*i+.5*oldBox.height/params.pointsInGrid)));
@@ -222,44 +227,109 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
     }
 
     std::vector<uchar> status(pointsToTrackOld.size());
-    std::vector<float> errors(pointsToTrackOld.size());
-    calcOpticalFlowPyrLK(oldImage_gray, newImage_gray,pointsToTrackOld,pointsToTrackNew,status,errors,Size(3,3),5,termcrit,0);
-    dprintf(("\t%d after LK forward\n",(int)pointsToTrackOld.size()));
 
-    std::vector<Point2f> di;
-    for(int i=0;i<(int)pointsToTrackOld.size();i++){
-        if(status[i]==1){
-            di.push_back(pointsToTrackNew[i]-pointsToTrackOld[i]);
+    calcOpticalFlowPyrLK(oldImage_gray, newImage_gray, pointsToTrackOld, pointsToTrackNew, status, noArray(), Size(3,3), 5, termcrit,0);
+
+
+    {
+
+        CV_Assert(pointsToTrackNew.size() == pointsToTrackOld.size());
+        CV_Assert(pointsToTrackNew.size() == status.size());
+
+        std::vector<Point2f> pointsToTrackOldCopy(pointsToTrackOld), pointsToTrackNewCopy(pointsToTrackNew);
+        pointsToTrackOld.clear();
+        pointsToTrackNew.clear();
+
+        for(size_t index = 0; index < status.size(); ++index)
+        {
+            if(status[index])
+            {
+                pointsToTrackOld.push_back(pointsToTrackOldCopy[index]);
+                pointsToTrackNew.push_back(pointsToTrackNewCopy[index]);
+            }
         }
+
     }
 
     std::vector<bool> filter_status;
-    check_FB(oldImage_gray,newImage_gray,pointsToTrackOld,pointsToTrackNew,filter_status);
-    check_NCC(oldImage_gray,newImage_gray,pointsToTrackOld,pointsToTrackNew,filter_status);
+    check_FB(oldImage_gray,newImage_gray,pointsToTrackOld,pointsToTrackNew, filter_status);
+    check_NCC(oldImage_gray,newImage_gray,pointsToTrackOld,pointsToTrackNew, filter_status);
 
-    // filter
-    for(int i=0;i<(int)pointsToTrackOld.size();i++){
-        if(!filter_status[i]){
-            pointsToTrackOld.erase(pointsToTrackOld.begin()+i);
-            pointsToTrackNew.erase(pointsToTrackNew.begin()+i);
-            filter_status.erase(filter_status.begin()+i);
-            i--;
+
+    /*{
+        ///////////////////////////////////////
+        Mat_<uchar> newImageGrayCopy; newImage_gray.copyTo(newImageGrayCopy);
+        for(std::vector<Point2f>::iterator point = pointsToTrackNew.begin(); point != pointsToTrackNew.end(); ++point)
+        {
+            if(filter_status[std::distance(pointsToTrackNew.begin(), point)])
+                circle(newImageGrayCopy, *point, 2, Scalar::all(255));
+            else
+                circle(newImageGrayCopy, *point, 2, Scalar::all(0));
+        }
+
+        imshow("median flow", newImageGrayCopy);
+        waitKey(1);
+        ///////////////////////////////////////
+    }*/
+
+
+    {
+        CV_Assert(pointsToTrackNew.size() == pointsToTrackOld.size());
+        CV_Assert(pointsToTrackNew.size() == filter_status.size());
+
+        std::vector<Point2f> pointsToTrackOldCopy(pointsToTrackOld), pointsToTrackNewCopy(pointsToTrackNew);
+        pointsToTrackOld.clear();
+        pointsToTrackNew.clear();
+
+        for(size_t index = 0; index < filter_status.size(); ++index)
+        {
+            if(filter_status[index])
+            {
+                pointsToTrackOld.push_back(pointsToTrackOldCopy[index]);
+                pointsToTrackNew.push_back(pointsToTrackNewCopy[index]);
+            }
         }
     }
-    dprintf(("\t%d after LK backward\n",(int)pointsToTrackOld.size()));
 
-    if(pointsToTrackOld.size()==0 || di.size()==0){
+    filter_status = std::vector<bool>(pointsToTrackOld.size() ,true);
+
+    // filter
+//    for(int i=0;i<(int)pointsToTrackOld.size();i++)
+//    {
+//        if(!filter_status[i])
+//        {
+//            pointsToTrackOld.erase(pointsToTrackOld.begin()+i);
+//            pointsToTrackNew.erase(pointsToTrackNew.begin()+i);
+//            filter_status.erase(filter_status.begin()+i);
+//            i--;
+//        }
+//    }
+
+
+    std::vector<Point2f> di;
+    for(int i=0;i < (int) pointsToTrackOld.size();i++)
+    {
+        di.push_back(pointsToTrackNew[i]-pointsToTrackOld[i]);
+    }
+
+    if(pointsToTrackOld.size()==0 || di.size()==0)
+    {
         return false;
     }
+
     Point2f mDisplacement;
-    oldBox=vote(pointsToTrackOld,pointsToTrackNew,oldBox,mDisplacement);
+
+    oldBox = vote(pointsToTrackOld,pointsToTrackNew,oldBox,mDisplacement);
 
     std::vector<double> displacements;
-    for(int i=0;i<(int)di.size();i++){
+    for(int i=0;i<(int)di.size();i++)
+    {
         di[i]-=mDisplacement;
         displacements.push_back(sqrt(di[i].ddot(di[i])));
     }
-    if(getMedian(displacements,(int)displacements.size())>10){
+
+    if(getMedian(displacements,(int)displacements.size())>10)
+    {
         return false;
     }
 
@@ -267,13 +337,14 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
 }
 
 Rect2d TrackerMedianFlowImpl::vote(const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,const Rect2d& oldRect,Point2f& mD){
-    static int iteration=0;//FIXME -- we don't want this static var in final release
+
     Rect2d newRect;
     Point2d newCenter(oldRect.x+oldRect.width/2.0,oldRect.y+oldRect.height/2.0);
     int n=(int)oldPoints.size();
     std::vector<double> buf(std::max(n*(n-1)/2,3),0.0);
 
-    if(oldPoints.size()==1){
+    if(oldPoints.size()==1)
+    {
         newRect.x=oldRect.x+newPoints[0].x-oldPoints[0].x;
         newRect.y=oldRect.y+newPoints[0].y-oldPoints[0].y;
         newRect.width=oldRect.width;
@@ -290,7 +361,8 @@ Rect2d TrackerMedianFlowImpl::vote(const std::vector<Point2f>& oldPoints,const s
     newCenter.y+=yshift;
     mD=Point2f((float)xshift,(float)yshift);
 
-    if(oldPoints.size()==1){
+    if(oldPoints.size()==1)
+    {
         newRect.x=newCenter.x-oldRect.width/2.0;
         newRect.y=newCenter.y-oldRect.height/2.0;
         newRect.width=oldRect.width;
@@ -299,8 +371,10 @@ Rect2d TrackerMedianFlowImpl::vote(const std::vector<Point2f>& oldPoints,const s
     }
 
     double nd,od;
-    for(int i=0,ctr=0;i<n;i++){
-        for(int j=0;j<i;j++){
+    for(int i=0,ctr=0;i<n;i++)
+    {
+        for(int j=0;j<i;j++)
+        {
             nd=l2distance(newPoints[i],newPoints[j]);
             od=l2distance(oldPoints[i],oldPoints[j]);
             buf[ctr]=(od==0.0)?0.0:(nd/od);
@@ -309,31 +383,29 @@ Rect2d TrackerMedianFlowImpl::vote(const std::vector<Point2f>& oldPoints,const s
     }
 
     double scale=getMedian(buf,n*(n-1)/2);
-    dprintf(("iter %d %f %f %f\n",iteration,xshift,yshift,scale));
+
     newRect.x=newCenter.x-scale*oldRect.width/2.0;
     newRect.y=newCenter.y-scale*oldRect.height/2.0;
     newRect.width=scale*oldRect.width;
     newRect.height=scale*oldRect.height;
-    /*if(newRect.x<=0){
-        exit(0);
-    }*/
-    dprintf(("rect old [%f %f %f %f]\n",oldRect.x,oldRect.y,oldRect.width,oldRect.height));
-    dprintf(("rect [%f %f %f %f]\n",newRect.x,newRect.y,newRect.width,newRect.height));
 
-    iteration++;
     return newRect;
 }
 
 template<typename T>
 T TrackerMedianFlowImpl::getMedian(std::vector<T>& values,int size){
-    if(size==-1){
+    if(size==-1)
+    {
         size=(int)values.size();
     }
     std::vector<T> copy(values.begin(),values.begin()+size);
     std::sort(copy.begin(),copy.end());
-    if(size%2==0){
+    if(size%2==0)
+    {
         return (copy[size/2-1]+copy[size/2])/((T)2.0);
-    }else{
+    }
+    else
+    {
         return copy[(size-1)/2];
     }
 }
@@ -357,36 +429,61 @@ double TrackerMedianFlowImpl::l2distance(Point2f p1,Point2f p2){
     return sqrt(dx*dx+dy*dy);
 }
 void TrackerMedianFlowImpl::check_FB(const Mat& oldImage,const Mat& newImage,
-                                     const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status){
+                                     const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status)
+{
 
-    if(status.size()==0){
-        status=std::vector<bool>(oldPoints.size(),true);
-    }
+    CV_Assert(oldPoints.size() == newPoints.size());
 
-    std::vector<uchar> LKstatus(oldPoints.size());
-    std::vector<float> errors(oldPoints.size());
-    std::vector<double> FBerror(oldPoints.size());
+    if(status.empty())
+        status = std::vector<bool>(oldPoints.size(),true);
+
+    std::vector<uchar> LKstatus;
+    //std::vector<double> FBerror;
     std::vector<Point2f> pointsToTrackReprojection;
-    calcOpticalFlowPyrLK(newImage, oldImage,newPoints,pointsToTrackReprojection,LKstatus,errors,Size(3,3),5,termcrit,0);
 
-    for(int i=0;i<(int)oldPoints.size();i++){
-        FBerror[i]=l2distance(oldPoints[i],pointsToTrackReprojection[i]);
+    calcOpticalFlowPyrLK(newImage, oldImage, newPoints, pointsToTrackReprojection, LKstatus, noArray(),Size(3,3), 5, termcrit, 0);
+
+    for(size_t index = 0; index < oldPoints.size(); ++index)
+    {
+        if(LKstatus[index])
+        {
+            //FBerror.push_back(l2distance(oldPoints[index], pointsToTrackReprojection[index]));
+
+            if(l2distance(oldPoints[index], pointsToTrackReprojection[index]) > 1.)
+                status[index] = 0;
+            else
+                status[index] = 1;
+        }
+        else
+            status[index] = 0;
     }
-    double FBerrorMedian=getMedian(FBerror);
-    dprintf(("point median=%f\n",FBerrorMedian));
-    dprintf(("FBerrorMedian=%f\n",FBerrorMedian));
-    for(int i=0;i<(int)oldPoints.size();i++){
-        status[i]=(FBerror[i]<FBerrorMedian);
-    }
+
+//    double FBerrorMedian = getMedian(FBerror);
+
+//    std::vector<double>::const_iterator fBerror = FBerror.begin();
+//    for(size_t index = 0; index < oldPoints.size(); ++index)
+//    {
+//        if(LKstatus[index])
+//        {
+//            status[index] = (*fBerror < FBerrorMedian);
+//            ++fBerror;
+//        }
+//        else
+//            status[index] = 0;
+//    }
+
+//    CV_Assert(fBerror == FBerror.end());
 }
 void TrackerMedianFlowImpl::check_NCC(const Mat& oldImage,const Mat& newImage,
-                                      const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status){
+                                      const std::vector<Point2f>& oldPoints,const std::vector<Point2f>& newPoints,std::vector<bool>& status)
+{
 
     std::vector<float> NCC(oldPoints.size(),0.0);
     Size patch(30,30);
     Mat p1,p2;
 
-    for (int i = 0; i < (int)oldPoints.size(); i++) {
+    for (int i = 0; i < (int)oldPoints.size(); i++)
+    {
         getRectSubPix( oldImage, patch, oldPoints[i],p1);
         getRectSubPix( newImage, patch, newPoints[i],p2);
 
@@ -400,7 +497,8 @@ void TrackerMedianFlowImpl::check_NCC(const Mat& oldImage,const Mat& newImage,
         NCC[i] = (float)ares;
     }
     float median = getMedian(NCC);
-    for(int i = 0; i < (int)oldPoints.size(); i++) {
+    for(int i = 0; i < (int)oldPoints.size(); i++)
+    {
         status[i] = status[i] && (NCC[i]>median);
     }
 }

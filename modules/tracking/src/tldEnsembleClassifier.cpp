@@ -61,7 +61,6 @@ void VarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, co
 
     CV_Assert(actVariance > 0.);
 
-
     answers.reserve(hypothesis.size());
 
     std::pair< Mat_<double>, Mat_<double> > integralScaledImages;
@@ -88,6 +87,12 @@ void VarianceClassifier::integratePositiveExamples(const std::vector<Mat_<uchar>
 bool VarianceClassifier::isObject(const Rect &bb, const Mat_<double> &sum, const Mat_<double> &sumSq) const
 {
     const double curVariance = variance(sum, sumSq, bb);
+    return curVariance >= lowCoeff * actVariance && curVariance <= hightCoeff * actVariance;
+}
+
+bool VarianceClassifier::isObject(const Mat_<uchar> &candidate) const
+{
+    const double curVariance = variance(candidate);
     return curVariance >= lowCoeff * actVariance && curVariance <= hightCoeff * actVariance;
 }
 
@@ -427,6 +432,8 @@ void NNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Ma
 
 void NNClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &examples)
 {
+    std::cout << "nn integrate positive " << examples.size() << std::endl;
+
     for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
         addExample(*example, positiveExamples);
 }
@@ -442,7 +449,7 @@ std::pair<Mat, Mat> NNClassifier::outputModel() const
     const int sqrtSize = cvRound(std::sqrt(std::max(positiveExamples.size(), negativeExamples.size())) + 0.5f);
     const int outputWidth = sqrtSize * normilizedPatchSize.width, outputHeight = sqrtSize * normilizedPatchSize.height;
 
-    cv::Mat positivePrecedents(outputHeight, outputWidth, CV_8U), negativePrecedents(outputHeight, outputWidth, CV_8U);
+    cv::Mat positivePrecedents(outputHeight, outputWidth, CV_8U, Scalar::all(255)), negativePrecedents(outputHeight, outputWidth, CV_8U, Scalar::all(255));
 
     cv::Rect actPositionPositive(cv::Point(), normilizedPatchSize);
 

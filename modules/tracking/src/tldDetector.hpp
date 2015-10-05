@@ -136,6 +136,12 @@ private:
     void myGroupRectangles(std::vector<Rect>& rectList, double eps) const;
     static std::vector<Hypothesis> generateHypothesis(const Size frameSize, const Size bbSize, const Size minimalBBSize, double scaleStep);
     static void addScanGrid(const Size frameSize, const Size bbSize, const Size minimalBBSize, std::vector<Hypothesis> &hypothesis, double scale);
+
+    bool isObject(const Mat_<uchar> &candidate) const;
+
+    static bool isObjectPredicate(const CascadeClassifier *pCascadeClassifier, const Mat_<uchar> candidate);
+
+    mutable std::vector<Rect> fernsPositive;
 };
 
 }

@@ -46,6 +46,9 @@
 
 #include "tldDetector.hpp"
 
+
+#define FERN_EXPERIMENT
+
 namespace cv
 {
 namespace tld
@@ -60,7 +63,7 @@ CascadeClassifier::CascadeClassifier(int preMeasure, int preFerns, Size preFernP
     varianceClassifier = makePtr<VarianceClassifier>();
     preFernClassifier = makePtr<FernClassifier>(preMeasure, preFerns, preFernPathSize);
     fernClassifier = makePtr<FernClassifier>(numberOfMeasurements, numberOfFerns, fernPatchSize);
-    nnClassifier = makePtr<NNClassifier>(numberOfExamples, examplePatchSize);
+    nnClassifier = makePtr<NNClassifier>(numberOfExamples, examplePatchSize, 0.5);
 
 }
 
@@ -84,6 +87,7 @@ void CascadeClassifier::init(const Mat_<uchar> &zeroFrame, const Rect &bb)
 
 
 //#define TIME_MEASURE
+#define DEBUG_OUTPUT
 std::vector<Rect> CascadeClassifier::detect(const Mat_<uchar> &scaledImage) const
 {
 
@@ -100,6 +104,17 @@ std::vector<Rect> CascadeClassifier::detect(const Mat_<uchar> &scaledImage) cons
 
     varianceClassifier->isObjects(hypothesis, scaledImage, answers);
 
+/*#ifdef DEBUG_OUTPUT
+    Mat_<uchar> copyVariance; scaledImage.copyTo(copyVariance);
+
+    for(size_t index = 0; index < hypothesis.size(); ++index)
+        if(answers[index])
+            rectangle(copyVariance, hypothesis[index].bb, Scalar::all(255));
+
+    imshow("after variance filter", copyVariance);
+    waitKey();
+#endif*/
+
 #ifdef TIME_MEASURE
     gettimeofday(&fernStart, NULL);
 #endif
@@ -107,11 +122,49 @@ std::vector<Rect> CascadeClassifier::detect(const Mat_<uchar> &scaledImage) cons
     preFernClassifier->isObjects(hypothesis, scaledImage, answers);
     fernClassifier->isObjects(hypothesis, scaledImage, answers);
 
+    //////////////////////experimental code/////////////////////////
+#ifdef FERN_EXPERIMENT
+    fernsPositive.clear();
+    for(size_t index = 0; index < answers.size(); ++index)
+        if(answers[index])
+            fernsPositive.push_back(hypothesis[index].bb);
+#endif
+    //////////////////////experimental code/////////////////////////
+
+
+#ifdef DEBUG_OUTPUT
+    Mat_<uchar> copy; scaledImage.copyTo(copy);
+
+    for(size_t index = 0; index < hypothesis.size(); ++index)
+        if(answers[index])
+            rectangle(copy, hypothesis[index].bb, Scalar::all(255));
+
+    imshow("after fern", copy);
+//    waitKey();
+#endif
+
+
 #ifdef TIME_MEASURE
     gettimeofday(&nnStart, NULL);
 #endif
 
     nnClassifier->isObjects(hypothesis, scaledImage, answers);
+
+#ifdef DEBUG_OUTPUT
+    Mat_<uchar> copyNN; scaledImage.copyTo(copyNN);
+
+    for(size_t index = 0; index < hypothesis.size(); ++index)
+        if(answers[index])
+            rectangle(copyNN, hypothesis[index].bb, Scalar::all(255));
+
+    imshow("after nn filter", copyNN);
+//    std::pair<Mat, Mat> model = nnClassifier->outputModel();
+//    imshow("nn model positive", model.first);
+//    imshow("nn model negative", model.second);
+
+    waitKey(1);
+#endif
+
 
 #ifdef TIME_MEASURE
     gettimeofday(&nnStop, NULL);
@@ -140,14 +193,22 @@ void CascadeClassifier::startPExpert(const Mat_<uchar> &image, const Rect &bb)
 void CascadeClassifier::startNExpert(const Mat_<uchar> &image, const Rect &bb, const std::vector<Rect> &detections)
 {
     addNegativeExamples(nExpert->getNegativeExamples(image, bb, detections));
+
+#ifdef FERN_EXPERIMENT
+    fernClassifier->integrateNegativeExamples(nExpert->getNegativeExamples(image, bb, fernsPositive));
+#endif
 }
 
 void CascadeClassifier::addPositiveExamples(const std::vector<Mat_<uchar> > &examples)
 {
-    varianceClassifier->integratePositiveExamples(examples);
-    preFernClassifier->integratePositiveExamples(examples);
-    fernClassifier->integratePositiveExamples(examples);
-    nnClassifier->integratePositiveExamples(examples);
+    std::vector< Mat_<uchar> > exampleCopy(examples);
+
+    exampleCopy.erase(std::remove_if(exampleCopy.begin(), exampleCopy.end(), std::bind1st(std::ptr_fun(isObjectPredicate), this)), exampleCopy.end());
+
+    varianceClassifier->integratePositiveExamples(exampleCopy);
+    preFernClassifier->integratePositiveExamples(exampleCopy);
+    fernClassifier->integratePositiveExamples(exampleCopy);
+    nnClassifier->integratePositiveExamples(exampleCopy);
 }
 
 void CascadeClassifier::addNegativeExamples(const std::vector<Mat_<uchar> > &examples)
@@ -316,6 +377,25 @@ void CascadeClassifier::addScanGrid(const Size frameSize, const Size bbSize, con
         }
 }
 
+bool CascadeClassifier::isObject(const Mat_<uchar> &candidate) const
+{
+    if(!varianceClassifier->isObject(candidate))
+         return false;
+
+    if(!fernClassifier->isObject(candidate))
+        return false;
+
+    if(!nnClassifier->isObject(candidate))
+        return false;
+
+    return true;
+}
+
+bool CascadeClassifier::isObjectPredicate(const CascadeClassifier *pCascadeClassifier, const Mat_<uchar> candidate)
+{
+    return pCascadeClassifier->isObject(candidate);
+}
+
 std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(const Mat_<uchar> &image, const Rect &bb, int numberOfsurroundBbs, int numberOfSyntheticWarped)
 {
     const float shiftRangePercent = .01f;
@@ -349,7 +429,7 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
             positiveExamples.push_back(warpedOOI);
         }
 
-        positiveExamples.push_back(image(*positiveRect).clone());
+        //positiveExamples.push_back(image(*positiveRect).clone());
     }
 
     return positiveExamples;
@@ -459,10 +539,10 @@ Mat_<uchar> CascadeClassifier::PExpert::getWarped(const Mat_<uchar> &originalFra
     return dst(bb);
 }
 
-//#define DEBUG_OUTPUT
+//#define DEBUG_OUTPUT2
 std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const Mat_<uchar> &image, const Rect &object, const std::vector<Rect> &detectedObjects)
 {
-#ifdef DEBUG_OUTPUT
+#ifdef DEBUG_OUTPUT2
     Mat copy; cvtColor(image, copy, CV_GRAY2BGR);
 #endif
     std::vector< Mat_<uchar> > negativeExamples;
@@ -474,13 +554,13 @@ std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const 
         if(overlap(actDetectedObject, object) < 0.5)
         {
             negativeExamples.push_back(image(actDetectedObject).clone());
-#ifdef DEBUG_OUTPUT
+#ifdef DEBUG_OUTPUT2
             rectangle(copy, actDetectedObject, cv::Scalar(0, 165, 255));
 #endif
         }
     }
 
-#ifdef DEBUG_OUTPUT
+#ifdef DEBUG_OUTPUT2
     imshow("neg examples", copy);
     waitKey(1);
 #endif

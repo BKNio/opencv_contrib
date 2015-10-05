@@ -78,7 +78,7 @@ public:
 class CV_EXPORTS_W VarianceClassifier : public tldIClassifier
 {
 public:
-    VarianceClassifier(double actLowCoeff = 0.5, double actHighCoeff = 2.);
+    VarianceClassifier(double actLowCoeff = 0.75, double actHighCoeff = 1.25);
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const;
     void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
     void integrateNegativeExamples(const std::vector< Mat_<uchar> > &) {CV_Assert(0);}
@@ -92,6 +92,7 @@ private:
 public:
 //private:
     bool isObject(const Rect &bb, const Mat_<double> &sum, const Mat_<double> &sumSq) const;
+    bool isObject(const Mat_<uchar> &candidate) const;
 
     static double variance(const Mat_<uchar>& img);
     static double variance(const Mat_<double>& sum, const Mat_<double>& sumSq, const Rect &bb);
