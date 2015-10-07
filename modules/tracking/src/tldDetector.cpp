@@ -80,9 +80,13 @@ void CascadeClassifier::init(const Mat_<uchar> &zeroFrame, const Rect &bb)
     nExpert = makePtr<NExpert>();
 
 
-    addPositiveExamples(pExpert->generatePositiveExamples(zeroFrame, bb, 5, 25));
+    addPositiveExamples(pExpert->generatePositiveExamples(zeroFrame, bb, 13, 20));
 
     isInited = true;
+
+    std::vector<Rect> detections = detect(zeroFrame);
+    startNExpert(zeroFrame, bb, detections);
+
 }
 
 
@@ -150,6 +154,11 @@ std::vector<Rect> CascadeClassifier::detect(const Mat_<uchar> &scaledImage) cons
 
     nnClassifier->isObjects(hypothesis, scaledImage, answers);
 
+    nnPositive.clear();
+    for(size_t index = 0; index < answers.size(); ++index)
+        if(answers[index])
+            nnPositive.push_back(hypothesis[index].bb);
+
 #ifdef DEBUG_OUTPUT
     Mat_<uchar> copyNN; scaledImage.copyTo(copyNN);
 
@@ -192,10 +201,15 @@ void CascadeClassifier::startPExpert(const Mat_<uchar> &image, const Rect &bb)
 
 void CascadeClassifier::startNExpert(const Mat_<uchar> &image, const Rect &bb, const std::vector<Rect> &detections)
 {
-    addNegativeExamples(nExpert->getNegativeExamples(image, bb, detections));
+    //addNegativeExamples(nExpert->getNegativeExamples(image, bb, detections));
+
+    const std::vector< Mat_<uchar> > &negExamplesForNN = nExpert->getNegativeExamples(image, bb, nnPositive, "NN negative");
+    nnClassifier->integrateNegativeExamples(negExamplesForNN);
 
 #ifdef FERN_EXPERIMENT
-    fernClassifier->integrateNegativeExamples(nExpert->getNegativeExamples(image, bb, fernsPositive));
+    const std::vector< Mat_<uchar> > &negExamplesForFern =  nExpert->getNegativeExamples(image, bb, fernsPositive, "ferns negative");
+    fernClassifier->integrateNegativeExamples(negExamplesForFern);
+    preFernClassifier->integrateNegativeExamples(negExamplesForFern);
 #endif
 }
 
@@ -216,7 +230,6 @@ void CascadeClassifier::addNegativeExamples(const std::vector<Mat_<uchar> > &exa
     preFernClassifier->integrateNegativeExamples(examples);
     fernClassifier->integrateNegativeExamples(examples);
     nnClassifier->integrateNegativeExamples(examples);
-
 }
 
 std::vector<Hypothesis> CascadeClassifier::generateHypothesis(const Size frameSize, const Size bbSize, const Size minimalBBSize, double scaleStep)
@@ -429,7 +442,7 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
             positiveExamples.push_back(warpedOOI);
         }
 
-        //positiveExamples.push_back(image(*positiveRect).clone());
+        positiveExamples.push_back(image(*positiveRect).clone());
     }
 
     return positiveExamples;
@@ -539,8 +552,11 @@ Mat_<uchar> CascadeClassifier::PExpert::getWarped(const Mat_<uchar> &originalFra
     return dst(bb);
 }
 
-//#define DEBUG_OUTPUT2
-std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const Mat_<uchar> &image, const Rect &object, const std::vector<Rect> &detectedObjects)
+#define DEBUG_OUTPUT2
+std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const Mat_<uchar> &image,
+                                                                          const Rect &object,
+                                                                          const std::vector<Rect> &detectedObjects,
+                                                                          std::string capture)
 {
 #ifdef DEBUG_OUTPUT2
     Mat copy; cvtColor(image, copy, CV_GRAY2BGR);
@@ -551,7 +567,7 @@ std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const 
     {
         const Rect &actDetectedObject = detectedObjects[i];
 
-        if(overlap(actDetectedObject, object) < 0.5)
+        if(overlap(actDetectedObject, object) <= .6)
         {
             negativeExamples.push_back(image(actDetectedObject).clone());
 #ifdef DEBUG_OUTPUT2
@@ -561,7 +577,8 @@ std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const 
     }
 
 #ifdef DEBUG_OUTPUT2
-    imshow("neg examples", copy);
+    rectangle(copy, object, cv::Scalar(165, 0, 255));
+    imshow(capture, copy);
     waitKey(1);
 #endif
 

@@ -58,16 +58,16 @@ namespace cv
 
 TrackerTLD::Params::Params()
 {
-    preFernMeasurements = 13;
-    preFerns = 15;
+    preFernMeasurements = 7;
+    preFerns = 50;
     preFernPatchSize = Size(15, 15);
 
-    numberOfMeasurements = 13;
-    numberOfFerns = 200;
-    fernPatchSize = Size(25, 25);
+    numberOfMeasurements = 10;
+    numberOfFerns = 400;
+    fernPatchSize = Size(15, 15);
 
     numberOfExamples = 1000;
-    examplePatchSize = Size(15, 15);
+    examplePatchSize = Size(50, 50);
 
     numberOfInitPositiveExamples = 13;
     numberOfInitWarpedPositiveExamples = 20;
@@ -158,7 +158,9 @@ class Integrator
 public:
     Integrator(int actNumberOfConfirmations) : numberOfConfirmations(actNumberOfConfirmations), isTrajectoryReliable(true) {}
 
-    Rect getObjectToTrainFrom(const Mat_<uchar> &frame, const std::pair<Rect, double> &objectFromTracker, const std::pair<Rect, double> &objectFromDetector);
+    std::pair<Rect, Rect> getObjectToTrainFrom(const Mat_<uchar> &frame,
+                                               const std::pair<Rect, double> &objectFromTracker,
+                                               const std::pair<Rect, double> &objectFromDetector);
 
 private:
     struct Candidate
@@ -184,6 +186,7 @@ private:
     static void updateCandidate(Candidate candidate, Mat_<uchar> &frame);
     static bool selectCandidateForInc(Candidate candidate, const Rect &bb);
     static bool selectCandidateForRemove(Candidate candidate);
+    static Rect averageRects(const Rect &item1, const Rect &item2);
 };
 
 class TrackerTLDImpl : public TrackerTLD
@@ -205,6 +208,8 @@ private:
     Ptr<TrackerMedianFlow> medianFlow;
     Ptr<CascadeClassifier> cascadeClassifier;
     Ptr<Integrator> integrator;
+
+    Rect roi;
 
 };
 

@@ -1154,6 +1154,9 @@ class CV_EXPORTS_W TrackerMedianFlow : public Tracker
                       //!<accurateness for speed; default value is sensible and recommended
     void read( const FileNode& /*fn*/ );
     void write( FileStorage& /*fs*/ ) const;
+
+    float pointsDx, pointsDy;
+
   };
 
   /** @brief Constructor

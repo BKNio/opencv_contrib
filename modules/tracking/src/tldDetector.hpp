@@ -102,7 +102,7 @@ private:
     {
     public:
         NExpert() {}
-        std::vector< Mat_<uchar> > getNegativeExamples(const Mat_<uchar> &image, const Rect &object, const std::vector<Rect> &detectedObjects);
+        std::vector< Mat_<uchar> > getNegativeExamples(const Mat_<uchar> &image, const Rect &object, const std::vector<Rect> &detectedObjects, std::string capture);
     };
 
 public:
@@ -140,8 +140,7 @@ private:
     bool isObject(const Mat_<uchar> &candidate) const;
 
     static bool isObjectPredicate(const CascadeClassifier *pCascadeClassifier, const Mat_<uchar> candidate);
-
-    mutable std::vector<Rect> fernsPositive;
+    mutable std::vector<Rect> fernsPositive, nnPositive;
 };
 
 }

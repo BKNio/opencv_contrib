@@ -143,7 +143,7 @@ double VarianceClassifier::variance(const Mat_<double> &sum, const Mat_<double> 
 /*                   tldFernClassifier                   */
 
 FernClassifier::FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize, double actThreshold):
-    patchSize(actNormilizedPatchSize), threshold(actThreshold), minSqDist(4)
+    patchSize(actNormilizedPatchSize), threshold(actThreshold), minSqDist(1)
 {
     Ferns::value_type measurements;
     const int shift = 1;
@@ -255,7 +255,10 @@ void FernClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &
 void FernClassifier::integrateNegativeExamples(const std::vector<Mat_<uchar> > &examples)
 {
     for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
-        integrateExample(*example, false);
+    {
+        if(isObject(*example))
+            integrateExample(*example, false);
+    }
 }
 
 bool FernClassifier::isObject(const Mat_<uchar> &image) const
@@ -432,8 +435,6 @@ void NNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Ma
 
 void NNClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &examples)
 {
-    std::cout << "nn integrate positive " << examples.size() << std::endl;
-
     for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
         addExample(*example, positiveExamples);
 }
@@ -507,7 +508,7 @@ double NNClassifier::calcConfidence(const Mat_<uchar> &image) const
     else
         image.copyTo(normilizedPatch);
 
-    return Sc(normilizedPatch);
+    return Sr(normilizedPatch);
 }
 
 double NNClassifier::Sr(const Mat_<uchar> &patch) const
