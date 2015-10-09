@@ -94,7 +94,6 @@ void CascadeClassifier::init(const Mat_<uchar> &zeroFrame, const Rect &bb)
 #define DEBUG_OUTPUT
 std::vector<Rect> CascadeClassifier::detect(const Mat_<uchar> &scaledImage) const
 {
-
     CV_Assert(isInited);
 
 #ifdef TIME_MEASURE
@@ -143,7 +142,7 @@ std::vector<Rect> CascadeClassifier::detect(const Mat_<uchar> &scaledImage) cons
         if(answers[index])
             rectangle(copy, hypothesis[index].bb, Scalar::all(255));
 
-    imshow("after fern", copy);
+//    imshow("after fern", copy);
 //    waitKey();
 #endif
 
@@ -166,7 +165,7 @@ std::vector<Rect> CascadeClassifier::detect(const Mat_<uchar> &scaledImage) cons
         if(answers[index])
             rectangle(copyNN, hypothesis[index].bb, Scalar::all(255));
 
-    imshow("after nn filter", copyNN);
+//    imshow("after nn filter", copyNN);
 //    std::pair<Mat, Mat> model = nnClassifier->outputModel();
 //    imshow("nn model positive", model.first);
 //    imshow("nn model negative", model.second);
@@ -578,7 +577,7 @@ std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const 
 
 #ifdef DEBUG_OUTPUT2
     rectangle(copy, object, cv::Scalar(165, 0, 255));
-    imshow(capture, copy);
+    //imshow(capture, copy);
     waitKey(1);
 #endif
 

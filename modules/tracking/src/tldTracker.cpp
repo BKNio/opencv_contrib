@@ -53,6 +53,11 @@ Ptr<TrackerTLD> TrackerTLD::createTracker(const TrackerTLD::Params &parameters)
 namespace tld
 {
 
+Rect Integrator::roi = Rect();
+Ptr<NNClassifier> Integrator::nnClassifier = Ptr<NNClassifier>();
+Mat Integrator::copy = Mat();
+
+
 TrackerTLDImpl::TrackerTLDImpl(const TrackerTLD::Params &parameters)
 {
     isInit = false;
@@ -67,7 +72,6 @@ TrackerTLDImpl::TrackerTLDImpl(const TrackerTLD::Params &parameters)
                 )
                 );
 
-    integrator = makePtr<Integrator>(4);
 }
 
 void TrackerTLDImpl::read(const cv::FileNode& fn)
@@ -98,6 +102,8 @@ bool TrackerTLDImpl::initImpl(const Mat& image, const Rect2d& boundingBox)
 
     medianFlow->init(actImage, boundingBox);
     cascadeClassifier->init(actImage, boundingBox);
+
+    integrator = makePtr<Integrator>(cascadeClassifier->nnClassifier, roi);
 
     return true;
 
@@ -142,23 +148,27 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
 #endif
 
 
-
+    Rect trackerReset;
     std::pair<Rect, Rect> integratorResults = integrator->getObjectToTrainFrom
                 (actImage,
                  std::make_pair(objectFromTracker, trackerConfidence),
-                 std::make_pair(objectFromDetector, detectorConfidence)
+                 std::make_pair(objectFromDetector, detectorConfidence), trackerReset
                  );
+
+    if(trackerReset.area() > 0)
+    {
+        //CV_Assert(trackerReset.area() > 0);
+
+        std::cout << ">>>>restart tracker<<<<" << std::endl;
+
+        medianFlow = TrackerMedianFlow::createTracker();
+        isTrackerOK = medianFlow->init(actImage, trackerReset);
+    }
 
     if(integratorResults.first.area())
     {
         cascadeClassifier->startPExpert(actImage, integratorResults.first);
         cascadeClassifier->startNExpert(actImage, integratorResults.first, detections);
-
-        if(!isTrackerOK)
-        {
-            medianFlow = TrackerMedianFlow::createTracker();
-            isTrackerOK = medianFlow->init(actImage, integratorResults.first);
-        }
 
         rectangle(debugOutput, integratorResults.first, Scalar(169, 0, 255), 2);
     }
@@ -174,8 +184,15 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
     return true;
 }
 
-std::pair<Rect, Rect> Integrator::getObjectToTrainFrom(const Mat_<uchar> &frame, const std::pair<Rect, double> &objectFromTracker, const std::pair<Rect, double> &objectFromDetector)
+std::pair<Rect, Rect> Integrator::getObjectToTrainFrom(const Mat_<uchar> &frame,
+                                                       const std::pair<Rect, double> &objectFromTracker,
+                                                       const std::pair<Rect, double> &objectFromDetector,
+                                                       Rect &trackerReset)
 {
+    trackerReset = Rect();
+
+    cvtColor(frame, copy, CV_GRAY2BGR);
+
     const bool isTrackerPresent = objectFromTracker.first.area() > 0;
     const bool isDetectorPresent = objectFromDetector.first.area() > 0;
 
@@ -185,94 +202,189 @@ std::pair<Rect, Rect> Integrator::getObjectToTrainFrom(const Mat_<uchar> &frame,
     const double trackerConfidence = objectFromTracker.second;
     const double detectorConfidence = objectFromDetector.second;
 
-    std::string info;
-    if(detectorConfidence > trackerConfidence)
-        info = "detecor better";
-    else
-        info = "tracker better";
+    std::for_each(candidates.begin(), candidates.end(), std::bind2nd(std::ptr_fun(updateCandidates), frame));
+    candidates.erase(std::remove_if(candidates.begin(), candidates.end(), std::ptr_fun(selectCandidateForRemove)), candidates.end());
 
-    std::cout << info << " detector conf " << detectorConfidence << " trackerConfidence " << trackerConfidence << std::endl;
+    std::sort(candidates.begin(), candidates.end(), sortPredicate);
 
-    Rect objectToTrain, objectToOutput;
-
-    if(isDetectorPresent && isTrackerPresent)
+    if(candidates.size() > 5)
     {
-        if(overlap(trackerObject, detectorObject) > 0.85)
+       candidates.erase(candidates.begin() + 5, candidates.end());
+       CV_Assert(candidates.size() == 5);
+    }
+
+    const bool isIntegratorPresent = !candidates.empty();
+    const Rect integratorObject = isIntegratorPresent ? candidates.front().prevRect : Rect2d();
+    const double integratorConfidence = isIntegratorPresent ? candidates.front().confidence.at<double>() : -1.;
+
+    /*if(isDetectorPresent)
+    {
+        std::vector<Candidate>::iterator position = std::find_if(candidates.begin(),
+                                                                 candidates.end(),
+                                                                 std::bind2nd(std::ptr_fun(overlapPredicate), detectorObject));
+
+        if(position == candidates.end())
         {
-            objectToTrain = trackerObject;
-            objectToOutput = averageRects(trackerObject, detectorObject);
+            candidates.push_back(Candidate(frame, detectorObject));
+            //std::cout << "integrator: add new object to track" << std::endl;
         }
         else
         {
-            objectToOutput = trackerConfidence >= detectorConfidence ? trackerObject : detectorObject;
+            //std::cout << "integrator: object is allready tracking" << std::endl;
+        }
+    }*/
+
+    Rect mergedTrackerObject;
+    double mergedTrackerConfidence = -1.;
+    bool isMergedTrackerPresent = true;
+
+    if(isIntegratorPresent && isTrackerPresent)
+    {
+        if(integratorConfidence > trackerConfidence)
+        {
+            std::cout << "integrator's tracker better ";
+
+            trackerReset = integratorObject;
+            mergedTrackerObject = integratorObject;
+            mergedTrackerConfidence = integratorConfidence;
+
+
+            std::swap(candidates.front(), candidates.back());
+            candidates.erase(candidates.end() - 1, candidates.end());
+
+            rectangle(copy, trackerReset, Scalar(0,0,255));
+
+        }
+        else
+        {
+            std::cout << "main tracker better ";
+
+            mergedTrackerObject = trackerObject;
+            mergedTrackerConfidence = trackerConfidence;
+        }
+
+        std::cout << " integrator's tracker: " << integratorConfidence << " main tracker " << trackerConfidence << std::endl;
+    }
+    else if(isTrackerPresent)
+    {
+        mergedTrackerObject = trackerObject;
+        mergedTrackerConfidence = trackerConfidence;
+    }
+    else if(isIntegratorPresent)
+    {
+        mergedTrackerObject = integratorObject;
+        mergedTrackerConfidence = integratorConfidence;
+        trackerReset = integratorObject;
+    }
+    else
+        isMergedTrackerPresent = false;
+
+    Rect objectToTrain, objectToOutput;
+
+    std::string info;
+    if(detectorConfidence > mergedTrackerConfidence)
+    {
+        info = "detector better";
+
+        std::vector<Candidate>::iterator position = std::find_if(candidates.begin(),
+                                                                 candidates.end(),
+                                                                 std::bind2nd(std::ptr_fun(overlapPredicate), mergedTrackerConfidence));
+
+        if(position == candidates.end())
+        {
+            candidates.push_back(Candidate(frame, detectorObject));
+            //std::cout << "integrator: add new object to track" << std::endl;
+        }
+        //else
+        //{
+            //std::cout << "integrator: object is allready tracking" << std::endl;
+        //}
+
+        //candidates.push_back(Candidate(frame, detectorObject));
+    }
+    else
+    {
+        info = "tracker  better";
+    }
+
+    std::cout << info << " detector conf " << detectorConfidence << " trackerConfidence " << mergedTrackerConfidence << std::endl;
+
+
+    if(isDetectorPresent && isMergedTrackerPresent)
+    {
+        if(overlap(mergedTrackerObject, detectorObject) > 0.85 && trackerReset.area() == 0)
+        {
+            objectToTrain = mergedTrackerObject;
+            objectToOutput = averageRects(mergedTrackerObject, detectorObject);
+        }
+        else
+        {
+            objectToOutput = mergedTrackerConfidence >= detectorConfidence ? mergedTrackerObject : detectorObject;
         }
     }
     else if(isDetectorPresent && detectorConfidence > 0.5)
     {
         objectToOutput = detectorObject;
     }
-    else if(isTrackerPresent && detectorConfidence > 0.5)
+    else if(isMergedTrackerPresent && mergedTrackerConfidence > 0.5)
     {
-        objectToOutput = trackerObject;
+        objectToOutput = mergedTrackerObject;
     }
 
-    if(!isTrackerPresent)
-    {
-        //std::cout << "reinit tracker..." << std::endl;
 
-        std::for_each(candidates.begin(), candidates.end(), std::bind2nd(std::ptr_fun(updateCandidate), frame));
-
-        candidates.erase(std::remove_if(candidates.begin(), candidates.end(), std::ptr_fun(selectCandidateForRemove)), candidates.end());
-
-        if(isDetectorPresent)
-        {
-            const std::vector<Candidate>::iterator position =
-                    std::find_if(candidates.begin(), candidates.end(), std::bind2nd(std::ptr_fun(selectCandidateForInc), detectorObject));
-
-            if(position == candidates.end())
-            {
-                candidates.push_back(Candidate(frame, detectorObject));
-            }
-            else
-            {
-                position->rects.push_back(detectorObject);
-                if(++position->hints.at<int>() > numberOfConfirmations)
-                {
-                    Rect ret = myGroupRectangles(position->rects);
-                    candidates.clear();
-
-                    objectToOutput = ret;
-                    objectToTrain = ret;
-                }
-            }
-
-        }
-    }
-
+    imshow("integrator", copy);
+    waitKey(1);
     return std::make_pair(objectToTrain, objectToOutput);
 }
 
-void Integrator::updateCandidate(Candidate candidate, Mat_<uchar> &frame)
+void Integrator::updateCandidates(Candidate candidate, Mat_<uchar> &frame)
 {
     Rect2d trakingObject;
 
-    CV_Assert(candidate.hints.at<int>() >= 0);
+    CV_Assert(candidate.confidence.at<double>(0) >= 0.);
+    CV_Assert(roi.area() != 0);
 
     if(!candidate.medianFlow->update(frame, trakingObject))
-        candidate.hints.at<int>() = -1;
+        candidate.confidence.at<double>(0) = -1.;
     else
-        candidate.prevRect = trakingObject;
+    {
+        if(roi.contains(trakingObject.tl()) && roi.contains(trakingObject.br()))
+        {
+            candidate.prevRect = trakingObject;
+            candidate.confidence.at<double>(0) = nnClassifier->calcConfidence(frame(candidate.prevRect));
+            rectangle(copy, trakingObject, Scalar(255, 0, 0));
+        }
+        else
+        {
+            candidate.confidence.at<double>(0) = -1.;
+            rectangle(copy, trakingObject, Scalar(0, 0, 255));
+        }
+    }
+
 
 }
 
-bool Integrator::selectCandidateForInc(Candidate candidate, const Rect &bb)
+void Integrator::updateCandidatesConfidence(Integrator::Candidate candidate, Mat_<uchar> &frame)
 {
-    return overlap(candidate.prevRect, bb) > 0.5;
+    CV_Assert(0);
+    CV_Assert(candidate.confidence.at<double>(0) != -1.);
+    CV_Assert(!nnClassifier.empty());
+    candidate.confidence.at<double>() = nnClassifier->calcConfidence(frame(candidate.prevRect));
+}
+
+bool Integrator::sortPredicate(const Integrator::Candidate &candidate1, const Integrator::Candidate &candidate2)
+{
+    return candidate1.confidence.at<double>(0) > candidate2.confidence.at<double>(0);
+}
+
+bool Integrator::overlapPredicate(Candidate candidate, const Rect &bb)
+{
+    return overlap(candidate.prevRect, bb) > 0.85;
 }
 
 bool Integrator::selectCandidateForRemove(const Candidate candidate)
 {
-    return candidate.hints.at<int>() == -1;
+    return candidate.confidence.at<double>() < 0.5;
 }
 
 Rect Integrator::averageRects(const Rect &item1, const Rect &item2)
@@ -282,12 +394,12 @@ Rect Integrator::averageRects(const Rect &item1, const Rect &item2)
     return Rect(tl, size);
 }
 
-Integrator::Candidate::Candidate(const Mat_<uchar> &frame, Rect bb) : hints(1, 1, 0)
+Integrator::Candidate::Candidate(const Mat_<uchar> &frame, Rect bb) : confidence(1, 1, 0.), hints(1, 1, 0)
 {
     medianFlow = TrackerMedianFlow::createTracker();
 
     if(!medianFlow->init(frame, bb))
-        hints.at<int>() = -1;
+        confidence.at<int>() = -1;
 
     prevRect = bb;
 }

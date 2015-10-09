@@ -156,11 +156,16 @@ namespace tld
 class Integrator
 {
 public:
-    Integrator(int actNumberOfConfirmations) : numberOfConfirmations(actNumberOfConfirmations), isTrajectoryReliable(true) {}
+    Integrator(const Ptr<NNClassifier> &actNNClassifier, const Rect &actRoi)
+        : isTrajectoryReliable(true)
+    {
+        nnClassifier = actNNClassifier;
+        roi = actRoi;
+    }
 
     std::pair<Rect, Rect> getObjectToTrainFrom(const Mat_<uchar> &frame,
                                                const std::pair<Rect, double> &objectFromTracker,
-                                               const std::pair<Rect, double> &objectFromDetector);
+                                               const std::pair<Rect, double> &objectFromDetector, Rect &trackerReset);
 
 private:
     struct Candidate
@@ -168,23 +173,26 @@ private:
         Candidate() {CV_Assert(0);}
         Candidate(const Mat_<uchar> &frame, Rect bb);
 
+        Mat_<double> confidence;
         Mat_<int> hints;
         Ptr<TrackerMedianFlow> medianFlow;
         Rect2d prevRect;
 
-        std::vector<Rect> rects;
-
     };
 
 private:
-    const int numberOfConfirmations;
     bool isTrajectoryReliable;
+    /*const*/ static Rect roi;
+    /*const*/ static Ptr<NNClassifier> nnClassifier;
+    static Mat copy;
 
     std::vector<Candidate> candidates;
 
 private:
-    static void updateCandidate(Candidate candidate, Mat_<uchar> &frame);
-    static bool selectCandidateForInc(Candidate candidate, const Rect &bb);
+    static void updateCandidates(Candidate candidate, Mat_<uchar> &frame);
+    static void updateCandidatesConfidence(Candidate candidate, Mat_<uchar> &frame);
+    static bool sortPredicate(const Candidate &candidate1, const Candidate &candidate2);
+    static bool overlapPredicate(Candidate candidate, const Rect &bb);
     static bool selectCandidateForRemove(Candidate candidate);
     static Rect averageRects(const Rect &item1, const Rect &item2);
 };
