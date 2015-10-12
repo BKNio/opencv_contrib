@@ -54,6 +54,8 @@ namespace cv
 namespace tld
 {
 
+Mat_<uchar> CascadeClassifier::debugOutput;
+
 CascadeClassifier::CascadeClassifier(int preMeasure, int preFerns, Size preFernPathSize,
                                            int numberOfMeasurements, int numberOfFerns, Size fernPatchSize,
                                            int numberOfExamples, Size examplePatchSize, int actPositiveExampleNumbers, int actWrappedExamplesNumber, double actGroupTheta):
@@ -166,9 +168,9 @@ std::vector<Rect> CascadeClassifier::detect(const Mat_<uchar> &scaledImage) cons
             rectangle(copyNN, hypothesis[index].bb, Scalar::all(255));
 
 //    imshow("after nn filter", copyNN);
-//    std::pair<Mat, Mat> model = nnClassifier->outputModel();
-//    imshow("nn model positive", model.first);
-//    imshow("nn model negative", model.second);
+    std::pair<Mat, Mat> model = nnClassifier->outputModel();
+    imshow("nn model positive", model.first);
+    imshow("nn model negative", model.second);
 
     waitKey(1);
 #endif
@@ -282,6 +284,7 @@ std::vector<Rect> CascadeClassifier::prepareFinalResult(const Mat_<uchar> &image
         }
 
 #ifdef GROUP_RESPONSES
+    image.copyTo(debugOutput);
     myGroupRectangles(groupedRects, groupRectanglesTheta);
     for(std::vector<Rect>::const_iterator groupedRectsIt = groupedRects.begin(); groupedRectsIt != groupedRects.end(); ++groupedRectsIt)
         tResults.push_back(std::make_pair(*groupedRectsIt, nnClassifier->calcConfidence(image(*groupedRectsIt))));
@@ -361,7 +364,31 @@ void CascadeClassifier::myGroupRectangles(std::vector<Rect> &rectList, double ep
             std::sort(_width.begin(), _width.end());
             std::sort(_height.begin(), _height.end());
 
-            Rect rect( _x[_x.size() / 2], _y[_y.size() / 2], _width[_width.size() / 2],_height[_height.size() / 2]);
+            CV_Assert(_x.size() == _y.size());
+            CV_Assert(_y.size() == _width.size());
+            CV_Assert(_width.size() == _height.size());
+
+
+//            Mat_<uchar> copy; debugOutput.copyTo(copy);
+//            for(size_t index = 0; index < _x.size(); ++index)
+//                rectangle(copy, Rect(_x[index], _y[index], _width[index], _height[index]), Scalar::all(0));
+
+            Rect rect;
+
+            const size_t middle = _x.size() / 2;
+
+            if(_x.size() % 2  == 0)
+                rect = Rect( (_x[middle] + _x[middle - 1]) / 2,
+                             (_y[middle] + _y[middle - 1]) / 2,
+                        (_width[middle] + _width[middle - 1]) / 2,
+                        (_height[middle] + _height[middle - 1]) / 2);
+            else
+                rect = Rect( _x[middle], _y[middle], _width[middle],_height[middle]);
+
+//            rectangle(copy, rect, Scalar::all(255));
+
+//            imshow("group rects", copy);
+//            waitKey();
 
             if(pExpert->isRectOK(rect))
                 rrects.push_back(rect);
@@ -577,7 +604,7 @@ std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const 
 
 #ifdef DEBUG_OUTPUT2
     rectangle(copy, object, cv::Scalar(165, 0, 255));
-    //imshow(capture, copy);
+    imshow(capture, copy);
     waitKey(1);
 #endif
 

@@ -66,7 +66,7 @@ TrackerTLD::Params::Params()
     numberOfFerns = 400;
     fernPatchSize = Size(15, 15);
 
-    numberOfExamples = 1000;
+    numberOfExamples = 400;
     examplePatchSize = Size(50, 50);
 
     numberOfInitPositiveExamples = 13;
@@ -75,7 +75,7 @@ TrackerTLD::Params::Params()
     numberOfPositiveExamples = 5;
     numberOfWarpedPositiveExamples = 10;
 
-    groupRectanglesTheta = 0.25;
+    groupRectanglesTheta = 0.15;
 }
 
 void TrackerTLD::Params::read(const cv::FileNode& fn)
@@ -156,16 +156,27 @@ namespace tld
 class Integrator
 {
 public:
+
+    struct IntegratorResult
+    {
+        const Rect objectToTrain;
+        const Rect objectToResetTracker;
+        const Rect objectToOutput;
+
+        IntegratorResult(Rect actObjectToTrain, Rect actObjectToResetTracker, Rect actObjectToOutput) :
+            objectToTrain(actObjectToTrain), objectToResetTracker(actObjectToResetTracker), objectToOutput(actObjectToOutput) {}
+    };
+
     Integrator(const Ptr<NNClassifier> &actNNClassifier, const Rect &actRoi)
-        : isTrajectoryReliable(true)
+        : isTrajectoryReliable(true), maxCandidatesSize(3)
     {
         nnClassifier = actNNClassifier;
         roi = actRoi;
     }
 
-    std::pair<Rect, Rect> getObjectToTrainFrom(const Mat_<uchar> &frame,
+    const IntegratorResult getObjectToTrainFrom(const Mat_<uchar> &frame,
                                                const std::pair<Rect, double> &objectFromTracker,
-                                               const std::pair<Rect, double> &objectFromDetector, Rect &trackerReset);
+                                               const std::pair<Rect, double> &objectFromDetector);
 
 private:
     struct Candidate
@@ -173,8 +184,7 @@ private:
         Candidate() {CV_Assert(0);}
         Candidate(const Mat_<uchar> &frame, Rect bb);
 
-        Mat_<double> confidence;
-        Mat_<int> hints;
+        double confidence;
         Ptr<TrackerMedianFlow> medianFlow;
         Rect2d prevRect;
 
@@ -186,14 +196,15 @@ private:
     /*const*/ static Ptr<NNClassifier> nnClassifier;
     static Mat copy;
 
-    std::vector<Candidate> candidates;
+    std::vector< Ptr<Candidate> > candidates;
+    const size_t maxCandidatesSize;
 
 private:
-    static void updateCandidates(Candidate candidate, Mat_<uchar> &frame);
-    static void updateCandidatesConfidence(Candidate candidate, Mat_<uchar> &frame);
-    static bool sortPredicate(const Candidate &candidate1, const Candidate &candidate2);
-    static bool overlapPredicate(Candidate candidate, const Rect &bb);
-    static bool selectCandidateForRemove(Candidate candidate);
+    static void updateCandidates(Ptr<Candidate> candidate, Mat_<uchar> &frame);
+    //static void updateCandidatesConfidence(Ptr<Candidate> candidate, Mat_<uchar> &frame);
+    static bool sortPredicate(const Ptr<Candidate> &candidate1, const Ptr<Candidate> &candidate2);
+    static bool overlapPredicate(const Ptr<Candidate> candidate, const Rect &bb);
+    static bool selectCandidateForRemove(const Ptr<Candidate> candidate);
     static Rect averageRects(const Rect &item1, const Rect &item2);
 };
 

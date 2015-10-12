@@ -102,10 +102,10 @@ public:
         //testCases.push_back("03_pedestrian1");
         //testCases.push_back("04_pedestrian2");
         //testCases.push_back("05_pedestrian3");
-        testCases.push_back("06_car");
+        //testCases.push_back("06_car");
         //testCases.push_back("07_motocross");
         //testCases.push_back("08_volkswagen");
-        //testCases.push_back("09_carchase");
+        testCases.push_back("09_carchase");
         //testCases.push_back("10_panda");
     }
 
@@ -568,6 +568,7 @@ bool ClassifiersTest::onlineTrainTest()
 #define SHOW_ADDITIONAL_EXAMPLES
 bool ClassifiersTest::realDataDetectorTest()
 {
+
     std::vector<int> preMeasures, preFernsNumbers;
     std::vector<cv::Size> preFernPatchSizes;
 
@@ -671,6 +672,33 @@ bool ClassifiersTest::realDataDetectorTest()
                     }
 
                     CV_Assert(frames.size() == gtBB.size());
+
+                    ////////////////////////////////////////experiment////////////////////////////////////
+
+                    const cv::Mat_<uchar> zeroFrame = frames.front()(gtBB.front());
+
+                    cv::Rect shiftedRect = gtBB.front();
+
+                    shiftedRect.width -= -1;
+                    shiftedRect.height -= -1;
+
+                    const cv::Mat_<uchar> shiftedFrame = frames.front()(shiftedRect);
+
+
+                    cv::Ptr<cv::tld::NNClassifier> nnClasifier = cv::makePtr<cv::tld::NNClassifier>(100, cv::Size(100, 100)/* zeroFrame.size()*/ );
+                    nnClasifier->addExample(zeroFrame, nnClasifier->positiveExamples);
+                    nnClasifier->addExample(frames.front()(gtBB[100]), nnClasifier->negativeExamples);
+
+                    std::cout << nnClasifier->calcConfidence(zeroFrame) << std::endl;
+                    std::cout << nnClasifier->calcConfidence(shiftedFrame) << std::endl;
+
+                    cv::imshow("zeroFrame", zeroFrame);
+                    cv::imshow("shiftedRect", shiftedFrame);
+                    cv::waitKey();
+
+                    ////////////////////////////////////////experiment////////////////////////////////////
+
+
 
 //                    const cv::Rect roi(cv::Point(), frames.front().size());
 

@@ -141,6 +141,8 @@ private:
 
     static bool isObjectPredicate(const CascadeClassifier *pCascadeClassifier, const Mat_<uchar> candidate);
     mutable std::vector<Rect> fernsPositive, nnPositive;
+
+    static Mat_<uchar> debugOutput;
 };
 
 }
