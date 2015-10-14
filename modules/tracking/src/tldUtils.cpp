@@ -190,15 +190,49 @@ std::pair<double, Rect2d> augmentedOverlap(const Rect2d rect, const Rect2d bb)
     return std::make_pair(overlap(rect,bb), bb);
 }
 
+class MYSimilarRects
+{
+public:
+    MYSimilarRects(double /*_eps*/) /*: eps(_eps)*/ {}
+    inline bool operator()(const Rect& r1, const Rect& r2) const
+    {
+        if(double(r1.area()) / r2.area() > 1.5 || double(r1.area()) / r2.area() < 0.66)
+            return false;
+
+        if(double(r1.width) / r2.width > 1.5 || double(r1.width) / r2.width < 0.66)
+            return false;
+
+        if(double(r1.height) / r2.height > 1.5 || double(r1.height) / r2.height < 0.66)
+            return false;
+
+        const double delta = (std::min(r1.width, r2.width) + std::min(r1.height, r2.height)) * 0.5;
+
+        const Point tl1 = r1.tl();
+        const Point tl2 = r2.tl();
+
+        const Point br1 = r1.br();
+        const Point br2 = r2.br();
+
+        if(sqrt((tl1 - tl2).ddot(tl1 - tl2)) < delta && sqrt((br1 - br2).ddot(br1 - br2)) < delta)
+            return true;
+
+        if(sqrt((tl1 - br2).ddot(tl1 - br2)) < delta && overlap(r1, r2) > 0)
+            return true;
+
+        return false;
+    }
+};
+
 Rect myGroupRectangles(std::vector<Rect> &rectList, double eps)
 {
 
-    CV_Assert(rectList.size() >= 3);
+    //CV_Assert(rectList.size() >= 3);
 
     std::vector<int> labels;
     int nclasses = partition(rectList, labels, SimilarRects(eps));
 
-    CV_Assert(nclasses == 1);
+    //CV_Assert(nclasses == 1);
+
 
     int i, nlabels = (int)labels.size();
     std::vector<int> rweights(nclasses, 0);
@@ -215,24 +249,45 @@ Rect myGroupRectangles(std::vector<Rect> &rectList, double eps)
         rweights[cls]++;
     }
 
-    for( i = 0; i < nclasses; i++ )
-    {
-        std::vector<int> &_x = x[i];
-        std::vector<int> &_y = y[i];
-        std::vector<int> &_width = width[i];
-        std::vector<int> &_height = height[i];
+    //for( ; i < nclasses; i++ )
 
-        {
-            std::sort(_x.begin(), _x.end());
-            std::sort(_y.begin(), _y.end());
-            std::sort(_width.begin(), _width.end());
-            std::sort(_height.begin(), _height.end());
+   std::vector<int>::iterator maxPos = std::max_element(rweights.begin(), rweights.end());
 
-            Rect rect( _x[_x.size() / 2], _y[_y.size() / 2], _width[_width.size() / 2],_height[_height.size() / 2]);
+   CV_Assert(maxPos != rweights.end());
 
-            return rect;
-        }
-    }
+   const size_t maxIndex = std::distance(rweights.begin(), maxPos);
+
+   std::vector<int> &_x = x[maxIndex];
+   std::vector<int> &_y = y[maxIndex];
+   std::vector<int> &_width = width[maxIndex];
+   std::vector<int> &_height = height[maxIndex];
+
+   {
+       std::sort(_x.begin(), _x.end());
+       std::sort(_y.begin(), _y.end());
+       std::sort(_width.begin(), _width.end());
+       std::sort(_height.begin(), _height.end());
+
+       CV_Assert(_x.size() == _y.size());
+       CV_Assert(_x.size() == _width.size());
+       CV_Assert(_x.size() == _height.size());
+
+       Rect rect;
+
+       const size_t middle = _x.size() / 2;
+
+       if(_x.size() % 2 == 0)
+           rect = Rect2d(
+                       (_x[middle] + _x[middle - 1]) * 0.5,
+                   (_y[middle] + _y[middle - 1]) * 0.5,
+                   (_width[middle] + _width[middle - 1]) * 0.5,
+                   (_height[middle] + _height[middle - 1]) * 0.5);
+       else
+           rect = Rect( _x[middle], _y[middle], _width[middle],_height[middle]);
+
+       return rect;
+   }
+
 
     CV_Assert(0);
     return Rect();

@@ -569,231 +569,231 @@ bool ClassifiersTest::onlineTrainTest()
 bool ClassifiersTest::realDataDetectorTest()
 {
 
-    std::vector<int> preMeasures, preFernsNumbers;
-    std::vector<cv::Size> preFernPatchSizes;
+//    std::vector<int> preMeasures, preFernsNumbers;
+//    std::vector<cv::Size> preFernPatchSizes;
 
-    preMeasures.push_back(9);
-    preMeasures.push_back(11);
-    preMeasures.push_back(13);
-    preMeasures.push_back(14);
+//    preMeasures.push_back(9);
+//    preMeasures.push_back(11);
+//    preMeasures.push_back(13);
+//    preMeasures.push_back(14);
 
-    preFernsNumbers.push_back(10);
-    preFernsNumbers.push_back(20);
-    preFernsNumbers.push_back(25);
+//    preFernsNumbers.push_back(10);
+//    preFernsNumbers.push_back(20);
+//    preFernsNumbers.push_back(25);
 
-    preFernPatchSizes.push_back(cv::Size(13, 13));
-    preFernPatchSizes.push_back(cv::Size(15, 15));
-    preFernPatchSizes.push_back(cv::Size(17, 17));
+//    preFernPatchSizes.push_back(cv::Size(13, 13));
+//    preFernPatchSizes.push_back(cv::Size(15, 15));
+//    preFernPatchSizes.push_back(cv::Size(17, 17));
 
-    std::vector<int> fernMeasurements, fernsNumbers;
-    std::vector<cv::Size> fernPatchSizes;
+//    std::vector<int> fernMeasurements, fernsNumbers;
+//    std::vector<cv::Size> fernPatchSizes;
 
-    fernMeasurements.push_back(12);
-    fernMeasurements.push_back(13);
-    fernMeasurements.push_back(14);
+//    fernMeasurements.push_back(12);
+//    fernMeasurements.push_back(13);
+//    fernMeasurements.push_back(14);
 
-    fernsNumbers.push_back(50);
-    fernsNumbers.push_back(100);
-    fernsNumbers.push_back(150);
+//    fernsNumbers.push_back(50);
+//    fernsNumbers.push_back(100);
+//    fernsNumbers.push_back(150);
 
-    fernPatchSizes.push_back(cv::Size(15, 15));
-    fernPatchSizes.push_back(cv::Size(20, 20));
-    fernPatchSizes.push_back(cv::Size(25, 25));
+//    fernPatchSizes.push_back(cv::Size(15, 15));
+//    fernPatchSizes.push_back(cv::Size(20, 20));
+//    fernPatchSizes.push_back(cv::Size(25, 25));
 
-    std::vector<int> storageSizes;
-    std::vector<cv::Size> storagePatchSizes;
+//    std::vector<int> storageSizes;
+//    std::vector<cv::Size> storagePatchSizes;
 
-    storageSizes.push_back(100);
-    storageSizes.push_back(200);
-    storageSizes.push_back(300);
+//    storageSizes.push_back(100);
+//    storageSizes.push_back(200);
+//    storageSizes.push_back(300);
 
-    storagePatchSizes.push_back(cv::Size(15, 15));
-    storagePatchSizes.push_back(cv::Size(17, 17));
-    storagePatchSizes.push_back(cv::Size(20, 20));
+//    storagePatchSizes.push_back(cv::Size(15, 15));
+//    storagePatchSizes.push_back(cv::Size(17, 17));
+//    storagePatchSizes.push_back(cv::Size(20, 20));
 
-    std::vector<int> warpedExamplesNumbers, positiveExampleNumbers;
-    positiveExampleNumbers.push_back(1);
-    positiveExampleNumbers.push_back(5);
-    positiveExampleNumbers.push_back(13);
+//    std::vector<int> warpedExamplesNumbers, positiveExampleNumbers;
+//    positiveExampleNumbers.push_back(1);
+//    positiveExampleNumbers.push_back(5);
+//    positiveExampleNumbers.push_back(13);
 
-    warpedExamplesNumbers.push_back(1);
-    warpedExamplesNumbers.push_back(5);
-    warpedExamplesNumbers.push_back(10);
-    warpedExamplesNumbers.push_back(20);
-
-
-    for(std::vector<int>::const_iterator preFernMeasure = preMeasures.begin(); preFernMeasure != preMeasures.end(); preFernMeasure++)
-        for(std::vector<int>::const_iterator preFernsNumber = preFernsNumbers.begin(); preFernsNumber != preFernsNumbers.end(); preFernsNumber++)
-            for(std::vector<cv::Size>::const_iterator preFernPatchSize = preFernPatchSizes.begin(); preFernPatchSize != preFernPatchSizes.end(); ++preFernPatchSize)
-
-    for(std::vector<int>::const_iterator fernMeasure = fernMeasurements.begin(); fernMeasure != fernMeasurements.end(); fernMeasure++)
-        for(std::vector<int>::const_iterator fernsNumber = fernsNumbers.begin(); fernsNumber != fernsNumbers.end(); fernsNumber++)
-            for(std::vector<cv::Size>::const_iterator fernPatchSize = fernPatchSizes.begin(); fernPatchSize != fernPatchSizes.end(); ++fernPatchSize)
-
-    for(std::vector<int>::const_iterator storageSize = storageSizes.begin(); storageSize != storageSizes.end(); storageSize++)
-        for(std::vector<cv::Size>::const_iterator storagePatchSize = storagePatchSizes.begin(); storagePatchSize != storagePatchSizes.end(); ++storagePatchSize)
-
-    for(std::vector<int>::const_iterator positiveSize = positiveExampleNumbers.begin(); positiveSize != positiveExampleNumbers.end(); positiveSize++)
-        for(std::vector<int>::const_iterator warpedSize = warpedExamplesNumbers.begin(); warpedSize != warpedExamplesNumbers.end(); warpedSize++)
-        {
-            float avgRecall = 0.f, avgPrecision = 0.f;
-            float fP = .0f, tP = .0f, numberOfExamples = .0f;
-            double avgTime = 0.;
-
-            const int numberOfTries = 1;
-            for(int i = 0; i < numberOfTries; ++i)
-            {
-                for(std::vector<std::string>::const_iterator testCase = testCases.begin(); testCase != testCases.end(); ++testCase)
-                {
-                    const std::string path = pathToTLDDataSet + "/" + *testCase + "/";
-                    const std::string suffix = *testCase == "07_motocross" ? "%05d.png" : "%05d.jpg";
-
-                    cv::VideoCapture capture(path + suffix);
-
-                    if(!capture.isOpened())
-                        return std::cerr << "unable to open " + path + suffix, false;
-
-                    std::fstream gtData((path + "/gt.txt").c_str());
-                    if(!gtData.is_open())
-                        return std::cerr << "unable to open " + path + "/gt.txt", false;
-
-                    std::vector<cv::Rect> gtBB;
-                    std::copy(std::istream_iterator<cv::Rect>(gtData), std::istream_iterator<cv::Rect>(), std::back_inserter(gtBB));
-
-                    CV_Assert(!gtBB.empty());
-
-                    std::vector<cv::Mat> frames; frames.reserve(gtBB.size());
-                    cv::Mat frame;
-                    while(capture >> frame, !frame.empty())
-                    {
-                        cv::Mat grayFrame;
-                        cv::cvtColor(frame, grayFrame, CV_BGR2GRAY);
-                        frames.push_back(grayFrame);
-                    }
-
-                    CV_Assert(frames.size() == gtBB.size());
-
-                    ////////////////////////////////////////experiment////////////////////////////////////
-
-                    const cv::Mat_<uchar> zeroFrame = frames.front()(gtBB.front());
-
-                    cv::Rect shiftedRect = gtBB.front();
-
-                    shiftedRect.width -= -1;
-                    shiftedRect.height -= -1;
-
-                    const cv::Mat_<uchar> shiftedFrame = frames.front()(shiftedRect);
+//    warpedExamplesNumbers.push_back(1);
+//    warpedExamplesNumbers.push_back(5);
+//    warpedExamplesNumbers.push_back(10);
+//    warpedExamplesNumbers.push_back(20);
 
 
-                    cv::Ptr<cv::tld::NNClassifier> nnClasifier = cv::makePtr<cv::tld::NNClassifier>(100, cv::Size(100, 100)/* zeroFrame.size()*/ );
-                    nnClasifier->addExample(zeroFrame, nnClasifier->positiveExamples);
-                    nnClasifier->addExample(frames.front()(gtBB[100]), nnClasifier->negativeExamples);
+//    for(std::vector<int>::const_iterator preFernMeasure = preMeasures.begin(); preFernMeasure != preMeasures.end(); preFernMeasure++)
+//        for(std::vector<int>::const_iterator preFernsNumber = preFernsNumbers.begin(); preFernsNumber != preFernsNumbers.end(); preFernsNumber++)
+//            for(std::vector<cv::Size>::const_iterator preFernPatchSize = preFernPatchSizes.begin(); preFernPatchSize != preFernPatchSizes.end(); ++preFernPatchSize)
 
-                    std::cout << nnClasifier->calcConfidence(zeroFrame) << std::endl;
-                    std::cout << nnClasifier->calcConfidence(shiftedFrame) << std::endl;
+//    for(std::vector<int>::const_iterator fernMeasure = fernMeasurements.begin(); fernMeasure != fernMeasurements.end(); fernMeasure++)
+//        for(std::vector<int>::const_iterator fernsNumber = fernsNumbers.begin(); fernsNumber != fernsNumbers.end(); fernsNumber++)
+//            for(std::vector<cv::Size>::const_iterator fernPatchSize = fernPatchSizes.begin(); fernPatchSize != fernPatchSizes.end(); ++fernPatchSize)
 
-                    cv::imshow("zeroFrame", zeroFrame);
-                    cv::imshow("shiftedRect", shiftedFrame);
-                    cv::waitKey();
+//    for(std::vector<int>::const_iterator storageSize = storageSizes.begin(); storageSize != storageSizes.end(); storageSize++)
+//        for(std::vector<cv::Size>::const_iterator storagePatchSize = storagePatchSizes.begin(); storagePatchSize != storagePatchSizes.end(); ++storagePatchSize)
 
-                    ////////////////////////////////////////experiment////////////////////////////////////
+//    for(std::vector<int>::const_iterator positiveSize = positiveExampleNumbers.begin(); positiveSize != positiveExampleNumbers.end(); positiveSize++)
+//        for(std::vector<int>::const_iterator warpedSize = warpedExamplesNumbers.begin(); warpedSize != warpedExamplesNumbers.end(); warpedSize++)
+//        {
+//            float avgRecall = 0.f, avgPrecision = 0.f;
+//            float fP = .0f, tP = .0f, numberOfExamples = .0f;
+//            double avgTime = 0.;
+
+//            const int numberOfTries = 1;
+//            for(int i = 0; i < numberOfTries; ++i)
+//            {
+//                for(std::vector<std::string>::const_iterator testCase = testCases.begin(); testCase != testCases.end(); ++testCase)
+//                {
+//                    const std::string path = pathToTLDDataSet + "/" + *testCase + "/";
+//                    const std::string suffix = *testCase == "07_motocross" ? "%05d.png" : "%05d.jpg";
+
+//                    cv::VideoCapture capture(path + suffix);
+
+//                    if(!capture.isOpened())
+//                        return std::cerr << "unable to open " + path + suffix, false;
+
+//                    std::fstream gtData((path + "/gt.txt").c_str());
+//                    if(!gtData.is_open())
+//                        return std::cerr << "unable to open " + path + "/gt.txt", false;
+
+//                    std::vector<cv::Rect> gtBB;
+//                    std::copy(std::istream_iterator<cv::Rect>(gtData), std::istream_iterator<cv::Rect>(), std::back_inserter(gtBB));
+
+//                    CV_Assert(!gtBB.empty());
+
+//                    std::vector<cv::Mat> frames; frames.reserve(gtBB.size());
+//                    cv::Mat frame;
+//                    while(capture >> frame, !frame.empty())
+//                    {
+//                        cv::Mat grayFrame;
+//                        cv::cvtColor(frame, grayFrame, CV_BGR2GRAY);
+//                        frames.push_back(grayFrame);
+//                    }
+
+//                    CV_Assert(frames.size() == gtBB.size());
+
+//                    ////////////////////////////////////////experiment////////////////////////////////////
+
+//                    const cv::Mat_<uchar> zeroFrame = frames.front()(gtBB.front());
+
+//                    cv::Rect shiftedRect = gtBB.front();
+
+//                    shiftedRect.width -= -1;
+//                    shiftedRect.height -= -1;
+
+//                    const cv::Mat_<uchar> shiftedFrame = frames.front()(shiftedRect);
+
+
+//                    cv::Ptr<cv::tld::NNClassifier> nnClasifier = cv::makePtr<cv::tld::NNClassifier>(100, cv::Size(100, 100)/* zeroFrame.size()*/ );
+//                    nnClasifier->addExample(zeroFrame, nnClasifier->positiveExamples);
+//                    nnClasifier->addExample(frames.front()(gtBB[100]), nnClasifier->negativeExamples);
+
+//                    std::cout << nnClasifier->calcConfidence(zeroFrame) << std::endl;
+//                    std::cout << nnClasifier->calcConfidence(shiftedFrame) << std::endl;
+
+//                    cv::imshow("zeroFrame", zeroFrame);
+//                    cv::imshow("shiftedRect", shiftedFrame);
+//                    cv::waitKey();
+
+//                    ////////////////////////////////////////experiment////////////////////////////////////
 
 
 
-//                    const cv::Rect roi(cv::Point(), frames.front().size());
+////                    const cv::Rect roi(cv::Point(), frames.front().size());
 
-                    /*--------------------------------------------*/
-                    timeval trainStart, trainStop;
-                    gettimeofday(&trainStart, NULL);
-                    /*--------------------------------------------*/
+//                    /*--------------------------------------------*/
+//                    timeval trainStart, trainStop;
+//                    gettimeofday(&trainStart, NULL);
+//                    /*--------------------------------------------*/
 
-                    cv::Ptr<cv::tld::CascadeClassifier> cascadeClasifier =
-                            cv::Ptr<cv::tld::CascadeClassifier>( new cv::tld::CascadeClassifier(*preFernMeasure, *preFernsNumber, *preFernPatchSize,
-                                                                    *fernMeasure, *fernsNumber,*fernPatchSize,
-                                                                    *storageSize, *storagePatchSize,
-                                                                    *positiveSize, *warpedSize, 0.25));
+//                    cv::Ptr<cv::tld::CascadeClassifier> cascadeClasifier =
+//                            cv::Ptr<cv::tld::CascadeClassifier>( new cv::tld::CascadeClassifier(*preFernMeasure, *preFernsNumber, *preFernPatchSize,
+//                                                                    *fernMeasure, *fernsNumber,*fernPatchSize,
+//                                                                    *storageSize, *storagePatchSize,
+//                                                                    *positiveSize, *warpedSize, 0.25));
 
-                    cascadeClasifier->init(frames.front(), gtBB.front());
+//                    cascadeClasifier->init(frames.front(), gtBB.front());
 
-                   for(size_t trainIteration = 1; trainIteration < gtBB.size() && trainIteration < 300 ; ++trainIteration)
-                   {
-                        cv::Mat currentFrame;
-                        cv::cvtColor(frames[trainIteration], currentFrame, CV_GRAY2BGR);
-                        const cv::Rect &gtRect = gtBB[trainIteration];
-                        cv::Rect detectedObject;
-                        bool isObjectPresents = false;
+//                   for(size_t trainIteration = 1; trainIteration < gtBB.size() && trainIteration < 300 ; ++trainIteration)
+//                   {
+//                        cv::Mat currentFrame;
+//                        cv::cvtColor(frames[trainIteration], currentFrame, CV_GRAY2BGR);
+//                        const cv::Rect &gtRect = gtBB[trainIteration];
+//                        cv::Rect detectedObject;
+//                        bool isObjectPresents = false;
 
-                        if(gtRect.area() > 0)
-                        {
-                            isObjectPresents = true;
-                            cv::rectangle(currentFrame, gtRect, cv::Scalar(0, 255, 0), 1);
-                        }
+//                        if(gtRect.area() > 0)
+//                        {
+//                            isObjectPresents = true;
+//                            cv::rectangle(currentFrame, gtRect, cv::Scalar(0, 255, 0), 1);
+//                        }
 
-                        bool isObjectDetected = false;
-                        const std::vector<cv::Rect> &detectedObjects = cascadeClasifier->detect(frames[trainIteration]);
+//                        bool isObjectDetected = false;
+//                        const std::vector<cv::Rect> &detectedObjects = cascadeClasifier->detect(frames[trainIteration]);
 
-                        if(!detectedObjects.empty())
-                        {
-                            detectedObject = detectedObjects.front();
-                            isObjectDetected = true;
-                            cv::rectangle(currentFrame, detectedObject, cv::Scalar(255, 0, 139), 2);
-                        }
+//                        if(!detectedObjects.empty())
+//                        {
+//                            detectedObject = detectedObjects.front();
+//                            isObjectDetected = true;
+//                            cv::rectangle(currentFrame, detectedObject, cv::Scalar(255, 0, 139), 2);
+//                        }
 
-                        if(isObjectPresents)
-                        {
-                            numberOfExamples++;
-                            cascadeClasifier->startPExpert(frames[trainIteration], gtRect);
+//                        if(isObjectPresents)
+//                        {
+//                            numberOfExamples++;
+//                            cascadeClasifier->startPExpert(frames[trainIteration], gtRect);
 
-                            if(isObjectDetected)
-                            {
-                                const cv::Rect &overlap = gtRect & detectedObject;
-                                if(double(overlap.area()) / (gtRect.area() + detectedObject.area() - overlap.area()) >= 0.5)
-                                {
-                                    cv::rectangle(currentFrame, detectedObject, cv::Scalar(255,0, 139), 2);
-                                    tP++;
+//                            if(isObjectDetected)
+//                            {
+//                                const cv::Rect &overlap = gtRect & detectedObject;
+//                                if(double(overlap.area()) / (gtRect.area() + detectedObject.area() - overlap.area()) >= 0.5)
+//                                {
+//                                    cv::rectangle(currentFrame, detectedObject, cv::Scalar(255,0, 139), 2);
+//                                    tP++;
 
-                                }
-                                else
-                                {
-                                    cv::rectangle(currentFrame, detectedObject, cv::Scalar(0,0, 255), 2);
-                                    fP++;
-                                }
-                            }
-                        }
-                        else if(isObjectDetected)
-                        {
-                            cv::rectangle(currentFrame, detectedObject, cv::Scalar(0,0, 255), 2);
-                            fP++;
-                        }
+//                                }
+//                                else
+//                                {
+//                                    cv::rectangle(currentFrame, detectedObject, cv::Scalar(0,0, 255), 2);
+//                                    fP++;
+//                                }
+//                            }
+//                        }
+//                        else if(isObjectDetected)
+//                        {
+//                            cv::rectangle(currentFrame, detectedObject, cv::Scalar(0,0, 255), 2);
+//                            fP++;
+//                        }
 
-                        cascadeClasifier->startNExpert(frames[trainIteration], gtRect, detectedObjects);
+//                        cascadeClasifier->startNExpert(frames[trainIteration], gtRect);
 
-                        std::stringstream ss; ss << "# " << trainIteration;
-                        cv::putText(currentFrame, ss.str(), cv::Point(2,18), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(255, 127, 0));
+//                        std::stringstream ss; ss << "# " << trainIteration;
+//                        cv::putText(currentFrame, ss.str(), cv::Point(2,18), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(255, 127, 0));
 
-                        cv::imshow("iteration results", currentFrame);
-                        cv::waitKey(1);
-                    }
+//                        cv::imshow("iteration results", currentFrame);
+//                        cv::waitKey(1);
+//                    }
 
-                    gettimeofday(&trainStop, NULL);
-                    avgTime += trainStop.tv_sec - trainStart.tv_sec + double(trainStop.tv_usec - trainStart.tv_usec) / 1e6;
-                }
+//                    gettimeofday(&trainStop, NULL);
+//                    avgTime += trainStop.tv_sec - trainStart.tv_sec + double(trainStop.tv_usec - trainStart.tv_usec) / 1e6;
+//                }
 
-            }
+//            }
 
-            avgRecall = tP / numberOfExamples;
-            avgPrecision = tP / (tP + fP);
+//            avgRecall = tP / numberOfExamples;
+//            avgPrecision = tP / (tP + fP);
 
-            avgTime /= numberOfTries;
+//            avgTime /= numberOfTries;
 
-            /*--------------------------------------------*/
-            std::cout << *preFernMeasure << " " << *preFernsNumber << " " << *preFernPatchSize;
-            std::cout << " " << *fernMeasure << " " << *fernsNumber << " " << *fernPatchSize;
-            std::cout << " " << *storageSize << " " << *storagePatchSize;
-            std::cout << " " << *positiveSize << " "<< *warpedSize<< " " << avgRecall << " " << avgPrecision << " " << avgTime << std::endl;
-            /*--------------------------------------------*/
+//            /*--------------------------------------------*/
+//            std::cout << *preFernMeasure << " " << *preFernsNumber << " " << *preFernPatchSize;
+//            std::cout << " " << *fernMeasure << " " << *fernsNumber << " " << *fernPatchSize;
+//            std::cout << " " << *storageSize << " " << *storagePatchSize;
+//            std::cout << " " << *positiveSize << " "<< *warpedSize<< " " << avgRecall << " " << avgPrecision << " " << avgTime << std::endl;
+//            /*--------------------------------------------*/
 
-        }
+//        }
     return true;
 }
 

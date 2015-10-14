@@ -68,10 +68,10 @@ public:
 
     void init(const Mat_<uchar> &zeroFrame, const Rect &bb);
 
-    std::vector<Rect> detect(const Mat_<uchar> &scaledImage) const;
+    std::vector<std::pair<Rect, double> > detect(const Mat_<uchar> &scaledImage) const;
 
     void startPExpert(const Mat_<uchar> &image, const Rect &bb);
-    void startNExpert(const Mat_<uchar> &image, const Rect &bb, const std::vector<Rect> &detections);
+    void startNExpert(const Mat_<uchar> &image, const Rect &bb);
 
     void addPositiveExamples(const std::vector< Mat_<uchar> > &examples);
     void addNegativeExamples(const std::vector<Mat_<uchar> > &examples);
@@ -132,7 +132,7 @@ private:
 
     mutable std::vector<bool> answers;
 
-    std::vector<Rect> prepareFinalResult(const Mat_<uchar> &image) const;
+    std::vector<std::pair<Rect, double> > prepareFinalResult(const Mat_<uchar> &image) const;
     void myGroupRectangles(std::vector<Rect>& rectList, double eps) const;
     static std::vector<Hypothesis> generateHypothesis(const Size frameSize, const Size bbSize, const Size minimalBBSize, double scaleStep);
     static void addScanGrid(const Size frameSize, const Size bbSize, const Size minimalBBSize, std::vector<Hypothesis> &hypothesis, double scale);

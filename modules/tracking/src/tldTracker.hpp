@@ -66,7 +66,7 @@ TrackerTLD::Params::Params()
     numberOfFerns = 400;
     fernPatchSize = Size(15, 15);
 
-    numberOfExamples = 400;
+    numberOfExamples = 350;
     examplePatchSize = Size(50, 50);
 
     numberOfInitPositiveExamples = 13;
@@ -176,7 +176,7 @@ public:
 
     const IntegratorResult getObjectToTrainFrom(const Mat_<uchar> &frame,
                                                const std::pair<Rect, double> &objectFromTracker,
-                                               const std::pair<Rect, double> &objectFromDetector);
+                                               const std::vector<std::pair<Rect, double> > &objectsFromDetector);
 
 private:
     struct Candidate

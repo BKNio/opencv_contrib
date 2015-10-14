@@ -86,15 +86,15 @@ void CascadeClassifier::init(const Mat_<uchar> &zeroFrame, const Rect &bb)
 
     isInited = true;
 
-    std::vector<Rect> detections = detect(zeroFrame);
-    startNExpert(zeroFrame, bb, detections);
+    detect(zeroFrame);
+    startNExpert(zeroFrame, bb);
 
 }
 
 
 //#define TIME_MEASURE
-#define DEBUG_OUTPUT
-std::vector<Rect> CascadeClassifier::detect(const Mat_<uchar> &scaledImage) const
+//#define DEBUG_OUTPUT
+std::vector< std::pair<Rect, double> > CascadeClassifier::detect(const Mat_<uchar> &scaledImage) const
 {
     CV_Assert(isInited);
 
@@ -109,17 +109,6 @@ std::vector<Rect> CascadeClassifier::detect(const Mat_<uchar> &scaledImage) cons
 
     varianceClassifier->isObjects(hypothesis, scaledImage, answers);
 
-/*#ifdef DEBUG_OUTPUT
-    Mat_<uchar> copyVariance; scaledImage.copyTo(copyVariance);
-
-    for(size_t index = 0; index < hypothesis.size(); ++index)
-        if(answers[index])
-            rectangle(copyVariance, hypothesis[index].bb, Scalar::all(255));
-
-    imshow("after variance filter", copyVariance);
-    waitKey();
-#endif*/
-
 #ifdef TIME_MEASURE
     gettimeofday(&fernStart, NULL);
 #endif
@@ -127,27 +116,18 @@ std::vector<Rect> CascadeClassifier::detect(const Mat_<uchar> &scaledImage) cons
     preFernClassifier->isObjects(hypothesis, scaledImage, answers);
     fernClassifier->isObjects(hypothesis, scaledImage, answers);
 
-    //////////////////////experimental code/////////////////////////
-#ifdef FERN_EXPERIMENT
     fernsPositive.clear();
     for(size_t index = 0; index < answers.size(); ++index)
         if(answers[index])
             fernsPositive.push_back(hypothesis[index].bb);
-#endif
-    //////////////////////experimental code/////////////////////////
 
 
-#ifdef DEBUG_OUTPUT
-    Mat_<uchar> copy; scaledImage.copyTo(copy);
-
-    for(size_t index = 0; index < hypothesis.size(); ++index)
-        if(answers[index])
-            rectangle(copy, hypothesis[index].bb, Scalar::all(255));
-
+//    Mat_<uchar> copy; scaledImage.copyTo(copy);
+//    for(size_t index = 0; index < hypothesis.size(); ++index)
+//        if(answers[index])
+//            rectangle(copy, hypothesis[index].bb, Scalar::all(255));
 //    imshow("after fern", copy);
 //    waitKey();
-#endif
-
 
 #ifdef TIME_MEASURE
     gettimeofday(&nnStart, NULL);
@@ -160,27 +140,25 @@ std::vector<Rect> CascadeClassifier::detect(const Mat_<uchar> &scaledImage) cons
         if(answers[index])
             nnPositive.push_back(hypothesis[index].bb);
 
-#ifdef DEBUG_OUTPUT
-    Mat_<uchar> copyNN; scaledImage.copyTo(copyNN);
 
-    for(size_t index = 0; index < hypothesis.size(); ++index)
-        if(answers[index])
-            rectangle(copyNN, hypothesis[index].bb, Scalar::all(255));
+//    Mat_<uchar> copyNN; scaledImage.copyTo(copyNN);
+
+//    for(size_t index = 0; index < hypothesis.size(); ++index)
+//        if(answers[index])
+//            rectangle(copyNN, hypothesis[index].bb, Scalar::all(255));
 
 //    imshow("after nn filter", copyNN);
     std::pair<Mat, Mat> model = nnClassifier->outputModel();
     imshow("nn model positive", model.first);
     imshow("nn model negative", model.second);
-
     waitKey(1);
-#endif
 
 
 #ifdef TIME_MEASURE
     gettimeofday(&nnStop, NULL);
 #endif
 
-    const std::vector<Rect> &result = prepareFinalResult(scaledImage);
+    const std::vector< std::pair<Rect, double> > &result = prepareFinalResult(scaledImage);
 
 #ifdef TIME_MEASURE
     gettimeofday(&mergeStop, NULL);
@@ -200,18 +178,14 @@ void CascadeClassifier::startPExpert(const Mat_<uchar> &image, const Rect &bb)
     addPositiveExamples(pExpert->generatePositiveExamples(image, bb, positiveExampleNumbers, wrappedExamplesNumber));
 }
 
-void CascadeClassifier::startNExpert(const Mat_<uchar> &image, const Rect &bb, const std::vector<Rect> &detections)
+void CascadeClassifier::startNExpert(const Mat_<uchar> &image, const Rect &bb)
 {
-    //addNegativeExamples(nExpert->getNegativeExamples(image, bb, detections));
-
     const std::vector< Mat_<uchar> > &negExamplesForNN = nExpert->getNegativeExamples(image, bb, nnPositive, "NN negative");
     nnClassifier->integrateNegativeExamples(negExamplesForNN);
 
-#ifdef FERN_EXPERIMENT
-    const std::vector< Mat_<uchar> > &negExamplesForFern =  nExpert->getNegativeExamples(image, bb, fernsPositive, "ferns negative");
+    const std::vector< Mat_<uchar> > &negExamplesForFern = nExpert->getNegativeExamples(image, bb, fernsPositive, "ferns negative");
     fernClassifier->integrateNegativeExamples(negExamplesForFern);
     preFernClassifier->integrateNegativeExamples(negExamplesForFern);
-#endif
 }
 
 void CascadeClassifier::addPositiveExamples(const std::vector<Mat_<uchar> > &examples)
@@ -260,39 +234,21 @@ std::vector<Hypothesis> CascadeClassifier::generateHypothesis(const Size frameSi
     return hypothesis;
 }
 
-#define GROUP_RESPONSES
-std::vector<Rect> CascadeClassifier::prepareFinalResult(const Mat_<uchar> &image) const
+std::vector< std::pair<Rect, double> > CascadeClassifier::prepareFinalResult(const Mat_<uchar> &image) const
 {
-    std::vector< std::pair<Rect, double> > tResults;
-
-#ifdef GROUP_RESPONSES
-    std::vector<Rect> groupedRects;
-#endif
-
-    std::vector<Rect> finalResult;
+    std::vector< std::pair<Rect, double> > finalResult;
 
     for(size_t index = 0; index < hypothesis.size(); ++index)
+    {
         if(answers[index])
         {
-#ifndef GROUP_RESPONSES
             const double confidence = nnClassifier->calcConfidence(image(hypothesis[index].bb));
-            if(confidence >= 0.5)
-                finalResult.push_back(hypothesis[index].bb);
-#else
-            groupedRects.push_back(hypothesis[index].bb);
-#endif
+            finalResult.push_back(std::make_pair(hypothesis[index].bb, confidence));
+            CV_Assert(confidence >= 0.5);
         }
+    }
 
-#ifdef GROUP_RESPONSES
-    image.copyTo(debugOutput);
-    myGroupRectangles(groupedRects, groupRectanglesTheta);
-    for(std::vector<Rect>::const_iterator groupedRectsIt = groupedRects.begin(); groupedRectsIt != groupedRects.end(); ++groupedRectsIt)
-        tResults.push_back(std::make_pair(*groupedRectsIt, nnClassifier->calcConfidence(image(*groupedRectsIt))));
-#endif
-
-    std::sort(tResults.begin(), tResults.end(), greater);
-
-    std::transform(tResults.begin(), tResults.end(), std::back_inserter(finalResult), std::ptr_fun(strip));
+    std::sort(finalResult.begin(), finalResult.end(), greater);
 
     return finalResult;
 }
@@ -378,10 +334,10 @@ void CascadeClassifier::myGroupRectangles(std::vector<Rect> &rectList, double ep
             const size_t middle = _x.size() / 2;
 
             if(_x.size() % 2  == 0)
-                rect = Rect( (_x[middle] + _x[middle - 1]) / 2,
-                             (_y[middle] + _y[middle - 1]) / 2,
-                        (_width[middle] + _width[middle - 1]) / 2,
-                        (_height[middle] + _height[middle - 1]) / 2);
+                rect = Rect2d( (_x[middle] + _x[middle - 1]) * 0.5,
+                             (_y[middle] + _y[middle - 1]) * 0.5,
+                        (_width[middle] + _width[middle - 1]) * 0.5,
+                        (_height[middle] + _height[middle - 1]) * 0.5);
             else
                 rect = Rect( _x[middle], _y[middle], _width[middle],_height[middle]);
 
@@ -437,7 +393,7 @@ bool CascadeClassifier::isObjectPredicate(const CascadeClassifier *pCascadeClass
 
 std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(const Mat_<uchar> &image, const Rect &bb, int numberOfsurroundBbs, int numberOfSyntheticWarped)
 {
-    const float shiftRangePercent = .01f;
+    const float shiftRangePercent = .0f;
     const float scaleRange = .01f;
     const float angleRangeDegree = 10.f;
 
@@ -570,7 +526,7 @@ Mat_<uchar> CascadeClassifier::PExpert::getWarped(const Mat_<uchar> &originalFra
     rotationTransform.at<float>(0,1) = std::sin(angle);
     rotationTransform.at<float>(1,0) = - rotationTransform.at<float>(0,1);
 
-    const Mat resultTransform = rotationShiftTransform * rotationTransform * rotationShiftTransform.inv() * scaleTransform * shiftTransform;;
+    const Mat resultTransform = rotationShiftTransform * rotationTransform * rotationShiftTransform.inv() * scaleTransform * shiftTransform;
 
     Mat_<uchar> dst;
     warpAffine(originalFrame, dst, resultTransform(cv::Rect(0,0,3,2)), dst.size());
@@ -584,6 +540,9 @@ std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const 
                                                                           const std::vector<Rect> &detectedObjects,
                                                                           std::string capture)
 {
+
+    std::cout << "negative examples " << object << std::endl << "--------------------------------------------" << std::endl;
+
 #ifdef DEBUG_OUTPUT2
     Mat copy; cvtColor(image, copy, CV_GRAY2BGR);
 #endif
@@ -600,6 +559,12 @@ std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const 
             rectangle(copy, actDetectedObject, cv::Scalar(0, 165, 255));
 #endif
         }
+#ifdef DEBUG_OUTPUT2
+//        else
+//        {
+//            rectangle(copy, actDetectedObject, cv::Scalar(255, 165, 0));
+//        }
+#endif
     }
 
 #ifdef DEBUG_OUTPUT2
