@@ -66,8 +66,8 @@ TrackerTLD::Params::Params()
     numberOfFerns = 400;
     fernPatchSize = Size(15, 15);
 
-    numberOfExamples = 350;
-    examplePatchSize = Size(50, 50);
+    numberOfExamples = 1000;
+    examplePatchSize = Size(15, 15);
 
     numberOfInitPositiveExamples = 13;
     numberOfInitWarpedPositiveExamples = 20;
@@ -160,11 +160,12 @@ public:
     struct IntegratorResult
     {
         const Rect objectToTrain;
-        const Rect objectToResetTracker;
+        const Rect2d objectToResetTracker;
         const Rect objectToOutput;
+        const Rect ObjectDetector;
 
-        IntegratorResult(Rect actObjectToTrain, Rect actObjectToResetTracker, Rect actObjectToOutput) :
-            objectToTrain(actObjectToTrain), objectToResetTracker(actObjectToResetTracker), objectToOutput(actObjectToOutput) {}
+        IntegratorResult(Rect actObjectToTrain, Rect2d actObjectToResetTracker, Rect actObjectToOutput, Rect actObjectDetector) :
+            objectToTrain(actObjectToTrain), objectToResetTracker(actObjectToResetTracker), objectToOutput(actObjectToOutput), ObjectDetector(actObjectDetector) {}
     };
 
     Integrator(const Ptr<NNClassifier> &actNNClassifier, const Rect &actRoi)
@@ -175,7 +176,7 @@ public:
     }
 
     const IntegratorResult getObjectToTrainFrom(const Mat_<uchar> &frame,
-                                               const std::pair<Rect, double> &objectFromTracker,
+                                               const std::pair<Rect2d, double> &objectFromTracker,
                                                const std::vector<std::pair<Rect, double> > &objectsFromDetector);
 
 private:
@@ -185,6 +186,7 @@ private:
         Candidate(const Mat_<uchar> &frame, Rect bb);
 
         double confidence;
+        double hints;
         Ptr<TrackerMedianFlow> medianFlow;
         Rect2d prevRect;
 
@@ -200,10 +202,16 @@ private:
     const size_t maxCandidatesSize;
 
 private:
-    static void updateCandidates(Ptr<Candidate> candidate, Mat_<uchar> &frame);
-    //static void updateCandidatesConfidence(Ptr<Candidate> candidate, Mat_<uchar> &frame);
-    static bool sortPredicate(const Ptr<Candidate> &candidate1, const Ptr<Candidate> &candidate2);
+    static void updateCandidates(Ptr<Candidate> candidate, const Mat_<uchar> &frame);
+    static void incrementHints(Ptr<Candidate> candidate, const std::vector< std::pair<Rect, double> > &objectsFromDetector);
+    static bool sortPredicateConf(const Ptr<Candidate> &candidate1, const Ptr<Candidate> &candidate2);
+
+    static bool sortDetections(const std::pair<Rect, double> &candidate1, const std::pair<Rect, double> &candidate2);
+
+    static bool sortPredicateHints(const Ptr<Candidate> &candidate1);
+
     static bool overlapPredicate(const Ptr<Candidate> candidate, const Rect &bb);
+    static bool overlapIncPredicate(const std::pair<Rect, double> candidate, const Rect2d &bb);
     static bool selectCandidateForRemove(const Ptr<Candidate> candidate);
     static Rect averageRects(const Rect &item1, const Rect &item2);
 };

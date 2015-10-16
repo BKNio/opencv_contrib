@@ -95,7 +95,7 @@ private:
     private:
         std::vector<Rect> generateClosestN(const Rect &bBox, int n);
         std::vector<float> generateRandomValues(float range, int quantity) ;
-        Mat_<uchar> getWarped(const Mat_<uchar> &originalFrame, Rect bb, float shiftX, float shiftY, float scale, float rotation);
+        Mat_<uchar> getWarped(const Mat_<uchar> &originalFrame, const Rect &bb, float shiftX, float shiftY, float scale, float rotation);
     };
 
     class NExpert

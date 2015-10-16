@@ -162,7 +162,7 @@ public:
     void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
     void integrateNegativeExamples(const std::vector< Mat_<uchar> > &examples);
 
-    std::pair<cv::Mat, cv::Mat> outputModel() const;
+    std::pair<cv::Mat, cv::Mat> outputModel(int positiveMark = -1, int negativeMark = -1) const;
 
     ~NNClassifier() {}
 
@@ -185,6 +185,10 @@ public:
     void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
 public:
     static float NCC(const Mat_<uchar>& patch1, const Mat_<uchar>& patch2);
+
+
+    std::pair<Mat, Mat> getModelWDecisionMarks(const Mat_<uchar> &image, double previousConf);
+    double debugSr(const Mat_<uchar> &patch, int &positiveDecisitionExample, int &negativeDecisionExample);
 
 
 #ifdef NNDEBUG

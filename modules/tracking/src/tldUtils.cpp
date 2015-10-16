@@ -226,6 +226,8 @@ public:
 Rect myGroupRectangles(std::vector<Rect> &rectList, double eps)
 {
 
+
+
     //CV_Assert(rectList.size() >= 3);
 
     std::vector<int> labels;

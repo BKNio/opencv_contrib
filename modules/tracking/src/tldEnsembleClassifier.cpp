@@ -445,7 +445,7 @@ void NNClassifier::integrateNegativeExamples(const std::vector<Mat_<uchar> > &ex
         addExample(*example, negativeExamples);
 }
 
-std::pair<Mat, Mat> NNClassifier::outputModel() const
+std::pair<Mat, Mat> NNClassifier::outputModel(int positiveMark, int negativeMark) const
 {
     const int sqrtSize = cvRound(std::sqrt(std::max(positiveExamples.size(), negativeExamples.size())) + 0.5f);
     const int outputWidth = sqrtSize * normilizedPatchSize.width, outputHeight = sqrtSize * normilizedPatchSize.height;
@@ -454,7 +454,8 @@ std::pair<Mat, Mat> NNClassifier::outputModel() const
 
     cv::Rect actPositionPositive(cv::Point(), normilizedPatchSize);
 
-    for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
+    int currentPositiveExample = 0;
+    for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it, ++currentPositiveExample)
     {
         if(actPositionPositive.x + it->cols > positivePrecedents.cols)
         {
@@ -466,13 +467,20 @@ std::pair<Mat, Mat> NNClassifier::outputModel() const
 
         it->copyTo(positivePrecedents(actPositionPositive));
 
+        if(currentPositiveExample == positiveMark)
+        {
+            imwrite("/tmp/pos.png", *it);
+            rectangle(positivePrecedents, actPositionPositive, Scalar::all(255));
+        }
+
         actPositionPositive.x += it->cols;
 
     }
 
     cv::Rect actPositionNegative(cv::Point(), normilizedPatchSize);
 
-    for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
+    int currentNegativeExample = 0;
+    for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it, ++currentNegativeExample)
     {
         if(actPositionNegative.x + it->cols > negativePrecedents.cols)
         {
@@ -483,6 +491,12 @@ std::pair<Mat, Mat> NNClassifier::outputModel() const
         CV_Assert(actPositionNegative.y + it->rows <= negativePrecedents.rows);
 
         it->copyTo(negativePrecedents(actPositionNegative));
+
+        if(currentNegativeExample == negativeMark)
+        {
+            imwrite("/tmp/neg.png", *it);
+            rectangle(negativePrecedents, actPositionNegative, Scalar::all(255));
+        }
 
         actPositionNegative.x += it->cols;
 
@@ -545,6 +559,8 @@ double NNClassifier::Sr(const Mat_<uchar> &patch) const
 #endif
     }
 
+    if(2 * splus - 1 < 0.85 && 2 * sminus - 1 < 0.85)
+        return 0.;
 
     if (splus + sminus == 0.0)
         return 0.0;
@@ -603,6 +619,12 @@ void NNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> 
 
 float NNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
 {
+    /*Mat_<float> output;
+    matchTemplate(patch1, patch2, output, CV_TM_CCOEFF_NORMED);
+    CV_Assert(output.size() == Size(1,1));
+    CV_Assert(output.type() == CV_32F);
+    return output.at<float>(0);*/
+
     CV_Assert(patch1.size() == patch2.size());
 
     const float N = patch1.size().area();
@@ -637,6 +659,73 @@ float NNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
     CV_Assert(p2Dev > 0.);
 
     return (p1p2Sum / N - p1Mean * p2Mean) / std::sqrt(p1Dev * p2Dev);
+}
+
+std::pair<Mat, Mat> NNClassifier::getModelWDecisionMarks(const Mat_<uchar> &image, double previousConf)
+{
+    Mat internalNormilizedPatch;
+
+    if(image.size() != normilizedPatchSize)
+        resize(image, internalNormilizedPatch, normilizedPatchSize);
+    else
+        image.copyTo(internalNormilizedPatch);
+
+    int positiveDesicionExample = -1, negativeDesicionExample = -1;
+
+    const double calcedConf = debugSr(internalNormilizedPatch, positiveDesicionExample, negativeDesicionExample);
+
+    CV_Assert(previousConf == calcedConf);
+
+    imwrite("/tmp/req.png", internalNormilizedPatch);
+
+    return outputModel(positiveDesicionExample, negativeDesicionExample);
+
+}
+
+double NNClassifier::debugSr(const Mat_<uchar> &patch, int &positiveDecisitionExample, int &negativeDecisionExample)
+{
+    double splus = 0., sminus = 0.;
+
+    double prevSplus = splus, prevSminus = sminus;
+
+    for(ExampleStorage::iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
+    {
+        splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
+
+        if(prevSplus != splus)
+        {
+            positiveDecisitionExample = std::distance(positiveExamples.begin(), it);
+            prevSplus = splus;
+        }
+    }
+
+    for(ExampleStorage::iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
+    {
+        sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
+
+        if(prevSminus != sminus)
+        {
+            negativeDecisionExample = std::distance(negativeExamples.begin(), it);
+            prevSminus = sminus;
+        }
+    }
+
+
+    std::cout << 2 * splus - 1. << " " << 2 * sminus  - 1. << " ";
+
+    if(2 * splus - 1 < 0.85 && 2 * sminus - 1 < 0.85)
+        return 0.;
+
+    if(splus + sminus == 0.)
+        std::cout << 0. << std::endl;
+    else
+        std::cout << splus / (sminus + splus) << std::endl;
+
+
+    if (splus + sminus == 0.0)
+        return 0.0;
+
+    return splus / (sminus + splus);
 }
 
 }
