@@ -88,7 +88,7 @@ private:
     Rect2d vote(const std::vector<Point2f>& oldPoints, const std::vector<Point2f>& newPoints, const Rect2d& oldRect, bool &isOK);
 
     template<typename T>
-    T getMedian( std::vector<T>& values);
+    T getMedian(const std::vector<T>& values);
     std::string type2str(int type);
     //void computeStatistics(std::vector<float>& data,int size=-1);
     void check_FB(const Mat& oldImage,const Mat& newImage,
@@ -178,16 +178,10 @@ bool TrackerMedianFlowImpl::updateImpl( const Mat& image, Rect2d& boundingBox )
 
     Rect2d oldBox=((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->getBoundingBox();
 
-    if(oldBox.area() == 0)
-       std::cout << "zalupka" << std::endl;
-
-    if(!medianFlowImpl(oldImage,image,oldBox)){
+    if(!medianFlowImpl(oldImage,image,oldBox))
         return false;
-    }
-    boundingBox=oldBox;
 
-    if(oldBox.area() == 0)
-       std::cout << "zalupka" << std::endl;
+    boundingBox=oldBox;
 
     ((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->setImage(image);
     ((TrackerMedianFlowModel*)static_cast<TrackerModel*>(model))->setBoudingBox(oldBox);
@@ -294,38 +288,48 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
         return false;
 
     std::vector<bool> filter_status;
-    check_FB(oldImage_gray, newImage_gray, pointsToTrackOld, pointsToTrackNew, filter_status);
-//    {
-//        Mat_<uchar> newImageGrayCopy; newImage_gray.copyTo(newImageGrayCopy);
-//        for(std::vector<Point2f>::iterator point = pointsToTrackNew.begin(); point != pointsToTrackNew.end(); ++point)
-//        {
-//            if(filter_status[std::distance(pointsToTrackNew.begin(), point)])
-//                circle(newImageGrayCopy, *point, 2, Scalar::all(255));
-//            else
-//                circle(newImageGrayCopy, *point, 2, Scalar::all(0));
-//        }
 
-//        imshow("median flow FB", newImageGrayCopy);
-//    }
+    check_FB(oldImage_gray, newImage_gray, pointsToTrackOld, pointsToTrackNew, filter_status);
+    {
+        Mat_<uchar> newImageGrayCopy; newImage_gray.copyTo(newImageGrayCopy);
+        for(std::vector<Point2f>::iterator point = pointsToTrackNew.begin(); point != pointsToTrackNew.end(); ++point)
+        {
+            if(filter_status[std::distance(pointsToTrackNew.begin(), point)])
+                circle(newImageGrayCopy, *point, 2, Scalar::all(255));
+            else
+                circle(newImageGrayCopy, *point, 2, Scalar::all(0));
+        }
+
+        imshow("FB check", newImageGrayCopy);
+    }
 
     check_NCC(oldImage_gray, newImage_gray, pointsToTrackOld, pointsToTrackNew, filter_status);
+    {
+        Mat_<uchar> newImageGrayCopy; newImage_gray.copyTo(newImageGrayCopy);
+        for(std::vector<Point2f>::iterator point = pointsToTrackNew.begin(); point != pointsToTrackNew.end(); ++point)
+        {
+            if(filter_status[std::distance(pointsToTrackNew.begin(), point)])
+                circle(newImageGrayCopy, *point, 2, Scalar::all(255));
+            else
+                circle(newImageGrayCopy, *point, 2, Scalar::all(0));
+        }
+
+        imshow("ncc check", newImageGrayCopy);
+    }
 
     checkDisplacement(pointsToTrackOld, pointsToTrackNew, filter_status);
+    {
+        Mat_<uchar> newImageGrayCopy; newImage_gray.copyTo(newImageGrayCopy);
+        for(std::vector<Point2f>::iterator point = pointsToTrackNew.begin(); point != pointsToTrackNew.end(); ++point)
+        {
+            if(filter_status[std::distance(pointsToTrackNew.begin(), point)])
+                circle(newImageGrayCopy, *point, 2, Scalar::all(255));
+            else
+                circle(newImageGrayCopy, *point, 2, Scalar::all(0));
+        }
 
-
-//    {
-//        Mat_<uchar> newImageGrayCopy; newImage_gray.copyTo(newImageGrayCopy);
-//        for(std::vector<Point2f>::iterator point = pointsToTrackNew.begin(); point != pointsToTrackNew.end(); ++point)
-//        {
-//            if(filter_status[std::distance(pointsToTrackNew.begin(), point)])
-//                circle(newImageGrayCopy, *point, 2, Scalar::all(255));
-//            else
-//                circle(newImageGrayCopy, *point, 2, Scalar::all(0));
-//        }
-
-//        imshow("median flow NCC", newImageGrayCopy);
-//        waitKey(1);
-//    }
+        imshow("displacement check", newImageGrayCopy);
+    }
 
 
     {
@@ -400,7 +404,7 @@ Rect2d TrackerMedianFlowImpl::vote(const std::vector<Point2f>& oldPoints,const s
             float nd = l2distance(newPoints[i], newPoints[j]);
             float od = l2distance(oldPoints[i], oldPoints[j]);
 
-            CV_Assert(std::fabs(od) > 1e-3);
+            CV_Assert(std::fabs(od) > 1e-2);
             scales.push_back(nd / od);
         }
     }
@@ -423,15 +427,17 @@ Rect2d TrackerMedianFlowImpl::vote(const std::vector<Point2f>& oldPoints,const s
 }
 
 template<typename T>
-T TrackerMedianFlowImpl::getMedian(std::vector<T>& values)
+T TrackerMedianFlowImpl::getMedian(const std::vector<T>& values)
 {
+    std::vector<T> copyValues(values);
+
     size_t size = values.size();
 
-    std::sort(values.begin(),values.end());
+    std::sort(copyValues.begin(),copyValues.end());
     if(size % 2 == 0)
-        return (values[size / 2 - 1] + values[size / 2]) / ( (T)2.0);
+        return (copyValues[size / 2 - 1] + copyValues[size / 2]) / ( (T)2.0);
     else
-        return values[size / 2];
+        return copyValues[size / 2];
 
 }
 
@@ -548,6 +554,14 @@ void TrackerMedianFlowImpl::check_NCC(const Mat& oldImage,const Mat& newImage,
         status = std::vector<bool>(status.size(), false);
     }
 
+//    if(median == 1.f)
+//    {
+////        imshow("old image", oldImage);
+////        imshow("new image", newImage);
+////        waitKey();
+//        std::cout << "median " << median << std::endl;
+//    }
+
     size_t nccPos = 0;
     for(size_t i = 0; i < oldPoints.size(); i++)
         if(status[i])
@@ -572,6 +586,9 @@ void TrackerMedianFlowImpl::checkDisplacement(const std::vector<Point2f> &oldPoi
         displacement.push_back(l2distance(oldPoints[index], newPoints[index]));
     }
 
+    if(displacement.size() == 0)
+        return;
+
     float medianDisplacement = getMedian(displacement);
 
     if(medianDisplacement > 20.f)
@@ -587,7 +604,7 @@ void TrackerMedianFlowImpl::checkDisplacement(const std::vector<Point2f> &oldPoi
         if(!status[index])
             continue;
 
-        if(displacement[indexDisplacement] > 1.5 * medianDisplacement || displacement[indexDisplacement] < 0.66 * medianDisplacement)
+        if(displacement[indexDisplacement] > 1.1 * medianDisplacement || displacement[indexDisplacement] < 0.9 * medianDisplacement)
             status[index] = 0;
         indexDisplacement++;
     }

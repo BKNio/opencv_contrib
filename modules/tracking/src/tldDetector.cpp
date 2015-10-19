@@ -411,12 +411,21 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
     const float shiftXRange = shiftRangePercent * bb.width;
     const float shiftYRange = shiftRangePercent * bb.height;
 
+
+    /////////////////////////////experimental////////////////////////////
+    Mat mirror = Mat::eye(3, 3, CV_32F);
+    mirror.at<float>(0,0) = -1.f;
+    Mat shift = Mat::eye(3, 3, CV_32F);
+    shift.at<float>(0,2) = bb.width / 2;
+    shift.at<float>(1,2) = bb.height / 2;
+    Mat result = shift * mirror * shift.inv();
+    /////////////////////////////experimental////////////////////////////
+
+
     std::vector< Mat_<uchar> > positiveExamples;
 
-    if(isRectOK(bb))
-        positiveExamples.push_back(image(bb));
-
-    //numberOfSyntheticWarped *= 10;
+//    if(isRectOK(bb))
+//        positiveExamples.push_back(image(bb));
 
     std::vector<Rect> nClosestRects = generateClosestN(bb, /*numberOfsurroundBbs*/1);
 
@@ -434,7 +443,14 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
             for(int j = 0; j < warpedOOI.rows * warpedOOI.cols; ++j)
                     warpedOOI.at<uchar>(j) = saturate_cast<uchar>(warpedOOI.at<uchar>(j) + rng.gaussian(5.));
 
+            warpedOOI *= rng.uniform(0.9, 1.1);
+
+            Mat_<uchar> mirrored;
+            warpAffine(warpedOOI, mirrored, result(Rect(0,0,3,2)), warpedOOI.size());
+
             positiveExamples.push_back(warpedOOI);
+            positiveExamples.push_back(mirrored);
+
         }
 
         positiveExamples.push_back(image(*positiveRect).clone());
