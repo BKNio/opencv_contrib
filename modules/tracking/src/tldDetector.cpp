@@ -122,11 +122,11 @@ std::vector< std::pair<Rect, double> > CascadeClassifier::detect(const Mat_<ucha
             fernsPositive.push_back(hypothesis[index].bb);
 
 
-//    Mat_<uchar> copy; scaledImage.copyTo(copy);
-//    for(size_t index = 0; index < hypothesis.size(); ++index)
-//        if(answers[index])
-//            rectangle(copy, hypothesis[index].bb, Scalar::all(255));
-//    imshow("after fern", copy);
+    Mat_<uchar> copy; scaledImage.copyTo(copy);
+    for(size_t index = 0; index < hypothesis.size(); ++index)
+        if(answers[index])
+            rectangle(copy, hypothesis[index].bb, Scalar::all(255));
+    imshow("after fern", copy);
 
 
 #ifdef TIME_MEASURE
@@ -201,19 +201,19 @@ void CascadeClassifier::startNExpert(const Mat_<uchar> &image, const Rect &bb)
 
 void CascadeClassifier::addPositiveExamples(const std::vector<Mat_<uchar> > &examples)
 {
-    std::vector< Mat_<uchar> > exampleCopy(examples);
+    //std::vector< Mat_<uchar> > exampleCopy(examples);
 
     /*exampleCopy.erase(std::remove_if(exampleCopy.begin(), exampleCopy.end(), std::bind1st(std::ptr_fun(isObjectPredicate), this)), exampleCopy.end());*/
 
-    varianceClassifier->integratePositiveExamples(exampleCopy);
-    preFernClassifier->integratePositiveExamples(exampleCopy);
-    fernClassifier->integratePositiveExamples(exampleCopy);
-    nnClassifier->integratePositiveExamples(exampleCopy);
+    varianceClassifier->integratePositiveExamples(examples);
+    //preFernClassifier->integratePositiveExamples(examples);
+    fernClassifier->integratePositiveExamples(examples);
+    nnClassifier->integratePositiveExamples(examples);
 }
 
 void CascadeClassifier::addNegativeExamples(const std::vector<Mat_<uchar> > &examples)
 {
-    preFernClassifier->integrateNegativeExamples(examples);
+    //preFernClassifier->integrateNegativeExamples(examples);
     fernClassifier->integrateNegativeExamples(examples);
     nnClassifier->integrateNegativeExamples(examples);
 }
@@ -451,6 +451,20 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
             positiveExamples.push_back(warpedOOI);
             positiveExamples.push_back(mirrored);
 
+
+//            Mat_<uchar> mirroredBrighter = mirrored * 1.1;
+//            Mat_<uchar> mirroredDarker = mirrored * 0.9;
+
+//            positiveExamples.push_back(mirroredBrighter);
+//            positiveExamples.push_back(mirroredDarker);
+
+
+//            Mat_<uchar> warpedOOIBrighter = warpedOOI * 1.1;
+//            Mat_<uchar> warpedOOIDarker = warpedOOI * 0.9;
+
+//            positiveExamples.push_back(warpedOOIBrighter);
+//            positiveExamples.push_back(warpedOOIDarker);
+
         }
 
         positiveExamples.push_back(image(*positiveRect).clone());
@@ -536,9 +550,9 @@ std::vector<float> CascadeClassifier::PExpert::generateRandomValues(float range,
 Mat_<uchar> CascadeClassifier::PExpert::getWarped(const Mat_<uchar> &originalFrame, const Rect &bb, float shiftX, float shiftY, float scale, float rotation)
 {
 
-    Mat shiftTransform = cv::Mat::eye(3, 3, CV_32F);
-    shiftTransform.at<float>(0,2) = shiftX;
-    shiftTransform.at<float>(1,2) = shiftY;
+//    Mat shiftTransform = cv::Mat::eye(3, 3, CV_32F);
+//    shiftTransform.at<float>(0,2) = shiftX;
+//    shiftTransform.at<float>(1,2) = shiftY;
 
     Mat scaleTransform = cv::Mat::eye(3, 3, CV_32F);
     scaleTransform.at<float>(0,0) = 1 - scale;
@@ -555,7 +569,7 @@ Mat_<uchar> CascadeClassifier::PExpert::getWarped(const Mat_<uchar> &originalFra
     rotationTransform.at<float>(0,1) = std::sin(angle);
     rotationTransform.at<float>(1,0) = - rotationTransform.at<float>(0,1);
 
-    const Mat resultTransform = /*cv::Mat::eye(3,3, CV_32F);*/rotationShiftTransform * rotationTransform * rotationShiftTransform.inv() * scaleTransform * shiftTransform;
+    const Mat resultTransform = /*cv::Mat::eye(3,3, CV_32F);*/rotationShiftTransform * rotationTransform * rotationShiftTransform.inv() * scaleTransform/* * shiftTransform*/;
 
     Mat_<uchar> dst;
     warpAffine(originalFrame, dst, resultTransform(cv::Rect(0,0,3,2)), dst.size());
@@ -579,7 +593,7 @@ std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const 
     {
         const Rect &actDetectedObject = detectedObjects[i];
 
-        if(overlap(actDetectedObject, object) <= .6)
+        if(overlap(actDetectedObject, object) <= .5)
         {
             negativeExamples.push_back(image(actDetectedObject).clone());
 #ifdef DEBUG_OUTPUT2
@@ -597,7 +611,9 @@ std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const 
 #ifdef DEBUG_OUTPUT2
     rectangle(copy, object, cv::Scalar(165, 0, 255));
     imshow(capture, copy);
-    waitKey(1);
+
+//    if(capture == "NN negative" && !negativeExamples.empty())
+//        waitKey();
 #endif
 
     return negativeExamples;

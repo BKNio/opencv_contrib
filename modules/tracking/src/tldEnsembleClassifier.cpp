@@ -450,7 +450,8 @@ std::pair<Mat, Mat> NNClassifier::outputModel(int positiveMark, int negativeMark
     const int sqrtSize = cvRound(std::sqrt(std::max(positiveExamples.size(), negativeExamples.size())) + 0.5f);
     const int outputWidth = sqrtSize * normilizedPatchSize.width, outputHeight = sqrtSize * normilizedPatchSize.height;
 
-    cv::Mat positivePrecedents(outputHeight, outputWidth, CV_8U, Scalar::all(255)), negativePrecedents(outputHeight, outputWidth, CV_8U, Scalar::all(255));
+    Mat positivePrecedents(outputHeight, outputWidth, CV_8U, Scalar::all(255)), negativePrecedents(outputHeight, outputWidth, CV_8U, Scalar::all(255));
+    Mat positivePrecedent, negativePrecedent;
 
     cv::Rect actPositionPositive(cv::Point(), normilizedPatchSize);
 
@@ -469,8 +470,9 @@ std::pair<Mat, Mat> NNClassifier::outputModel(int positiveMark, int negativeMark
 
         if(currentPositiveExample == positiveMark)
         {
-            imwrite("/tmp/pos.png", *it);
+//            imwrite("/tmp/pos.png", *it);
             rectangle(positivePrecedents, actPositionPositive, Scalar::all(255));
+            it->copyTo(positivePrecedent);
         }
 
         actPositionPositive.x += it->cols;
@@ -494,15 +496,17 @@ std::pair<Mat, Mat> NNClassifier::outputModel(int positiveMark, int negativeMark
 
         if(currentNegativeExample == negativeMark)
         {
-            imwrite("/tmp/neg.png", *it);
+//            imwrite("/tmp/neg.png", *it);
             rectangle(negativePrecedents, actPositionNegative, Scalar::all(255));
+            it->copyTo(negativePrecedent);
         }
 
         actPositionNegative.x += it->cols;
 
     }
 
-    return std::make_pair(positivePrecedents, negativePrecedents);
+//    return std::make_pair(positivePrecedents, negativePrecedents);
+    return std::make_pair(positivePrecedent, negativePrecedent);
 }
 
 bool NNClassifier::isObject(const Mat_<uchar> &image) const
@@ -525,7 +529,17 @@ double NNClassifier::calcConfidence(const Mat_<uchar> &image) const
     return Sr(normilizedPatch);
 }
 
-double NNClassifier::Sr(const Mat_<uchar> &patch) const
+double NNClassifier::calcConfidenceTracker(const Mat_<uchar> &image) const
+{
+    if(image.size() != normilizedPatchSize)
+        resize(image, normilizedPatch, normilizedPatchSize);
+    else
+        image.copyTo(normilizedPatch);
+
+    return Sr(normilizedPatch, true);
+}
+
+double NNClassifier::Sr(const Mat_<uchar> &patch, bool isForTracker) const
 {
     double splus = 0., sminus = 0.;
 
@@ -559,8 +573,9 @@ double NNClassifier::Sr(const Mat_<uchar> &patch) const
 #endif
     }
 
-    if(2 * splus - 1 < 0.85 && 2 * sminus - 1 < 0.85)
-        return 0.;
+    if(!isForTracker)
+        if(2 * splus - 1 < 0.85 && 2 * sminus - 1 < 0.85)
+            return 0.;
 
     if (splus + sminus == 0.0)
         return 0.0;
@@ -711,15 +726,15 @@ double NNClassifier::debugSr(const Mat_<uchar> &patch, int &positiveDecisitionEx
     }
 
 
-    std::cout << 2 * splus - 1. << " " << 2 * sminus  - 1. << " ";
+    //std::cout << 2 * splus - 1. << " " << 2 * sminus  - 1. << " ";
 
     if(2 * splus - 1 < 0.85 && 2 * sminus - 1 < 0.85)
         return 0.;
 
-    if(splus + sminus == 0.)
-        std::cout << 0. << std::endl;
-    else
-        std::cout << splus / (sminus + splus) << std::endl;
+//    if(splus + sminus == 0.)
+//        std::cout << 0. << std::endl;
+//    else
+//        std::cout << splus / (sminus + splus) << std::endl;
 
 
     if (splus + sminus == 0.0)

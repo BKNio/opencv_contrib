@@ -180,7 +180,9 @@ public:
 /*private:*/
     bool isObject(const Mat_<uchar> &image) const;
     double calcConfidence(const Mat_<uchar> &image) const;
-    double Sr(const Mat_<uchar>& patch) const;
+    double calcConfidenceTracker(const Mat_<uchar> &image) const;
+
+    double Sr(const Mat_<uchar>& patch, bool isForTracker = false) const;
     double Sc(const Mat_<uchar>& patch) const;
     void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
 public:

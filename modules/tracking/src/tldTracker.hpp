@@ -67,12 +67,12 @@ TrackerTLD::Params::Params()
     fernPatchSize = Size(15, 15);
 
     numberOfExamples = 1000;
-    examplePatchSize = Size(15, 15);
+    examplePatchSize = Size(60, 60);
 
     numberOfInitPositiveExamples = 13;
     numberOfInitWarpedPositiveExamples = 20;
 
-    numberOfPositiveExamples = 5;
+    numberOfPositiveExamples = 1;
     numberOfWarpedPositiveExamples = 10;
 
     groupRectanglesTheta = 0.15;

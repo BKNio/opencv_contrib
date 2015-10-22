@@ -290,7 +290,7 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
     std::vector<bool> filter_status;
 
     check_FB(oldImage_gray, newImage_gray, pointsToTrackOld, pointsToTrackNew, filter_status);
-    {
+    /*{
         Mat_<uchar> newImageGrayCopy; newImage_gray.copyTo(newImageGrayCopy);
         for(std::vector<Point2f>::iterator point = pointsToTrackNew.begin(); point != pointsToTrackNew.end(); ++point)
         {
@@ -301,10 +301,10 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
         }
 
         imshow("FB check", newImageGrayCopy);
-    }
+    }*/
 
     check_NCC(oldImage_gray, newImage_gray, pointsToTrackOld, pointsToTrackNew, filter_status);
-    {
+    /*{
         Mat_<uchar> newImageGrayCopy; newImage_gray.copyTo(newImageGrayCopy);
         for(std::vector<Point2f>::iterator point = pointsToTrackNew.begin(); point != pointsToTrackNew.end(); ++point)
         {
@@ -315,10 +315,10 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
         }
 
         imshow("ncc check", newImageGrayCopy);
-    }
+    }*/
 
     checkDisplacement(pointsToTrackOld, pointsToTrackNew, filter_status);
-    {
+    /*{
         Mat_<uchar> newImageGrayCopy; newImage_gray.copyTo(newImageGrayCopy);
         for(std::vector<Point2f>::iterator point = pointsToTrackNew.begin(); point != pointsToTrackNew.end(); ++point)
         {
@@ -329,7 +329,7 @@ bool TrackerMedianFlowImpl::medianFlowImpl(Mat oldImage,Mat newImage,Rect2d& old
         }
 
         imshow("displacement check", newImageGrayCopy);
-    }
+    }*/
 
 
     {
@@ -548,7 +548,7 @@ void TrackerMedianFlowImpl::check_NCC(const Mat& oldImage,const Mat& newImage,
 
     float median = getMedian(ncc);
 
-    if(median < .7f)
+    if(median < .8f)
     {
         std::cout << "bad NCC median" << median << std::endl;
         status = std::vector<bool>(status.size(), false);
@@ -605,7 +605,7 @@ void TrackerMedianFlowImpl::checkDisplacement(const std::vector<Point2f> &oldPoi
             continue;
 
         if(displacement[indexDisplacement] > 1.1 * medianDisplacement || displacement[indexDisplacement] < 0.9 * medianDisplacement)
-            status[index] = 0;
+            status[index] = false;
         indexDisplacement++;
     }
 
