@@ -218,6 +218,9 @@ FernClassifier::FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfF
 
 void FernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
 {
+
+    //saveFern("/tmp/1000.xml");
+
     CV_Assert(hypothesis.size() == answers.size());
 
 #ifdef FERN_PROFILE
@@ -235,6 +238,7 @@ void FernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const 
         if(answers[i])
             answers[i] = isObject(blurred(hypothesis[i].bb));
 
+
 #ifdef FERN_PROFILE
     gettimeofday(&stop, NULL);
     std::cout << "------------------" << std::endl;
@@ -248,6 +252,10 @@ void FernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const 
 
 void FernClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &examples)
 {
+
+    //int randomPrecedents = rng.uniform(0, precedents.size());
+    //precedents[randomPrecedents] = Precedents::value_type(precedents[randomPrecedents].size());
+
     for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
         integrateExample(*example, true);
 }
@@ -272,6 +280,14 @@ double FernClassifier::getProbability(const Mat_<uchar> &image) const
 
     const int fernsSize = int(ferns.size());
     //const float coeff = 1.f / fernsSize;
+
+
+    /////////////////////////////////////////////////////////////////////
+    //Size size;
+    //Point point;
+    //image.locateROI(size, point);
+    //const Rect bb(point, image.size());
+    /////////////////////////////////////////////////////////////////////
 
     for(int i = 0; i < fernsSize; ++i)
     {
@@ -377,6 +393,79 @@ void FernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
             precedents[i][position].y++;
 
     }
+}
+
+void FernClassifier::saveFern(const std::string &path) const
+{
+    return;
+    FileStorage fernStorage(path, FileStorage::WRITE);
+
+    for(size_t fernIndex = 0; fernIndex < precedents.size(); ++fernIndex)
+    {
+        std::stringstream ss; ss << "fern_" << fernIndex;
+        fernStorage << ss.str() << precedents[fernIndex];
+    }
+}
+
+void FernClassifier::compareFerns(const std::string &refFern, const std::string &testFern)
+{
+    FileStorage refFern1Storage(refFern, FileStorage::READ), testFern2Storage(testFern, FileStorage::READ);
+
+    Precedents refPrecedents, testPrecedents;
+
+    for(int i = 0;; ++i)
+    {
+        std::vector<Point> refPrecendent, testPrecendent;
+        std::stringstream ss; ss << "fern_" << i;
+
+        refFern1Storage[ss.str()] >> refPrecendent;
+        testFern2Storage[ss.str()] >> testPrecendent;
+
+        if(refPrecendent.empty() || testPrecendent.empty())
+        {
+            CV_Assert(refPrecendent.empty() && testPrecendent.empty());
+            break;
+        }
+
+        CV_Assert(refPrecendent.size() == testPrecendent.size());
+
+        refPrecedents.push_back(refPrecendent);
+        testPrecedents.push_back(testPrecendent);
+
+    }
+
+    CV_Assert(refPrecedents.size() == testPrecedents.size());
+
+    int diffPositive = 0, diffNegative = 0;
+    int newDiffPositive = 0, newDiffNegative = 0;
+
+    for(size_t outterIndex = 0; outterIndex < refPrecedents.size(); ++outterIndex)
+    {
+        for(size_t innerIndex = 0; innerIndex < refPrecedents[outterIndex].size(); ++innerIndex)
+        {
+            if(refPrecedents[outterIndex][innerIndex] != testPrecedents[outterIndex][innerIndex])
+            {
+                if((refPrecedents[outterIndex][innerIndex].x > refPrecedents[outterIndex][innerIndex].y && testPrecedents[outterIndex][innerIndex].x <= testPrecedents[outterIndex][innerIndex].y))
+                {
+                    std::cout << "negative " << outterIndex << " " << refPrecedents[outterIndex][innerIndex] << " " << testPrecedents[outterIndex][innerIndex] << std::endl;
+                    diffNegative++;
+                    if(refPrecedents[outterIndex][innerIndex] == Point())
+                        newDiffNegative++;
+                }
+                if(refPrecedents[outterIndex][innerIndex].x <= refPrecedents[outterIndex][innerIndex].y && testPrecedents[outterIndex][innerIndex].x > testPrecedents[outterIndex][innerIndex].y)
+                {
+                    diffPositive++;
+                    std::cout << "positive " << outterIndex << " " << refPrecedents[outterIndex][innerIndex] << " " << testPrecedents[outterIndex][innerIndex] << std::endl;
+                    if(refPrecedents[outterIndex][innerIndex] == Point())
+                        newDiffPositive++;
+                }
+            }
+        }
+    }
+
+
+    std::cout << "diffPositive " << diffPositive << " " << " diffNegative " << diffNegative << std::endl;
+    std::cout << "newDiffPositive " << newDiffPositive << " " << " newDiffNegative " << newDiffNegative << std::endl;
 }
 
 std::vector<Mat> FernClassifier::outputFerns(const Size &displaySize) const

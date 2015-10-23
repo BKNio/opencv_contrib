@@ -62,18 +62,18 @@ TrackerTLD::Params::Params()
     preFerns = 50;
     preFernPatchSize = Size(15, 15);
 
-    numberOfMeasurements = 10;
-    numberOfFerns = 400;
+    numberOfMeasurements = 13;
+    numberOfFerns = 300;
     fernPatchSize = Size(15, 15);
 
-    numberOfExamples = 1000;
-    examplePatchSize = Size(60, 60);
+    numberOfExamples = 2000;
+    examplePatchSize = Size(15, 15);
 
     numberOfInitPositiveExamples = 13;
-    numberOfInitWarpedPositiveExamples = 20;
+    numberOfInitWarpedPositiveExamples = 30;
 
     numberOfPositiveExamples = 1;
-    numberOfWarpedPositiveExamples = 10;
+    numberOfWarpedPositiveExamples = 15;
 
     groupRectanglesTheta = 0.15;
 }
@@ -169,7 +169,7 @@ public:
     };
 
     Integrator(const Ptr<NNClassifier> &actNNClassifier, const Rect &actRoi)
-        : isTrajectoryReliable(true), maxCandidatesSize(3)
+        : isTrajectoryReliable(true), maxCandidatesSize(3), preparing(0)
     {
         nnClassifier = actNNClassifier;
         roi = actRoi;
@@ -183,7 +183,7 @@ private:
     struct Candidate
     {
         Candidate() {CV_Assert(0);}
-        Candidate(const Mat_<uchar> &frame, Rect bb);
+        Candidate(const Mat_<uchar> &frame, Rect bb, double _confidence);
 
         double confidence;
         double hints;
@@ -200,6 +200,7 @@ private:
 
     std::vector< Ptr<Candidate> > candidates;
     const size_t maxCandidatesSize;
+    int preparing;
 
 private:
     static void updateCandidates(Ptr<Candidate> candidate, const Mat_<uchar> &frame);
@@ -211,7 +212,7 @@ private:
     static bool sortPredicateHints(const Ptr<Candidate> &candidate1);
 
     static bool overlapPredicate(const Ptr<Candidate> candidate, const Rect &bb);
-    static bool overlapIncPredicate(const std::pair<Rect, double> candidate, const Rect2d &bb);
+    static double overlapIncPredicate(const std::pair<Rect, double> candidate, const Rect2d bb);
     static bool selectCandidateForRemove(const Ptr<Candidate> candidate);
     static Rect averageRects(const Rect &item1, const Rect &item2);
 };

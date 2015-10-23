@@ -82,7 +82,7 @@ void CascadeClassifier::init(const Mat_<uchar> &zeroFrame, const Rect &bb)
     nExpert = makePtr<NExpert>();
 
 
-    addPositiveExamples(pExpert->generatePositiveExamples(zeroFrame, bb, 13, 20));
+    addPositiveExamples(pExpert->generatePositiveExamples(zeroFrame, bb, 1, 85));
 
     isInited = true;
 
@@ -139,6 +139,13 @@ std::vector< std::pair<Rect, double> > CascadeClassifier::detect(const Mat_<ucha
     for(size_t index = 0; index < answers.size(); ++index)
         if(answers[index])
             nnPositive.push_back(hypothesis[index].bb);
+
+
+    Mat_<uchar> copyNN; scaledImage.copyTo(copyNN);
+    for(size_t index = 0; index < hypothesis.size(); ++index)
+        if(answers[index])
+            rectangle(copyNN, hypothesis[index].bb, Scalar::all(255));
+    imshow("after NN", copyNN);
 
 //    std::pair<Mat, Mat> model = nnClassifier->outputModel();
 //    imshow("nn model positive", model.first);
@@ -443,7 +450,7 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
             for(int j = 0; j < warpedOOI.rows * warpedOOI.cols; ++j)
                     warpedOOI.at<uchar>(j) = saturate_cast<uchar>(warpedOOI.at<uchar>(j) + rng.gaussian(5.));
 
-            warpedOOI *= rng.uniform(0.9, 1.1);
+            //warpedOOI *= rng.uniform(0.8, 1.2);
 
             Mat_<uchar> mirrored;
             warpAffine(warpedOOI, mirrored, result(Rect(0,0,3,2)), warpedOOI.size());

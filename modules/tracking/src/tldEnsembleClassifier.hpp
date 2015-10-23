@@ -52,6 +52,10 @@
 
 namespace cv
 {
+
+
+//CV_EXPORTS_W void
+
 namespace tld
 {
 
@@ -126,8 +130,10 @@ public:
     Ferns ferns;
     //Ferns::value_type measurements;
 
-    typedef std::vector<std::vector<Point_<unsigned long> > > Precedents;
+    typedef std::vector<std::vector<Point_</*unsigned long*/int> > > Precedents;
     Precedents precedents;
+
+    RNG rng;
 
 /*private:*/
 public:
@@ -136,6 +142,10 @@ public:
     int code(const Mat_<uchar> &image, const Ferns::value_type &fern) const;
     void integrateExample(const Mat_<uchar> &image, bool isPositive);
     static uchar getPixelVale(const Mat_<uchar> &image, const Point2f point);
+
+
+    void saveFern(const std::string &path) const;
+    static void compareFerns(const std::string &pathToFern1, const std::string &pathToFern2);
 
 #ifdef FERN_DEBUG
 public:
