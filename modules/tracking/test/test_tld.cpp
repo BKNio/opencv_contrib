@@ -43,6 +43,8 @@
 #include <fstream>
 #include <iterator>
 
+#include <numeric>
+
 #include "test_precomp.hpp"
 
 #include "../src/tldUtils.hpp"
@@ -118,9 +120,17 @@ private:
     bool onlineTrainTest();
     bool realDataDetectorTest();
 
+    bool fernTest();
+    std::vector < cv::Mat_<uchar> > generatePositiveExamples(const cv::Mat_<uchar> &image, const cv::Rect &bb);
+
 
     bool pixelComprassionTest();
     bool scaleTest();
+
+
+
+    std::vector<float> generateRandomValues(float range, int quantity);
+    cv::Mat_<uchar> getWarped(const cv::Mat_<uchar> &originalFrame, const cv::Rect &bb, float shiftX, float shiftY, float scale, float rotation);
 
 private:
     cv::RNG rng;
@@ -204,8 +214,11 @@ void ClassifiersTest::run()
 //    if(!onlineTrainTest())
 //        FAIL() << "onlineTrain test failed" << std::endl;
 
-    if(!realDataDetectorTest())
-        FAIL() << "realData test failed" << std::endl;
+//    if(!realDataDetectorTest())
+//        FAIL() << "realData test failed" << std::endl;
+
+    fernTest();
+
 
 }
 
@@ -795,6 +808,181 @@ bool ClassifiersTest::realDataDetectorTest()
 
 //        }
     return true;
+}
+
+bool ClassifiersTest::fernTest()
+{
+
+    std::cout << "incide fernTest" << std::endl;
+
+    for(std::vector<std::string>::const_iterator testCase = testCases.begin(); testCase != testCases.end(); ++testCase)
+    {
+        std::cout << "incide loop" << std::endl;
+
+        const std::string path = pathToTLDDataSet + "/" + *testCase + "/";
+        const std::string suffix = *testCase == "07_motocross" ? "%05d.png" : "%05d.jpg";
+
+        cv::VideoCapture capture(path + suffix);
+
+        if(!capture.isOpened())
+            return std::cerr << "unable to open " + path + suffix, false;
+
+        std::fstream gtData((path + "/gt.txt").c_str());
+        if(!gtData.is_open())
+            return std::cerr << "unable to open " + path + "/gt.txt", false;
+
+        cv::Ptr<cv::tld::FernClassifier> fern = cv::makePtr<cv::tld::FernClassifier>(13, 100, cv::Size(15, 15));
+
+        cv::Mat frame;
+        cv::Rect gt;
+
+        int currentDelay = 0;
+
+        int catched = 0, missed = 0;
+
+        while(capture >> frame, !frame.empty())
+        {
+            cv::Mat_<uchar> grayFrame; cv::cvtColor(frame, grayFrame, CV_BGR2GRAY);
+
+            cv::Rect roi(cv::Point(), frame.size());
+
+            gtData >> gt;
+
+            if(gt.area() != 0 && roi.contains(gt.br()) && roi.contains(gt.tl()))
+            {
+                if(fern->isObject(grayFrame(gt)))
+                    ++catched;
+                else
+                {
+                    ++missed;
+
+                    std::vector< cv::Mat_<uchar> > positiveExamples = generatePositiveExamples(grayFrame, gt);
+                    fern->integratePositiveExamples(positiveExamples);
+                }
+            }
+
+            std::stringstream ss; ss << int(capture.get(cv::CAP_PROP_POS_FRAMES)) - 1 << " c " << catched << " m " << missed;
+            cv::putText(frame, ss.str(), cv::Point(0, 22), cv::FONT_HERSHEY_PLAIN, 1., cv::Scalar(25,150,255));
+            cv::rectangle(frame, gt, cv::Scalar(169, 0, 255));
+
+            cv::imshow("video", frame);
+            int key = cv::waitKey(currentDelay) & 0xFF;
+
+            if(key == 27)
+                break;
+
+            if(key == ' ')
+            {
+                if(currentDelay)
+                    currentDelay = 0;
+                else
+                    currentDelay = 1;
+            }
+
+            if((int(capture.get(cv::CAP_PROP_POS_FRAMES)) - 1) == 2050)
+            {
+                std::cout << int(capture.get(cv::CAP_PROP_POS_FRAMES)) - 1 << " c " << catched << " m " << missed << std::endl;
+                exit(0);
+            }
+
+        }
+
+    }
+
+    return true;
+}
+
+std::vector<cv::Mat_<uchar> > ClassifiersTest::generatePositiveExamples(const cv::Mat_<uchar> &image, const cv::Rect &bb)
+{
+    const float shiftRangePercent = .0f;
+    const float scaleRange = .02f;
+    const float angleRangeDegree = 13.f;
+
+    const float shiftXRange = shiftRangePercent * bb.width;
+    const float shiftYRange = shiftRangePercent * bb.height;
+    int numberOfSyntheticWarped = 150;
+
+
+    /////////////////////////////experimental////////////////////////////
+    //Mat mirror = Mat::eye(3, 3, CV_32F);
+    //mirror.at<float>(0,0) = -1.f;
+    //Mat shift = Mat::eye(3, 3, CV_32F);
+    //shift.at<float>(0,2) = bb.width / 2;
+    //shift.at<float>(1,2) = bb.height / 2;
+    //Mat result = shift * mirror * shift.inv();
+    /////////////////////////////experimental////////////////////////////
+
+
+    std::vector< cv::Mat_<uchar> > positiveExamples;
+    positiveExamples.push_back(image(bb));
+
+
+    const std::vector<float> &rotationRandomValues = generateRandomValues(angleRangeDegree, numberOfSyntheticWarped);
+    const std::vector<float> &scaleRandomValues = generateRandomValues(scaleRange, numberOfSyntheticWarped);
+    const std::vector<float> &shiftXRandomValues = generateRandomValues(shiftXRange, numberOfSyntheticWarped);
+    const std::vector<float> &shiftYRandomValues = generateRandomValues(shiftYRange, numberOfSyntheticWarped);
+
+    for(int index = 0; index < numberOfSyntheticWarped; ++index)
+    {
+        cv::Mat_<uchar> warpedOOI = getWarped(image, bb, shiftXRandomValues[index], shiftYRandomValues[index], scaleRandomValues[index], rotationRandomValues[index]);
+
+        for(int j = 0; j < warpedOOI.rows * warpedOOI.cols; ++j)
+            warpedOOI.at<uchar>(j) = cv::saturate_cast<uchar>(warpedOOI.at<uchar>(j) + rng.gaussian(5.));
+
+//        cv::imshow("warpedOOI", warpedOOI);
+//        cv::waitKey(1);
+
+        positiveExamples.push_back(warpedOOI);
+
+    }
+
+    return positiveExamples;
+}
+
+std::vector<float> ClassifiersTest::generateRandomValues(float range, int quantity)
+{
+    std::vector<float> values;
+
+    for(int i = 0; i < quantity; ++i)
+        values.push_back(rng.uniform(-range, range));
+
+    float accum = std::accumulate(values.begin(), values.end(), 0.f);
+
+    accum /= quantity;
+
+    for(int i = 0; i < quantity; ++i)
+        values[i] -= accum;
+
+    return values;
+}
+
+cv::Mat_<uchar> ClassifiersTest::getWarped(const cv::Mat_<uchar> &originalFrame, const cv::Rect &bb, float shiftX, float shiftY, float scale, float rotation)
+{
+        cv::Mat shiftTransform = cv::Mat::eye(3, 3, CV_32F);
+        shiftTransform.at<float>(0,2) = shiftX;
+        shiftTransform.at<float>(1,2) = shiftY;
+
+        cv::Mat scaleTransform = cv::Mat::eye(3, 3, CV_32F);
+        scaleTransform.at<float>(0,0) = 1 - scale;
+        scaleTransform.at<float>(1,1) = scaleTransform.at<float>(0,0);
+
+        cv::Mat rotationShiftTransform = cv::Mat::eye(3, 3, CV_32F);
+        rotationShiftTransform.at<float>(0,2) = bb.tl().x + float(bb.width) / 2;
+        rotationShiftTransform.at<float>(1,2) = bb.tl().y + float(bb.height) / 2;
+
+        const float angle = (rotation * CV_PI) / 180.f;
+
+        cv::Mat rotationTransform = cv::Mat::eye(3, 3, CV_32F);
+        rotationTransform.at<float>(0,0) = rotationTransform.at<float>(1,1) = std::cos(angle);
+        rotationTransform.at<float>(0,1) = std::sin(angle);
+        rotationTransform.at<float>(1,0) = - rotationTransform.at<float>(0,1);
+
+        const cv::Mat resultTransform = rotationShiftTransform * rotationTransform * rotationShiftTransform.inv() * scaleTransform * shiftTransform;
+
+        cv::Mat_<uchar> dst;
+        cv::warpAffine(originalFrame, dst, resultTransform(cv::Rect(0,0,3,2)), dst.size());
+
+        return dst(bb);
 }
 
 void ClassifiersTest::EuclideanTransform(cv::Vec2i shift, cv::Vec2f scale, float angle, const cv::Mat &src, cv::Mat &dst)

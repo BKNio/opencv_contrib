@@ -81,13 +81,19 @@ void CascadeClassifier::init(const Mat_<uchar> &zeroFrame, const Rect &bb)
     pExpert = makePtr<PExpert>(zeroFrame.size());
     nExpert = makePtr<NExpert>();
 
+    std::vector<Rect> negativeExamples;
+    for(std::vector<Hypothesis>::const_iterator it = hypothesis.begin(); it != hypothesis.end(); ++it)
+    {
+        const double actOverlap = overlap(bb, it->bb);
 
-    addPositiveExamples(pExpert->generatePositiveExamples(zeroFrame, bb, 1, 85));
+        if(actOverlap < 0.5 && actOverlap > 0)
+            negativeExamples.push_back(it->bb);
+    }
+
+    addPositiveExamples(pExpert->generatePositiveExamples(zeroFrame, bb, 1, 200));
+    addNegativeExamples(nExpert->getNegativeExamples(zeroFrame, bb, negativeExamples, "init negative"));
 
     isInited = true;
-
-    detect(zeroFrame);
-    startNExpert(zeroFrame, bb);
 
 }
 
@@ -114,6 +120,8 @@ std::vector< std::pair<Rect, double> > CascadeClassifier::detect(const Mat_<ucha
 #endif
 
     //preFernClassifier->isObjects(hypothesis, scaledImage, answers);
+
+
     fernClassifier->isObjects(hypothesis, scaledImage, answers);
 
     fernsPositive.clear();
@@ -185,42 +193,22 @@ void CascadeClassifier::startPExpert(const Mat_<uchar> &image, const Rect &bb)
 
 void CascadeClassifier::startNExpert(const Mat_<uchar> &image, const Rect &bb)
 {
-
-    static bool flag = false;
-
-    if(!flag)
-    {
-        Mat_<uchar> randomFilled(150, 150);
-
-        rng.fill(randomFilled, CV_8U, 0, 255, true);
-
-        nnClassifier->addExample(randomFilled, nnClassifier->negativeExamples);
-        flag = true;
-    }
-
     const std::vector< Mat_<uchar> > &negExamplesForNN = nExpert->getNegativeExamples(image, bb, nnPositive, "NN negative");
     nnClassifier->integrateNegativeExamples(negExamplesForNN);
 
     const std::vector< Mat_<uchar> > &negExamplesForFern = nExpert->getNegativeExamples(image, bb, fernsPositive, "ferns negative");
     fernClassifier->integrateNegativeExamples(negExamplesForFern);
-    preFernClassifier->integrateNegativeExamples(negExamplesForFern);
 }
 
 void CascadeClassifier::addPositiveExamples(const std::vector<Mat_<uchar> > &examples)
 {
-    //std::vector< Mat_<uchar> > exampleCopy(examples);
-
-    /*exampleCopy.erase(std::remove_if(exampleCopy.begin(), exampleCopy.end(), std::bind1st(std::ptr_fun(isObjectPredicate), this)), exampleCopy.end());*/
-
     varianceClassifier->integratePositiveExamples(examples);
-    //preFernClassifier->integratePositiveExamples(examples);
     fernClassifier->integratePositiveExamples(examples);
     nnClassifier->integratePositiveExamples(examples);
 }
 
 void CascadeClassifier::addNegativeExamples(const std::vector<Mat_<uchar> > &examples)
 {
-    //preFernClassifier->integrateNegativeExamples(examples);
     fernClassifier->integrateNegativeExamples(examples);
     nnClassifier->integrateNegativeExamples(examples);
 }
@@ -262,7 +250,7 @@ std::vector< std::pair<Rect, double> > CascadeClassifier::prepareFinalResult(con
         {
             const double confidence = nnClassifier->calcConfidence(image(hypothesis[index].bb));
             finalResult.push_back(std::make_pair(hypothesis[index].bb, confidence));
-            CV_Assert(confidence >= 0.5);
+            /*CV_Assert(confidence >= 0.5);*/
         }
     }
 
@@ -411,7 +399,7 @@ bool CascadeClassifier::isObjectPredicate(const CascadeClassifier *pCascadeClass
 
 std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(const Mat_<uchar> &image, const Rect &bb, int numberOfsurroundBbs, int numberOfSyntheticWarped)
 {
-    const float shiftRangePercent = .0f;
+    const float shiftRangePercent = .01f;
     const float scaleRange = .01f;
     const float angleRangeDegree = 10.f;
 
@@ -420,12 +408,12 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
 
 
     /////////////////////////////experimental////////////////////////////
-    Mat mirror = Mat::eye(3, 3, CV_32F);
-    mirror.at<float>(0,0) = -1.f;
-    Mat shift = Mat::eye(3, 3, CV_32F);
-    shift.at<float>(0,2) = bb.width / 2;
-    shift.at<float>(1,2) = bb.height / 2;
-    Mat result = shift * mirror * shift.inv();
+//    Mat mirror = Mat::eye(3, 3, CV_32F);
+//    mirror.at<float>(0,0) = -1.f;
+//    Mat shift = Mat::eye(3, 3, CV_32F);
+//    shift.at<float>(0,2) = bb.width / 2;
+//    shift.at<float>(1,2) = bb.height / 2;
+//    Mat result = shift * mirror * shift.inv();
     /////////////////////////////experimental////////////////////////////
 
 
@@ -452,11 +440,11 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
 
             //warpedOOI *= rng.uniform(0.8, 1.2);
 
-            Mat_<uchar> mirrored;
-            warpAffine(warpedOOI, mirrored, result(Rect(0,0,3,2)), warpedOOI.size());
+            //Mat_<uchar> mirrored;
+            //warpAffine(warpedOOI, mirrored, result(Rect(0,0,3,2)), warpedOOI.size());
 
             positiveExamples.push_back(warpedOOI);
-            positiveExamples.push_back(mirrored);
+            //positiveExamples.push_back(mirrored);
 
 
 //            Mat_<uchar> mirroredBrighter = mirrored * 1.1;
@@ -557,9 +545,9 @@ std::vector<float> CascadeClassifier::PExpert::generateRandomValues(float range,
 Mat_<uchar> CascadeClassifier::PExpert::getWarped(const Mat_<uchar> &originalFrame, const Rect &bb, float shiftX, float shiftY, float scale, float rotation)
 {
 
-//    Mat shiftTransform = cv::Mat::eye(3, 3, CV_32F);
-//    shiftTransform.at<float>(0,2) = shiftX;
-//    shiftTransform.at<float>(1,2) = shiftY;
+    Mat shiftTransform = cv::Mat::eye(3, 3, CV_32F);
+    shiftTransform.at<float>(0,2) = shiftX;
+    shiftTransform.at<float>(1,2) = shiftY;
 
     Mat scaleTransform = cv::Mat::eye(3, 3, CV_32F);
     scaleTransform.at<float>(0,0) = 1 - scale;
@@ -576,7 +564,7 @@ Mat_<uchar> CascadeClassifier::PExpert::getWarped(const Mat_<uchar> &originalFra
     rotationTransform.at<float>(0,1) = std::sin(angle);
     rotationTransform.at<float>(1,0) = - rotationTransform.at<float>(0,1);
 
-    const Mat resultTransform = /*cv::Mat::eye(3,3, CV_32F);*/rotationShiftTransform * rotationTransform * rotationShiftTransform.inv() * scaleTransform/* * shiftTransform*/;
+    const Mat resultTransform = /*cv::Mat::eye(3,3, CV_32F);*/rotationShiftTransform * rotationTransform * rotationShiftTransform.inv() * scaleTransform * shiftTransform;
 
     Mat_<uchar> dst;
     warpAffine(originalFrame, dst, resultTransform(cv::Rect(0,0,3,2)), dst.size());
@@ -600,7 +588,7 @@ std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const 
     {
         const Rect &actDetectedObject = detectedObjects[i];
 
-        if(overlap(actDetectedObject, object) <= .5)
+        if(overlap(actDetectedObject, object) < .5)
         {
             negativeExamples.push_back(image(actDetectedObject).clone());
 #ifdef DEBUG_OUTPUT2

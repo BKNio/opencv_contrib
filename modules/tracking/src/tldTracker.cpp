@@ -376,6 +376,11 @@ const Integrator::IntegratorResult Integrator::getObjectToTrainFrom(const Mat_<u
 
         detectorObject = maxElemnt->first;
 
+//        std::pair<Mat, Mat> model = nnClassifier->getModelWDecisionMarks(frame(detectorObject), maxElemnt->second);
+
+//        imshow("positive model", model.first);
+//        imshow("negative model", model.second);
+
         std::cout << "object from detector conf " << maxElemnt->second << std::endl;
 
         if(objectFromTracker.first.area() > 0)
@@ -393,39 +398,46 @@ const Integrator::IntegratorResult Integrator::getObjectToTrainFrom(const Mat_<u
 
             std::cout << "object from tracker conf " << objectFromTracker.second << std::endl;
 
-            if(maxElemnt->second > objectFromTracker.second)
+            if(maxElemnt->second > objectFromTracker.second && maxElemnt->second > 0.51)
             {
                 std::cout << "reseting main tracker, no train " << std::endl;
                 objectToResetMainTracker = maxElemnt->first;
-                preparing = -1;
+                preparing = 0;
             }
-            else if(overlap(objectFromTracker.first, detectorObject) > 0.85 && objectFromTracker.second > 0.5 && maxElemnt->second > 0.5)
+            else if(overlap(objectFromTracker.first, detectorObject) > 0.85 && objectFromTracker.second > 0.51 && maxElemnt->second > 0.51)
             {
-                if(preparing == 0)
+                if(preparing >= 0)
                 {
                     std::cout << "good overlap and conf training and ready to train" << std::endl;
                     objectToTrain = objectFromTracker.first;
                 }
                 else
                 {
-                    std::cout << "not ready to train " << preparing++ << std::endl;
+                    std::cout << "not ready to train " << preparing << std::endl;
                 }
+                ++preparing;
             }
 
             objectToPresent = objectFromTracker.second > maxElemnt->second ? Rect(objectFromTracker.first) : maxElemnt->first;
         }
-        else
+        else if(maxElemnt->second > 0.51)
         {
             std::cout << "reset main tracker from detector" << std::endl;
             objectToResetMainTracker = maxElemnt->first;
             objectToPresent = maxElemnt->first;
-            preparing = -1;
+            preparing = 0;
         }
     }
-    else if(objectFromTracker.first.area() > 0 && objectFromTracker.second > 0.5 )
+    else if(objectFromTracker.first.area() > 0 && objectFromTracker.second > 0.51)
     {
         std::cout << "object from tracker conf " << objectFromTracker.second << std::endl;
         objectToPresent = objectFromTracker.first;
+
+        if(objectFromTracker.second > 0.52)
+        {
+            objectToTrain = objectFromTracker.first;
+            std::cout << " >>> train from tracker <<<" << std::endl;
+        }
     }
 
 

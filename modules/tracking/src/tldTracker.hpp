@@ -62,18 +62,18 @@ TrackerTLD::Params::Params()
     preFerns = 50;
     preFernPatchSize = Size(15, 15);
 
-    numberOfMeasurements = 13;
-    numberOfFerns = 300;
+    numberOfMeasurements = 11;
+    numberOfFerns = 200;
     fernPatchSize = Size(15, 15);
 
     numberOfExamples = 2000;
     examplePatchSize = Size(15, 15);
 
-    numberOfInitPositiveExamples = 13;
-    numberOfInitWarpedPositiveExamples = 30;
+    numberOfInitPositiveExamples = 1;
+    numberOfInitWarpedPositiveExamples = 200;
 
     numberOfPositiveExamples = 1;
-    numberOfWarpedPositiveExamples = 15;
+    numberOfWarpedPositiveExamples = 100;
 
     groupRectanglesTheta = 0.15;
 }

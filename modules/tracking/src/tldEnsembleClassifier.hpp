@@ -164,8 +164,7 @@ public:
 class CV_EXPORTS_W NNClassifier : public tldIClassifier
 {
 public:
-    NNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize
-                 , double actTheta = 0.5);
+    NNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize, double actTheta = 0.5);
 
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const;
 
@@ -193,7 +192,7 @@ public:
     double calcConfidenceTracker(const Mat_<uchar> &image) const;
 
     double Sr(const Mat_<uchar>& patch, bool isForTracker = false) const;
-    double Sc(const Mat_<uchar>& patch) const;
+    double Sc(const Mat_<uchar>& patch, bool isForTracker = false) const;
     void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
 public:
     static float NCC(const Mat_<uchar>& patch1, const Mat_<uchar>& patch2);
