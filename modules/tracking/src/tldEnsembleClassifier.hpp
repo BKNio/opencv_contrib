@@ -82,7 +82,7 @@ public:
 class CV_EXPORTS_W VarianceClassifier : public tldIClassifier
 {
 public:
-    VarianceClassifier(double actLowCoeff = 0.75, double actHighCoeff = 1.25);
+    VarianceClassifier(double actLowCoeff = 0.5, double actHighCoeff = 2.);
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const;
     void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
     void integrateNegativeExamples(const std::vector< Mat_<uchar> > &) {CV_Assert(0);}
@@ -146,6 +146,9 @@ public:
 
     void saveFern(const std::string &path) const;
     static void compareFerns(const std::string &pathToFern1, const std::string &pathToFern2);
+
+    //Ptr<xfeatures2d::SIFT> sift;
+    //Ptr<ORB> orb;
 
 #ifdef FERN_DEBUG
 public:

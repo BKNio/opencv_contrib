@@ -406,7 +406,6 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
     const float shiftXRange = shiftRangePercent * bb.width;
     const float shiftYRange = shiftRangePercent * bb.height;
 
-
     /////////////////////////////experimental////////////////////////////
 //    Mat mirror = Mat::eye(3, 3, CV_32F);
 //    mirror.at<float>(0,0) = -1.f;
@@ -588,7 +587,7 @@ std::vector<Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const 
     {
         const Rect &actDetectedObject = detectedObjects[i];
 
-        if(overlap(actDetectedObject, object) < .5)
+        if(overlap(actDetectedObject, object) < .5 && VarianceClassifier::variance(image(actDetectedObject)) > 0)
         {
             negativeExamples.push_back(image(actDetectedObject).clone());
 #ifdef DEBUG_OUTPUT2

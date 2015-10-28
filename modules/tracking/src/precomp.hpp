@@ -46,6 +46,7 @@
 #include "opencv2/core/utility.hpp"
 #include "opencv2/core/ocl.hpp"
 #include <opencv2/objdetect.hpp>
+#include <opencv2/xfeatures2d.hpp>
 
 namespace cv
 {

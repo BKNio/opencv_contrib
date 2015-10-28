@@ -214,6 +214,9 @@ FernClassifier::FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfF
         precedents[i] = emptyPrecedents;
     }
 
+    //sift = xfeatures2d::SIFT::create();
+    //orb = ORB::create();
+
 }
 
 void FernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
@@ -328,6 +331,8 @@ int FernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern
     const float coeffX = float(image.cols - 1) / patchSize.width;
     const float coeffY = float(image.rows - 1) / patchSize.height;
 
+//    sift->compute();
+
     for(Ferns::value_type::const_iterator measureIt = fern.begin(); measureIt != fern.end(); ++measureIt)
     {
         position <<= 1;
@@ -337,7 +342,60 @@ int FernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern
     gettimeofday(&startCalc, NULL);
 #endif
     const Point p1(cvRound(measureIt->first.x * coeffX), cvRound(measureIt->first.y * coeffY));
+
+//    Vec<int, 9> vec1(image.at<uchar>(p1.x - 1, p1.y - 1),
+//                     image.at<uchar>(p1.x, p1.y - 1),
+//                     image.at<uchar>(p1.x + 1, p1.y - 1),
+
+//                     image.at<uchar>(p1.x - 1, p1.y),
+//                     image.at<uchar>(p1.x, p1.y),
+//                     image.at<uchar>(p1.x + 1, p1.y),
+
+//                     image.at<uchar>(p1.x - 1, p1.y + 1),
+//                     image.at<uchar>(p1.x, p1.y + 1),
+//                     image.at<uchar>(p1.x + 1, p1.y + 1)
+//                );
+
+    int val1 = 0;
+
+    for(int i = -1; i <= 1; ++i)
+        for(int j = -1; j <= 1; ++j)
+                val1 += image.at<uchar>(p1.x + i, p1.y + j);
+
+
+
     const Point p2(cvRound(measureIt->second.x * coeffX), cvRound(measureIt->second.y * coeffY));
+
+
+//    Vec<int, 9> vec2(image.at<uchar>(p2.x - 1, p2.y - 1),
+//                     image.at<uchar>(p2.x, p2.y - 1),
+//                     image.at<uchar>(p2.x + 1, p2.y - 1),
+
+//                     image.at<uchar>(p2.x - 1, p2.y),
+//                     image.at<uchar>(p2.x, p2.y),
+//                     image.at<uchar>(p2.x + 1, p2.y),
+
+//                     image.at<uchar>(p2.x - 1, p2.y + 1),
+//                     image.at<uchar>(p2.x, p2.y + 1),
+//                     image.at<uchar>(p2.x + 1, p2.y + 1)
+//                );
+
+    int val2 = 0;
+
+    for(int i = -1; i <= 1; ++i)
+        for(int j = -1; j <= 1; ++j)
+                val2 += image.at<uchar>(p2.x + i, p2.y + j);
+
+
+
+//    if(vec1.dot(vec2) == 0)
+//    {
+//        std::cout << vec1 << " "  << vec2 << std::endl;
+//        imshow("qqq",image);
+//        waitKey();
+//    }
+
+
 #ifdef FERN_PROFILE
     gettimeofday(&stopCalc, NULL);
     calcTime += stopCalc.tv_sec - startCalc.tv_sec + double(stopCalc.tv_usec - startCalc.tv_usec) / 1e6;
@@ -355,7 +413,8 @@ int FernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern
         vals.second = getPixelVale(image, p2);
 #endif
 
-        if(image.at<uchar>(p1) < image.at<uchar>(p2))
+        if(val1 < val2)
+        //if(image.at<uchar>(p1) < image.at<uchar>(p2))
             position++;
 
 #ifdef FERN_PROFILE
@@ -380,11 +439,7 @@ void FernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
 
     for(size_t i = 0; i < ferns.size(); ++i)
     {
-#ifndef USE_BLUR
         int position = code(blurred, ferns[i]);
-#else
-        int position = code(image, ferns[i]);
-#endif
 
         if(isPositive)
             precedents[i][position].x++;
@@ -396,7 +451,7 @@ void FernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
 
     if(accumProbability / fernsSize <= threshold && isPositive)
     {
-        std::cout << "WARNING FERN IN BAD STATE" << accumProbability / fernsSize << std::endl;
+        std::cout << "WARNING FERN IS IN BAD STATE" << accumProbability / fernsSize << std::endl;
         /*CV_Assert(0);*/
     }
 }
@@ -735,12 +790,6 @@ void NNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> 
 
 float NNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
 {
-    /*Mat_<float> output;
-    matchTemplate(patch1, patch2, output, CV_TM_CCOEFF_NORMED);
-    CV_Assert(output.size() == Size(1,1));
-    CV_Assert(output.type() == CV_32F);
-    return output.at<float>(0);*/
-
     CV_Assert(patch1.size() == patch2.size());
 
     const float N = patch1.size().area();

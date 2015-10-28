@@ -63,7 +63,7 @@ TrackerTLD::Params::Params()
     preFernPatchSize = Size(15, 15);
 
     numberOfMeasurements = 11;
-    numberOfFerns = 200;
+    numberOfFerns = 100;
     fernPatchSize = Size(15, 15);
 
     numberOfExamples = 2000;
