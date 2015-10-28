@@ -112,22 +112,20 @@ public:
     }
 
 private:
-    bool nccRandomFill();
-    bool nccRandomCharacters();
-    bool emptyTest();
-    bool simpleTest();
-    bool syntheticDataTest();
-    bool onlineTrainTest();
-    bool realDataDetectorTest();
+//    bool nccRandomFill();
+//    bool nccRandomCharacters();
+//    bool emptyTest();
+//    bool simpleTest();
+//    bool syntheticDataTest();
+//    bool onlineTrainTest();
+//    bool realDataDetectorTest();
 
-    bool fernTest();
+//    bool fernTest();
     std::vector < cv::Mat_<uchar> > generatePositiveExamples(const cv::Mat_<uchar> &image, const cv::Rect &bb);
 
 
     bool pixelComprassionTest();
     bool scaleTest();
-
-
 
     std::vector<float> generateRandomValues(float range, int quantity);
     cv::Mat_<uchar> getWarped(const cv::Mat_<uchar> &originalFrame, const cv::Rect &bb, float shiftX, float shiftY, float scale, float rotation);
@@ -217,12 +215,12 @@ void ClassifiersTest::run()
 //    if(!realDataDetectorTest())
 //        FAIL() << "realData test failed" << std::endl;
 
-    fernTest();
+    //fernTest();
 
 
 }
 
-bool ClassifiersTest::nccRandomFill()
+/*bool ClassifiersTest::nccRandomFill()
 {
     for(int n = 3; n < 31; n++)
     {
@@ -353,234 +351,234 @@ bool ClassifiersTest::simpleTest()
     }
 
     return ret;
-}
+}*/
 
-bool ClassifiersTest::syntheticDataTest()
-{
-    const std::string positiveLetter = "A";
-    const std::string negativeLetter = "Z";
-    const int trainDataSize = 3000;
+//bool ClassifiersTest::syntheticDataTest()
+//{
+//    const std::string positiveLetter = "A";
+//    const std::string negativeLetter = "Z";
+//    const int trainDataSize = 3000;
 
-    std::vector<cv::Mat_<uchar> > trainDataPositive; trainDataPositive.reserve(trainDataSize);
-    std::vector<cv::Mat_<uchar> > trainDataNegative; trainDataNegative.reserve(trainDataSize);
+//    std::vector<cv::Mat_<uchar> > trainDataPositive; trainDataPositive.reserve(trainDataSize);
+//    std::vector<cv::Mat_<uchar> > trainDataNegative; trainDataNegative.reserve(trainDataSize);
 
-    for(int i = 0; i < trainDataSize; ++i)
-    {
-        cv::Mat_<uchar> trainExamplePositive;
-        putRandomWarpedLetter(trainExamplePositive, positiveLetter);
-        trainDataPositive.push_back(trainExamplePositive);
-    }
+//    for(int i = 0; i < trainDataSize; ++i)
+//    {
+//        cv::Mat_<uchar> trainExamplePositive;
+//        putRandomWarpedLetter(trainExamplePositive, positiveLetter);
+//        trainDataPositive.push_back(trainExamplePositive);
+//    }
 
-    for(int i = 0; i < trainDataSize; ++i)
-    {
-        cv::Mat_<uchar> trainExampleNegative;
-        putRandomWarpedLetter(trainExampleNegative, negativeLetter);
-        trainDataNegative.push_back(trainExampleNegative);
-    }
+//    for(int i = 0; i < trainDataSize; ++i)
+//    {
+//        cv::Mat_<uchar> trainExampleNegative;
+//        putRandomWarpedLetter(trainExampleNegative, negativeLetter);
+//        trainDataNegative.push_back(trainExampleNegative);
+//    }
 
-    const int numberOfTestExamples = 1500;
-    cv::Mat_<uchar> tempPicture = cv::Mat(900, 1800, CV_8U);
-    cv::Point currentPutPoint;
-    int nextLineY = 0;
+//    const int numberOfTestExamples = 1500;
+//    cv::Mat_<uchar> tempPicture = cv::Mat(900, 1800, CV_8U);
+//    cv::Point currentPutPoint;
+//    int nextLineY = 0;
 
-    std::vector<cv::Mat_<uchar> > scaledImages;
-    std::vector<cv::tld::Hypothesis> hypothesis(numberOfTestExamples);
-    std::vector<bool> gt(numberOfTestExamples);
+//    std::vector<cv::Mat_<uchar> > scaledImages;
+//    std::vector<cv::tld::Hypothesis> hypothesis(numberOfTestExamples);
+//    std::vector<bool> gt(numberOfTestExamples);
 
-    for(int i = 0; i < numberOfTestExamples; ++i)
-    {
-        bool isPositiveExmpl = true;
+//    for(int i = 0; i < numberOfTestExamples; ++i)
+//    {
+//        bool isPositiveExmpl = true;
 
-        std::string actLetter;
-        if(rng.uniform(0,2))
-            actLetter = positiveLetter;
-        else
-            actLetter = negativeLetter, isPositiveExmpl = false;
+//        std::string actLetter;
+//        if(rng.uniform(0,2))
+//            actLetter = positiveLetter;
+//        else
+//            actLetter = negativeLetter, isPositiveExmpl = false;
 
-        cv::Mat_<uchar> testExample;
-        putRandomWarpedLetter(testExample, actLetter);
+//        cv::Mat_<uchar> testExample;
+//        putRandomWarpedLetter(testExample, actLetter);
 
-        if(currentPutPoint.x + testExample.cols > tempPicture.cols)
-        {
-            currentPutPoint = cv::Point(0, currentPutPoint.y + nextLineY + 10);
-            nextLineY = 0;
-        }
+//        if(currentPutPoint.x + testExample.cols > tempPicture.cols)
+//        {
+//            currentPutPoint = cv::Point(0, currentPutPoint.y + nextLineY + 10);
+//            nextLineY = 0;
+//        }
 
-        if(currentPutPoint.y + testExample.rows > tempPicture.rows)
-        {
-            scaledImages.push_back(tempPicture.clone());
-            tempPicture = 0u;
+//        if(currentPutPoint.y + testExample.rows > tempPicture.rows)
+//        {
+//            scaledImages.push_back(tempPicture.clone());
+//            tempPicture = 0u;
 
-            currentPutPoint = cv::Point();
-            nextLineY = 0;
-        }
+//            currentPutPoint = cv::Point();
+//            nextLineY = 0;
+//        }
 
-        testExample.copyTo(tempPicture(cv::Rect(currentPutPoint, testExample.size())));
+//        testExample.copyTo(tempPicture(cv::Rect(currentPutPoint, testExample.size())));
 
-        hypothesis[i].bb = cv::Rect(currentPutPoint + cv::Point(0, tempPicture.rows * scaledImages.size()), testExample.size());
-        gt[i] = isPositiveExmpl;
+//        hypothesis[i].bb = cv::Rect(currentPutPoint + cv::Point(0, tempPicture.rows * scaledImages.size()), testExample.size());
+//        gt[i] = isPositiveExmpl;
 
-        currentPutPoint += cv::Point(testExample.cols + 10, 0);
-        nextLineY = std::max(nextLineY, testExample.rows);
+//        currentPutPoint += cv::Point(testExample.cols + 10, 0);
+//        nextLineY = std::max(nextLineY, testExample.rows);
 
-    }
+//    }
 
-    scaledImages.push_back(tempPicture.clone());
+//    scaledImages.push_back(tempPicture.clone());
 
-    const cv::Size hugePictureSize(tempPicture.cols, tempPicture.rows * scaledImages.size());
-    const cv::Mat_<uchar> hugePicture(hugePictureSize, 0);
+//    const cv::Size hugePictureSize(tempPicture.cols, tempPicture.rows * scaledImages.size());
+//    const cv::Mat_<uchar> hugePicture(hugePictureSize, 0);
 
-    cv::Rect currentPos(cv::Point(), tempPicture.size());
-    for(std::vector< cv::Mat_<uchar> >::const_iterator scaledImage = scaledImages.begin(); scaledImage != scaledImages.end(); ++scaledImage)
-    {
-        scaledImage->copyTo(hugePicture(currentPos));
-        currentPos.y += tempPicture.rows;
-    }
+//    cv::Rect currentPos(cv::Point(), tempPicture.size());
+//    for(std::vector< cv::Mat_<uchar> >::const_iterator scaledImage = scaledImages.begin(); scaledImage != scaledImages.end(); ++scaledImage)
+//    {
+//        scaledImage->copyTo(hugePicture(currentPos));
+//        currentPos.y += tempPicture.rows;
+//    }
 
-    /*for(std::vector<cv::tld::Hypothesis>::const_iterator it = hypothesis.begin(); it != hypothesis.end(); ++it)
-        cv::rectangle(hugePicture, it->bb, cv::Scalar::all(255));
-    cv::imwrite("/tmp/zalupka.png", hugePicture);*/
+//    /*for(std::vector<cv::tld::Hypothesis>::const_iterator it = hypothesis.begin(); it != hypothesis.end(); ++it)
+//        cv::rectangle(hugePicture, it->bb, cv::Scalar::all(255));
+//    cv::imwrite("/tmp/zalupka.png", hugePicture);*/
 
-    bool ret = true;
-    for(int classifierId = 0; classifierId < 2; ++classifierId)
-    {
-        cv::Ptr<cv::tld::tldIClassifier> clasifier;
-        std::string title;
+//    bool ret = true;
+//    for(int classifierId = 0; classifierId < 2; ++classifierId)
+//    {
+//        cv::Ptr<cv::tld::tldIClassifier> clasifier;
+//        std::string title;
 
-        if(classifierId == 0)
-        {
-            clasifier = cv::makePtr<cv::tld::NNClassifier>(200, cv::Size(15, 15));
-            title = "NNClasifier";
-        }
-        else
-        {
-            clasifier = cv::makePtr<cv::tld::FernClassifier>(10, 200, cv::Size(15, 15));
-            title = "FernClassifier";
-        }
+//        if(classifierId == 0)
+//        {
+//            clasifier = cv::makePtr<cv::tld::NNClassifier>(200, cv::Size(15, 15));
+//            title = "NNClasifier";
+//        }
+//        else
+//        {
+//            clasifier = cv::makePtr<cv::tld::FernClassifier>(10, 200, cv::Size(15, 15));
+//            title = "FernClassifier";
+//        }
 
-        clasifier->integratePositiveExamples(trainDataPositive);
-        clasifier->integrateNegativeExamples(trainDataNegative);
+//        clasifier->integratePositiveExamples(trainDataPositive);
+//        clasifier->integrateNegativeExamples(trainDataNegative);
 
 
-        std::vector<bool> test(numberOfTestExamples, true);
-        clasifier->isObjects(hypothesis, hugePicture, test);
+//        std::vector<bool> test(numberOfTestExamples, true);
+//        clasifier->isObjects(hypothesis, hugePicture, test);
 
-        float tP = 0.f, tN = 0.f, fP = 0.f, fN = 0.f;
+//        float tP = 0.f, tN = 0.f, fP = 0.f, fN = 0.f;
 
-        for(size_t i = 0; i < hypothesis.size(); ++i)
-        {
-            if(gt[i] != test[i])
-            {
+//        for(size_t i = 0; i < hypothesis.size(); ++i)
+//        {
+//            if(gt[i] != test[i])
+//            {
 
-                if(!gt[i] && test[i])
-                    fP += 1.f;
-                else
-                    fN += 1.f;
+//                if(!gt[i] && test[i])
+//                    fP += 1.f;
+//                else
+//                    fN += 1.f;
 
-            }
-            else
-                if(gt[i])
-                    tP += 1.f;
-                else
-                    tN += 1.f;
-        }
+//            }
+//            else
+//                if(gt[i])
+//                    tP += 1.f;
+//                else
+//                    tN += 1.f;
+//        }
 
-        CV_Assert(tP + tN + fN + fP == hypothesis.size());
-        const int numberOfPositives = std::count(gt.begin(), gt.end(), true);
+//        CV_Assert(tP + tN + fN + fP == hypothesis.size());
+//        const int numberOfPositives = std::count(gt.begin(), gt.end(), true);
 
-        const float recall = tP / numberOfPositives;
-        const float precission = tP / (tP + fP);
+//        const float recall = tP / numberOfPositives;
+//        const float precission = tP / (tP + fP);
 
-        std::cout << title + " recall " << recall << " precission " << precission << std::endl;
+//        std::cout << title + " recall " << recall << " precission " << precission << std::endl;
 
-        ret &= recall > 0.95f && precission > 0.95f;
+//        ret &= recall > 0.95f && precission > 0.95f;
 
-    }
+//    }
 
-    return ret;
-}
+//    return ret;
+//}
 
-bool ClassifiersTest::onlineTrainTest()
-{
-    const std::string positiveLetter = "A";
-    const std::string negativeLetter = "Z";
-    const int iterationsNumber = 10000;
+//bool ClassifiersTest::onlineTrainTest()
+//{
+//    const std::string positiveLetter = "A";
+//    const std::string negativeLetter = "Z";
+//    const int iterationsNumber = 10000;
 
-    cv::Ptr<cv::tld::NNClassifier> nnclasifier = cv::makePtr<cv::tld::NNClassifier>(500, cv::Size(15, 15));
-    cv::Ptr<cv::tld::FernClassifier> fernclassifier = cv::makePtr<cv::tld::FernClassifier>(10, 200, cv::Size(15, 15));
+//    cv::Ptr<cv::tld::NNClassifier> nnclasifier = cv::makePtr<cv::tld::NNClassifier>(500, cv::Size(15, 15));
+//    cv::Ptr<cv::tld::FernClassifier> fernclassifier = cv::makePtr<cv::tld::FernClassifier>(10, 200, cv::Size(15, 15));
 
-    float correctClassifiedNN = 0.f, misclassifiedNN = 0.f;
-    float correctClassifiedFern = 0.f, misclassifiedFern = 0.f;
+//    float correctClassifiedNN = 0.f, misclassifiedNN = 0.f;
+//    float correctClassifiedFern = 0.f, misclassifiedFern = 0.f;
 
-    for(int iteration = 0; iteration < iterationsNumber; ++iteration)
-    {
-        std::string letter;
-        bool isObject = true;
-        if(rng.uniform(0,2))
-            letter = positiveLetter;
-        else
-            letter = negativeLetter, isObject = false;
+//    for(int iteration = 0; iteration < iterationsNumber; ++iteration)
+//    {
+//        std::string letter;
+//        bool isObject = true;
+//        if(rng.uniform(0,2))
+//            letter = positiveLetter;
+//        else
+//            letter = negativeLetter, isObject = false;
 
-        cv::Mat_<uchar> example;
-        putRandomWarpedLetter(example, letter);
+//        cv::Mat_<uchar> example;
+//        putRandomWarpedLetter(example, letter);
 
-        std::vector<cv::tld::Hypothesis> hypothesis(1);
-        hypothesis[0].bb = cv::Rect(cv::Point(), example.size());
+//        std::vector<cv::tld::Hypothesis> hypothesis(1);
+//        hypothesis[0].bb = cv::Rect(cv::Point(), example.size());
 
-        std::vector<bool> answers(1);
-        answers[0] = true;
+//        std::vector<bool> answers(1);
+//        answers[0] = true;
 
-        nnclasifier->isObjects(hypothesis, example, answers);
+//        nnclasifier->isObjects(hypothesis, example, answers);
 
-        if(answers[0] != isObject)
-        {
-            if(isObject)
-                nnclasifier->integratePositiveExamples(std::vector< cv::Mat_<uchar> >(1, example));
-            else
-                nnclasifier->integrateNegativeExamples(std::vector< cv::Mat_<uchar> >(1, example));
+//        if(answers[0] != isObject)
+//        {
+//            if(isObject)
+//                nnclasifier->integratePositiveExamples(std::vector< cv::Mat_<uchar> >(1, example));
+//            else
+//                nnclasifier->integrateNegativeExamples(std::vector< cv::Mat_<uchar> >(1, example));
 
-            misclassifiedNN += 1.f;
+//            misclassifiedNN += 1.f;
 
-            answers[0] = true;
+//            answers[0] = true;
 
-            nnclasifier->isObjects(hypothesis, example, answers);
+//            nnclasifier->isObjects(hypothesis, example, answers);
 
-            if(answers[0] != isObject)
-                return false;
-        }
-        else
-            correctClassifiedNN += 1.f;
+//            if(answers[0] != isObject)
+//                return false;
+//        }
+//        else
+//            correctClassifiedNN += 1.f;
 
-        answers[0] = true;
-        fernclassifier->isObjects(hypothesis, example, answers);
+//        answers[0] = true;
+//        fernclassifier->isObjects(hypothesis, example, answers);
 
-        if(answers[0] != isObject)
-        {
-            if(isObject)
-                fernclassifier->integratePositiveExamples(std::vector< cv::Mat_<uchar> >(1, example));
-            else
-                fernclassifier->integrateNegativeExamples(std::vector< cv::Mat_<uchar> >(1, example));
+//        if(answers[0] != isObject)
+//        {
+//            if(isObject)
+//                fernclassifier->integratePositiveExamples(std::vector< cv::Mat_<uchar> >(1, example));
+//            else
+//                fernclassifier->integrateNegativeExamples(std::vector< cv::Mat_<uchar> >(1, example));
 
-            misclassifiedFern += 1.f;
+//            misclassifiedFern += 1.f;
 
-        }
-        else
-            correctClassifiedFern += 1.f;
+//        }
+//        else
+//            correctClassifiedFern += 1.f;
 
-    }
+//    }
 
-    std::cout <<"FernClassifier: correct classified "<< correctClassifiedFern / iterationsNumber << " misclassified " << misclassifiedFern / iterationsNumber << std::endl;
-    std::cout <<"NNClasifier   : correct classified "<< correctClassifiedNN / iterationsNumber << " misclassified " << misclassifiedNN / iterationsNumber << std::endl;
+//    std::cout <<"FernClassifier: correct classified "<< correctClassifiedFern / iterationsNumber << " misclassified " << misclassifiedFern / iterationsNumber << std::endl;
+//    std::cout <<"NNClasifier   : correct classified "<< correctClassifiedNN / iterationsNumber << " misclassified " << misclassifiedNN / iterationsNumber << std::endl;
 
-    return correctClassifiedFern / iterationsNumber > 0.95 && correctClassifiedFern / iterationsNumber > 0.95;
-}
+//    return correctClassifiedFern / iterationsNumber > 0.95 && correctClassifiedFern / iterationsNumber > 0.95;
+//}
 
 #define SHOW_BAD_ROI
 #define SHOW_MISCLASSIFIED
 #define SHOW_TRAIN_DATA
 #define SHOW_ADDITIONAL_EXAMPLES
-bool ClassifiersTest::realDataDetectorTest()
-{
+//bool ClassifiersTest::realDataDetectorTest()
+//{
 
 //    std::vector<int> preMeasures, preFernsNumbers;
 //    std::vector<cv::Size> preFernPatchSizes;
@@ -807,207 +805,207 @@ bool ClassifiersTest::realDataDetectorTest()
 //            /*--------------------------------------------*/
 
 //        }
-    return true;
-}
+//    return true;
+//}
 
-bool ClassifiersTest::fernTest()
-{
+//bool ClassifiersTest::fernTest()
+//{
 
-    std::cout << "incide fernTest" << std::endl;
+//    std::cout << "incide fernTest" << std::endl;
 
-    for(std::vector<std::string>::const_iterator testCase = testCases.begin(); testCase != testCases.end(); ++testCase)
-    {
-        std::cout << "incide loop" << std::endl;
+//    for(std::vector<std::string>::const_iterator testCase = testCases.begin(); testCase != testCases.end(); ++testCase)
+//    {
+//        std::cout << "incide loop" << std::endl;
 
-        const std::string path = pathToTLDDataSet + "/" + *testCase + "/";
-        const std::string suffix = *testCase == "07_motocross" ? "%05d.png" : "%05d.jpg";
+//        const std::string path = pathToTLDDataSet + "/" + *testCase + "/";
+//        const std::string suffix = *testCase == "07_motocross" ? "%05d.png" : "%05d.jpg";
 
-        cv::VideoCapture capture(path + suffix);
+//        cv::VideoCapture capture(path + suffix);
 
-        if(!capture.isOpened())
-            return std::cerr << "unable to open " + path + suffix, false;
+//        if(!capture.isOpened())
+//            return std::cerr << "unable to open " + path + suffix, false;
 
-        std::fstream gtData((path + "/gt.txt").c_str());
-        if(!gtData.is_open())
-            return std::cerr << "unable to open " + path + "/gt.txt", false;
+//        std::fstream gtData((path + "/gt.txt").c_str());
+//        if(!gtData.is_open())
+//            return std::cerr << "unable to open " + path + "/gt.txt", false;
 
-        cv::Ptr<cv::tld::FernClassifier> fern = cv::makePtr<cv::tld::FernClassifier>(13, 100, cv::Size(15, 15));
+//        cv::Ptr<cv::tld::FernClassifier> fern = cv::makePtr<cv::tld::FernClassifier>(13, 100, cv::Size(15, 15));
 
-        cv::Mat frame;
-        cv::Rect gt;
+//        cv::Mat frame;
+//        cv::Rect gt;
 
-        int currentDelay = 0;
+//        int currentDelay = 0;
 
-        int catched = 0, missed = 0;
+//        int catched = 0, missed = 0;
 
-        while(capture >> frame, !frame.empty())
-        {
-            cv::Mat_<uchar> grayFrame; cv::cvtColor(frame, grayFrame, CV_BGR2GRAY);
+//        while(capture >> frame, !frame.empty())
+//        {
+//            cv::Mat_<uchar> grayFrame; cv::cvtColor(frame, grayFrame, CV_BGR2GRAY);
 
-            cv::Rect roi(cv::Point(), frame.size());
+//            cv::Rect roi(cv::Point(), frame.size());
 
-            gtData >> gt;
+//            gtData >> gt;
 
-            if(gt.area() != 0 && roi.contains(gt.br()) && roi.contains(gt.tl()))
-            {
-                if(fern->isObject(grayFrame(gt)))
-                    ++catched;
-                else
-                {
-                    ++missed;
+//            if(gt.area() != 0 && roi.contains(gt.br()) && roi.contains(gt.tl()))
+//            {
+//                if(fern->isObject(grayFrame(gt)))
+//                    ++catched;
+//                else
+//                {
+//                    ++missed;
 
-                    std::vector< cv::Mat_<uchar> > positiveExamples = generatePositiveExamples(grayFrame, gt);
-                    fern->integratePositiveExamples(positiveExamples);
-                }
-            }
+//                    std::vector< cv::Mat_<uchar> > positiveExamples = generatePositiveExamples(grayFrame, gt);
+//                    fern->integratePositiveExamples(positiveExamples);
+//                }
+//            }
 
-            std::stringstream ss; ss << int(capture.get(cv::CAP_PROP_POS_FRAMES)) - 1 << " c " << catched << " m " << missed;
-            cv::putText(frame, ss.str(), cv::Point(0, 22), cv::FONT_HERSHEY_PLAIN, 1., cv::Scalar(25,150,255));
-            cv::rectangle(frame, gt, cv::Scalar(169, 0, 255));
+//            std::stringstream ss; ss << int(capture.get(cv::CAP_PROP_POS_FRAMES)) - 1 << " c " << catched << " m " << missed;
+//            cv::putText(frame, ss.str(), cv::Point(0, 22), cv::FONT_HERSHEY_PLAIN, 1., cv::Scalar(25,150,255));
+//            cv::rectangle(frame, gt, cv::Scalar(169, 0, 255));
 
-            cv::imshow("video", frame);
-            int key = cv::waitKey(currentDelay) & 0xFF;
+//            cv::imshow("video", frame);
+//            int key = cv::waitKey(currentDelay) & 0xFF;
 
-            if(key == 27)
-                break;
+//            if(key == 27)
+//                break;
 
-            if(key == ' ')
-            {
-                if(currentDelay)
-                    currentDelay = 0;
-                else
-                    currentDelay = 1;
-            }
+//            if(key == ' ')
+//            {
+//                if(currentDelay)
+//                    currentDelay = 0;
+//                else
+//                    currentDelay = 1;
+//            }
 
-            if((int(capture.get(cv::CAP_PROP_POS_FRAMES)) - 1) == 2050)
-            {
-                std::cout << int(capture.get(cv::CAP_PROP_POS_FRAMES)) - 1 << " c " << catched << " m " << missed << std::endl;
-                exit(0);
-            }
+//            if((int(capture.get(cv::CAP_PROP_POS_FRAMES)) - 1) == 2050)
+//            {
+//                std::cout << int(capture.get(cv::CAP_PROP_POS_FRAMES)) - 1 << " c " << catched << " m " << missed << std::endl;
+//                exit(0);
+//            }
 
-        }
+//        }
 
-    }
+//    }
 
-    return true;
-}
+//    return true;
+//}
 
-std::vector<cv::Mat_<uchar> > ClassifiersTest::generatePositiveExamples(const cv::Mat_<uchar> &image, const cv::Rect &bb)
-{
-    const float shiftRangePercent = .0f;
-    const float scaleRange = .02f;
-    const float angleRangeDegree = 13.f;
+//std::vector<cv::Mat_<uchar> > ClassifiersTest::generatePositiveExamples(const cv::Mat_<uchar> &image, const cv::Rect &bb)
+//{
+//    const float shiftRangePercent = .0f;
+//    const float scaleRange = .02f;
+//    const float angleRangeDegree = 13.f;
 
-    const float shiftXRange = shiftRangePercent * bb.width;
-    const float shiftYRange = shiftRangePercent * bb.height;
-    int numberOfSyntheticWarped = 150;
-
-
-    /////////////////////////////experimental////////////////////////////
-    //Mat mirror = Mat::eye(3, 3, CV_32F);
-    //mirror.at<float>(0,0) = -1.f;
-    //Mat shift = Mat::eye(3, 3, CV_32F);
-    //shift.at<float>(0,2) = bb.width / 2;
-    //shift.at<float>(1,2) = bb.height / 2;
-    //Mat result = shift * mirror * shift.inv();
-    /////////////////////////////experimental////////////////////////////
+//    const float shiftXRange = shiftRangePercent * bb.width;
+//    const float shiftYRange = shiftRangePercent * bb.height;
+//    int numberOfSyntheticWarped = 150;
 
 
-    std::vector< cv::Mat_<uchar> > positiveExamples;
-    positiveExamples.push_back(image(bb));
+//    /////////////////////////////experimental////////////////////////////
+//    //Mat mirror = Mat::eye(3, 3, CV_32F);
+//    //mirror.at<float>(0,0) = -1.f;
+//    //Mat shift = Mat::eye(3, 3, CV_32F);
+//    //shift.at<float>(0,2) = bb.width / 2;
+//    //shift.at<float>(1,2) = bb.height / 2;
+//    //Mat result = shift * mirror * shift.inv();
+//    /////////////////////////////experimental////////////////////////////
 
 
-    const std::vector<float> &rotationRandomValues = generateRandomValues(angleRangeDegree, numberOfSyntheticWarped);
-    const std::vector<float> &scaleRandomValues = generateRandomValues(scaleRange, numberOfSyntheticWarped);
-    const std::vector<float> &shiftXRandomValues = generateRandomValues(shiftXRange, numberOfSyntheticWarped);
-    const std::vector<float> &shiftYRandomValues = generateRandomValues(shiftYRange, numberOfSyntheticWarped);
+//    std::vector< cv::Mat_<uchar> > positiveExamples;
+//    positiveExamples.push_back(image(bb));
 
-    for(int index = 0; index < numberOfSyntheticWarped; ++index)
-    {
-        cv::Mat_<uchar> warpedOOI = getWarped(image, bb, shiftXRandomValues[index], shiftYRandomValues[index], scaleRandomValues[index], rotationRandomValues[index]);
 
-        for(int j = 0; j < warpedOOI.rows * warpedOOI.cols; ++j)
-            warpedOOI.at<uchar>(j) = cv::saturate_cast<uchar>(warpedOOI.at<uchar>(j) + rng.gaussian(5.));
+//    const std::vector<float> &rotationRandomValues = generateRandomValues(angleRangeDegree, numberOfSyntheticWarped);
+//    const std::vector<float> &scaleRandomValues = generateRandomValues(scaleRange, numberOfSyntheticWarped);
+//    const std::vector<float> &shiftXRandomValues = generateRandomValues(shiftXRange, numberOfSyntheticWarped);
+//    const std::vector<float> &shiftYRandomValues = generateRandomValues(shiftYRange, numberOfSyntheticWarped);
 
-//        cv::imshow("warpedOOI", warpedOOI);
-//        cv::waitKey(1);
+//    for(int index = 0; index < numberOfSyntheticWarped; ++index)
+//    {
+//        cv::Mat_<uchar> warpedOOI = getWarped(image, bb, shiftXRandomValues[index], shiftYRandomValues[index], scaleRandomValues[index], rotationRandomValues[index]);
 
-        positiveExamples.push_back(warpedOOI);
+//        for(int j = 0; j < warpedOOI.rows * warpedOOI.cols; ++j)
+//            warpedOOI.at<uchar>(j) = cv::saturate_cast<uchar>(warpedOOI.at<uchar>(j) + rng.gaussian(5.));
 
-    }
+////        cv::imshow("warpedOOI", warpedOOI);
+////        cv::waitKey(1);
 
-    return positiveExamples;
-}
+//        positiveExamples.push_back(warpedOOI);
 
-std::vector<float> ClassifiersTest::generateRandomValues(float range, int quantity)
-{
-    std::vector<float> values;
+//    }
 
-    for(int i = 0; i < quantity; ++i)
-        values.push_back(rng.uniform(-range, range));
+//    return positiveExamples;
+//}
 
-    float accum = std::accumulate(values.begin(), values.end(), 0.f);
+//std::vector<float> ClassifiersTest::generateRandomValues(float range, int quantity)
+//{
+//    std::vector<float> values;
 
-    accum /= quantity;
+//    for(int i = 0; i < quantity; ++i)
+//        values.push_back(rng.uniform(-range, range));
 
-    for(int i = 0; i < quantity; ++i)
-        values[i] -= accum;
+//    float accum = std::accumulate(values.begin(), values.end(), 0.f);
 
-    return values;
-}
+//    accum /= quantity;
 
-cv::Mat_<uchar> ClassifiersTest::getWarped(const cv::Mat_<uchar> &originalFrame, const cv::Rect &bb, float shiftX, float shiftY, float scale, float rotation)
-{
-        cv::Mat shiftTransform = cv::Mat::eye(3, 3, CV_32F);
-        shiftTransform.at<float>(0,2) = shiftX;
-        shiftTransform.at<float>(1,2) = shiftY;
+//    for(int i = 0; i < quantity; ++i)
+//        values[i] -= accum;
 
-        cv::Mat scaleTransform = cv::Mat::eye(3, 3, CV_32F);
-        scaleTransform.at<float>(0,0) = 1 - scale;
-        scaleTransform.at<float>(1,1) = scaleTransform.at<float>(0,0);
+//    return values;
+//}
 
-        cv::Mat rotationShiftTransform = cv::Mat::eye(3, 3, CV_32F);
-        rotationShiftTransform.at<float>(0,2) = bb.tl().x + float(bb.width) / 2;
-        rotationShiftTransform.at<float>(1,2) = bb.tl().y + float(bb.height) / 2;
+//cv::Mat_<uchar> ClassifiersTest::getWarped(const cv::Mat_<uchar> &originalFrame, const cv::Rect &bb, float shiftX, float shiftY, float scale, float rotation)
+//{
+//        cv::Mat shiftTransform = cv::Mat::eye(3, 3, CV_32F);
+//        shiftTransform.at<float>(0,2) = shiftX;
+//        shiftTransform.at<float>(1,2) = shiftY;
 
-        const float angle = (rotation * CV_PI) / 180.f;
+//        cv::Mat scaleTransform = cv::Mat::eye(3, 3, CV_32F);
+//        scaleTransform.at<float>(0,0) = 1 - scale;
+//        scaleTransform.at<float>(1,1) = scaleTransform.at<float>(0,0);
 
-        cv::Mat rotationTransform = cv::Mat::eye(3, 3, CV_32F);
-        rotationTransform.at<float>(0,0) = rotationTransform.at<float>(1,1) = std::cos(angle);
-        rotationTransform.at<float>(0,1) = std::sin(angle);
-        rotationTransform.at<float>(1,0) = - rotationTransform.at<float>(0,1);
+//        cv::Mat rotationShiftTransform = cv::Mat::eye(3, 3, CV_32F);
+//        rotationShiftTransform.at<float>(0,2) = bb.tl().x + float(bb.width) / 2;
+//        rotationShiftTransform.at<float>(1,2) = bb.tl().y + float(bb.height) / 2;
 
-        const cv::Mat resultTransform = rotationShiftTransform * rotationTransform * rotationShiftTransform.inv() * scaleTransform * shiftTransform;
+//        const float angle = (rotation * CV_PI) / 180.f;
 
-        cv::Mat_<uchar> dst;
-        cv::warpAffine(originalFrame, dst, resultTransform(cv::Rect(0,0,3,2)), dst.size());
+//        cv::Mat rotationTransform = cv::Mat::eye(3, 3, CV_32F);
+//        rotationTransform.at<float>(0,0) = rotationTransform.at<float>(1,1) = std::cos(angle);
+//        rotationTransform.at<float>(0,1) = std::sin(angle);
+//        rotationTransform.at<float>(1,0) = - rotationTransform.at<float>(0,1);
 
-        return dst(bb);
-}
+//        const cv::Mat resultTransform = rotationShiftTransform * rotationTransform * rotationShiftTransform.inv() * scaleTransform * shiftTransform;
 
-void ClassifiersTest::EuclideanTransform(cv::Vec2i shift, cv::Vec2f scale, float angle, const cv::Mat &src, cv::Mat &dst)
-{
-    cv::Mat shiftTransform = cv::Mat::eye(3, 3, CV_32F);
-    shiftTransform.at<float>(0,2) = shift[0];
-    shiftTransform.at<float>(1,2) = shift[1];
+//        cv::Mat_<uchar> dst;
+//        cv::warpAffine(originalFrame, dst, resultTransform(cv::Rect(0,0,3,2)), dst.size());
 
-    cv::Mat scaleTransform = cv::Mat::eye(3, 3, CV_32F);
-    scaleTransform.at<float>(0,0) = scale[0];
-    scaleTransform.at<float>(1,1) = scale[1];
+//        return dst(bb);
+//}
 
-    cv::Mat rotationShiftTransform = cv::Mat::eye(3, 3, CV_32F);
-    rotationShiftTransform.at<float>(0,2) = -src.cols / 2;
-    rotationShiftTransform.at<float>(1,2) = -src.rows / 2;
+//void ClassifiersTest::EuclideanTransform(cv::Vec2i shift, cv::Vec2f scale, float angle, const cv::Mat &src, cv::Mat &dst)
+//{
+//    cv::Mat shiftTransform = cv::Mat::eye(3, 3, CV_32F);
+//    shiftTransform.at<float>(0,2) = shift[0];
+//    shiftTransform.at<float>(1,2) = shift[1];
 
-    cv::Mat rotationTransform = cv::Mat::eye(3, 3, CV_32F);
-    rotationTransform.at<float>(0,0) = rotationTransform.at<float>(1,1) = std::cos(angle * CV_PI / 180);
-    rotationTransform.at<float>(0,1) = std::sin(angle * CV_PI / 180);
-    rotationTransform.at<float>(1,0) = - rotationTransform.at<float>(0,1);
+//    cv::Mat scaleTransform = cv::Mat::eye(3, 3, CV_32F);
+//    scaleTransform.at<float>(0,0) = scale[0];
+//    scaleTransform.at<float>(1,1) = scale[1];
 
-    const cv::Mat resultTransform = rotationShiftTransform.inv() * rotationTransform * rotationShiftTransform * scaleTransform * shiftTransform;
+//    cv::Mat rotationShiftTransform = cv::Mat::eye(3, 3, CV_32F);
+//    rotationShiftTransform.at<float>(0,2) = -src.cols / 2;
+//    rotationShiftTransform.at<float>(1,2) = -src.rows / 2;
 
-    cv::warpAffine(src, dst, resultTransform(cv::Rect(0,0,3,2)), dst.size());
+//    cv::Mat rotationTransform = cv::Mat::eye(3, 3, CV_32F);
+//    rotationTransform.at<float>(0,0) = rotationTransform.at<float>(1,1) = std::cos(angle * CV_PI / 180);
+//    rotationTransform.at<float>(0,1) = std::sin(angle * CV_PI / 180);
+//    rotationTransform.at<float>(1,0) = - rotationTransform.at<float>(0,1);
 
-}
+//    const cv::Mat resultTransform = rotationShiftTransform.inv() * rotationTransform * rotationShiftTransform * scaleTransform * shiftTransform;
+
+//    cv::warpAffine(src, dst, resultTransform(cv::Rect(0,0,3,2)), dst.size());
+
+//}
 
 TEST(TLD, NNClassifier) { ClassifiersTest test; test.run(); }

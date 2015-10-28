@@ -56,14 +56,12 @@ namespace tld
 
 Mat_<uchar> CascadeClassifier::debugOutput;
 
-CascadeClassifier::CascadeClassifier(int preMeasure, int preFerns, Size preFernPathSize,
-                                           int numberOfMeasurements, int numberOfFerns, Size fernPatchSize,
-                                           int numberOfExamples, Size examplePatchSize, int actPositiveExampleNumbers, int actWrappedExamplesNumber, double actGroupTheta):
-    minimalBBSize(20, 20), scaleStep(1.2f), groupRectanglesTheta(actGroupTheta), positiveExampleNumbers(actPositiveExampleNumbers),
+CascadeClassifier::CascadeClassifier(int numberOfMeasurements, int numberOfFerns, Size fernPatchSize,
+                                           int numberOfExamples, Size examplePatchSize, int actPositiveExampleNumbers, int actWrappedExamplesNumber):
+    minimalBBSize(20, 20), scaleStep(1.2f), positiveExampleNumbers(actPositiveExampleNumbers),
     wrappedExamplesNumber(actWrappedExamplesNumber), isInited(false)
 {
     varianceClassifier = makePtr<VarianceClassifier>();
-    preFernClassifier = makePtr<FernClassifier>(preMeasure, preFerns, preFernPathSize);
     fernClassifier = makePtr<FernClassifier>(numberOfMeasurements, numberOfFerns, fernPatchSize);
     nnClassifier = makePtr<NNClassifier>(numberOfExamples, examplePatchSize, 0.5);
 
@@ -77,6 +75,7 @@ void CascadeClassifier::init(const Mat_<uchar> &zeroFrame, const Rect &bb)
     originalBBSize = bb.size();
     frameSize = zeroFrame.size();
     hypothesis = generateHypothesis(frameSize, originalBBSize, minimalBBSize, scaleStep);
+    answers = std::vector<Answers>(hypothesis.size());
 
     pExpert = makePtr<PExpert>(zeroFrame.size());
     nExpert = makePtr<NExpert>();
@@ -108,7 +107,6 @@ std::vector< std::pair<Rect, double> > CascadeClassifier::detect(const Mat_<ucha
     timeval varianceStart, fernStart, nnStart, nnStop, mergeStop;
 #endif
 
-    answers.clear();
 #ifdef TIME_MEASURE
     gettimeofday(&varianceStart, NULL);
 #endif
@@ -119,14 +117,11 @@ std::vector< std::pair<Rect, double> > CascadeClassifier::detect(const Mat_<ucha
     gettimeofday(&fernStart, NULL);
 #endif
 
-    //preFernClassifier->isObjects(hypothesis, scaledImage, answers);
-
-
     fernClassifier->isObjects(hypothesis, scaledImage, answers);
 
     fernsPositive.clear();
     for(size_t index = 0; index < answers.size(); ++index)
-        if(answers[index])
+        if(answers[index].confidence > 0.)
             fernsPositive.push_back(hypothesis[index].bb);
 
 
@@ -164,14 +159,6 @@ std::vector< std::pair<Rect, double> > CascadeClassifier::detect(const Mat_<ucha
 #endif
 
     const std::vector< std::pair<Rect, double> > &result = prepareFinalResult(scaledImage);
-
-//    Mat copyNN; cvtColor(scaledImage,copyNN, CV_GRAY2BGR);
-
-//    for(std::vector<std::pair<Rect, double> >::const_iterator it = result.begin(); it != result.end(); ++it)
-//    {rectangle(copyNN, it->first, Scalar::all(255 * it->second));}
-
-//    imshow("nn", copyNN);
-//    waitKey();
 
 #ifdef TIME_MEASURE
     gettimeofday(&mergeStop, NULL);
@@ -240,126 +227,15 @@ std::vector<Hypothesis> CascadeClassifier::generateHypothesis(const Size frameSi
     return hypothesis;
 }
 
-std::vector< std::pair<Rect, double> > CascadeClassifier::prepareFinalResult(const Mat_<uchar> &image) const
+std::vector< std::pair<Rect, double> > CascadeClassifier::prepareFinalResult(const Mat_<uchar> &/*image*/) const
 {
     std::vector< std::pair<Rect, double> > finalResult;
 
     for(size_t index = 0; index < hypothesis.size(); ++index)
-    {
         if(answers[index])
-        {
-            const double confidence = nnClassifier->calcConfidence(image(hypothesis[index].bb));
-            finalResult.push_back(std::make_pair(hypothesis[index].bb, confidence));
-            /*CV_Assert(confidence >= 0.5);*/
-        }
-    }
-
-    std::sort(finalResult.begin(), finalResult.end(), greater);
+            finalResult.push_back(std::make_pair(hypothesis[index].bb, answers[index].confidence));
 
     return finalResult;
-}
-
-void CascadeClassifier::myGroupRectangles(std::vector<Rect> &rectList, double eps) const
-{
-    if(rectList.size() < 2u)
-        return;
-
-    std::vector<int> labels;
-    int nclasses = partition(rectList, labels, SimilarRects(eps));
-    int i, nlabels = (int)labels.size();
-    std::vector<int> rweights(nclasses, 0);
-    std::vector<Rect> rrects;
-#if 0
-    for( i = 0; i < nlabels; i++ )
-    {
-        int cls = labels[i];
-        rrects[cls].x += rectList[i].x;
-        rrects[cls].y += rectList[i].y;
-        rrects[cls].width += rectList[i].width;
-        rrects[cls].height += rectList[i].height;
-        rweights[cls]++;
-    }
-
-    for( i = 0; i < nclasses; i++ )
-    {
-        Rect r = rrects[i];
-        float s = 1.f/rweights[i];
-        rrects[i] = Rect(saturate_cast<int>(r.x * s),
-             saturate_cast<int>(r.y * s),
-             saturate_cast<int>(r.width * s),
-             saturate_cast<int>(r.height * s));
-    }
-#else
-
-    std::vector<std::vector<int> > x(nclasses), y(nclasses), width(nclasses), height(nclasses);
-
-    for( i = 0; i < nlabels; i++ )
-    {
-        int cls = labels[i];
-        x[cls].push_back(rectList[i].x);
-        y[cls].push_back(rectList[i].y);
-        width[cls].push_back(rectList[i].width);
-        height[cls].push_back(rectList[i].height);
-        rweights[cls]++;
-    }
-
-    for( i = 0; i < nclasses; i++ )
-    {
-        std::vector<int> &_x = x[i];
-        std::vector<int> &_y = y[i];
-        std::vector<int> &_width = width[i];
-        std::vector<int> &_height = height[i];
-
-//        if(rweights[i] <= 2)
-//        {
-//            rrects[i] = Rect
-//                    ( float(std::accumulate(_x.begin(), _x.end(), 0)) / rweights[i],
-//                      float(std::accumulate(_y.begin(), _y.end(), 0)) / rweights[i],
-//                      float(std::accumulate(_width.begin(), _width.end(), 0)) / rweights[i],
-//                      float(std::accumulate(_height.begin(), _height.end(), 0)) / rweights[i]
-//                      );
-//        }
-//        else
-        {
-            std::sort(_x.begin(), _x.end());
-            std::sort(_y.begin(), _y.end());
-            std::sort(_width.begin(), _width.end());
-            std::sort(_height.begin(), _height.end());
-
-            CV_Assert(_x.size() == _y.size());
-            CV_Assert(_y.size() == _width.size());
-            CV_Assert(_width.size() == _height.size());
-
-
-//            Mat_<uchar> copy; debugOutput.copyTo(copy);
-//            for(size_t index = 0; index < _x.size(); ++index)
-//                rectangle(copy, Rect(_x[index], _y[index], _width[index], _height[index]), Scalar::all(0));
-
-            Rect rect;
-
-            const size_t middle = _x.size() / 2;
-
-            if(_x.size() % 2  == 0)
-                rect = Rect2d( (_x[middle] + _x[middle - 1]) * 0.5,
-                             (_y[middle] + _y[middle - 1]) * 0.5,
-                        (_width[middle] + _width[middle - 1]) * 0.5,
-                        (_height[middle] + _height[middle - 1]) * 0.5);
-            else
-                rect = Rect( _x[middle], _y[middle], _width[middle],_height[middle]);
-
-//            rectangle(copy, rect, Scalar::all(255));
-
-//            imshow("group rects", copy);
-//            waitKey();
-
-            if(pExpert->isRectOK(rect))
-                rrects.push_back(rect);
-        }
-    }
-
-#endif
-
-    rectList = rrects;
 }
 
 void CascadeClassifier::addScanGrid(const Size frameSize, const Size bbSize, const Size minimalBBSize, std::vector<Hypothesis> &hypothesis, double scale)
@@ -373,31 +249,11 @@ void CascadeClassifier::addScanGrid(const Size frameSize, const Size bbSize, con
 
     for(int currentX = 0; currentX < frameSize.width - bbSize.width - dx; currentX += dx)
         for(int currentY = 0; currentY < frameSize.height - bbSize.height - dy; currentY += dy)
-        {
             hypothesis.push_back(Hypothesis(currentX, currentY, bbSize, scale));
-        }
+
 }
 
-bool CascadeClassifier::isObject(const Mat_<uchar> &candidate) const
-{
-    if(!varianceClassifier->isObject(candidate))
-         return false;
-
-    if(!fernClassifier->isObject(candidate))
-        return false;
-
-    if(!nnClassifier->isObject(candidate))
-        return false;
-
-    return true;
-}
-
-bool CascadeClassifier::isObjectPredicate(const CascadeClassifier *pCascadeClassifier, const Mat_<uchar> candidate)
-{
-    return pCascadeClassifier->isObject(candidate);
-}
-
-std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(const Mat_<uchar> &image, const Rect &bb, int numberOfsurroundBbs, int numberOfSyntheticWarped)
+std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(const Mat_<uchar> &image, const Rect &bb, int /*numberOfsurroundBbs*/, int numberOfSyntheticWarped)
 {
     const float shiftRangePercent = .01f;
     const float scaleRange = .01f;

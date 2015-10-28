@@ -168,53 +168,29 @@ public:
             objectToTrain(actObjectToTrain), objectToResetTracker(actObjectToResetTracker), objectToOutput(actObjectToOutput), ObjectDetector(actObjectDetector) {}
     };
 
-    Integrator(const Ptr<NNClassifier> &actNNClassifier, const Rect &actRoi)
-        : isTrajectoryReliable(true), maxCandidatesSize(3), preparing(0)
-    {
-        nnClassifier = actNNClassifier;
-        roi = actRoi;
-    }
+    Integrator():  preparing(0) {}
 
-    const IntegratorResult getObjectToTrainFrom(const Mat_<uchar> &frame,
+    const IntegratorResult getObjectToTrainFrom(const Mat_<uchar> &/*frame*/,
                                                const std::pair<Rect2d, double> &objectFromTracker,
                                                const std::vector<std::pair<Rect, double> > &objectsFromDetector);
 
 private:
-    struct Candidate
-    {
-        Candidate() {CV_Assert(0);}
-        Candidate(const Mat_<uchar> &frame, Rect bb, double _confidence);
-
-        double confidence;
-        double hints;
-        Ptr<TrackerMedianFlow> medianFlow;
-        Rect2d prevRect;
-
-    };
-
-private:
-    bool isTrajectoryReliable;
-    /*const*/ static Rect roi;
-    /*const*/ static Ptr<NNClassifier> nnClassifier;
-    static Mat copy;
-
-    std::vector< Ptr<Candidate> > candidates;
-    const size_t maxCandidatesSize;
     int preparing;
 
 private:
-    static void updateCandidates(Ptr<Candidate> candidate, const Mat_<uchar> &frame);
-    static void incrementHints(Ptr<Candidate> candidate, const std::vector< std::pair<Rect, double> > &objectsFromDetector);
-    static bool sortPredicateConf(const Ptr<Candidate> &candidate1, const Ptr<Candidate> &candidate2);
-
     static bool sortDetections(const std::pair<Rect, double> &candidate1, const std::pair<Rect, double> &candidate2);
 
-    static bool sortPredicateHints(const Ptr<Candidate> &candidate1);
+//    static void updateCandidates(Ptr<Candidate> candidate, const Mat_<uchar> &frame);
+//    static void incrementHints(Ptr<Candidate> candidate, const std::vector< std::pair<Rect, double> > &objectsFromDetector);
+//    static bool sortPredicateConf(const Ptr<Candidate> &candidate1, const Ptr<Candidate> &candidate2);
 
-    static bool overlapPredicate(const Ptr<Candidate> candidate, const Rect &bb);
-    static double overlapIncPredicate(const std::pair<Rect, double> candidate, const Rect2d bb);
-    static bool selectCandidateForRemove(const Ptr<Candidate> candidate);
-    static Rect averageRects(const Rect &item1, const Rect &item2);
+
+//    static bool sortPredicateHints(const Ptr<Candidate> &candidate1);
+
+//    static bool overlapPredicate(const Ptr<Candidate> candidate, const Rect &bb);
+//    static double overlapIncPredicate(const std::pair<Rect, double> candidate, const Rect2d bb);
+//    static bool selectCandidateForRemove(const Ptr<Candidate> candidate);
+//    static Rect averageRects(const Rect &item1, const Rect &item2);
 };
 
 class TrackerTLDImpl : public TrackerTLD

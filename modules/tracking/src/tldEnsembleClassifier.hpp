@@ -47,138 +47,106 @@
 #include <list>
 #include <vector>
 
-//#define FERN_DEBUG
-//#define FERN_PROFILE
-
 namespace cv
 {
-
-
-//CV_EXPORTS_W void
 
 namespace tld
 {
 
 struct Hypothesis
 {
-    Hypothesis() : bb(), confidence(-1.){}
-    Hypothesis(int x, int y, Size size, double actScale) : bb(Point(x,y), size), confidence(-1.), scale(actScale) {}
+    Hypothesis() : bb() {}
+    Hypothesis(int x, int y, Size size, double actScale) : bb(Point(x,y), size), scale(actScale) {}
     Rect bb;
-    double confidence;
     double scale;
 };
 
-class tldIClassifier
+struct Answers
 {
-public:
-    virtual void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const = 0;
-    virtual void integratePositiveExamples(const std::vector< Mat_<uchar> > &) = 0;
-    virtual void integrateNegativeExamples(const std::vector< Mat_<uchar> > &) = 0;
+    Answers() : confidence(-1.) {}
+    void operator = (bool isObject) { confidence = isObject ? 1. : -1.; }
+    operator bool() const {return confidence > 0.;}
 
-    virtual ~tldIClassifier() {}
-
+    double confidence;
 };
 
-class CV_EXPORTS_W VarianceClassifier : public tldIClassifier
+class CV_EXPORTS_W VarianceClassifier
 {
 public:
     VarianceClassifier(double actLowCoeff = 0.5, double actHighCoeff = 2.);
-    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const;
+    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<Answers> &answers) const;
     void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
-    void integrateNegativeExamples(const std::vector< Mat_<uchar> > &) {CV_Assert(0);}
+
+    static double variance(const Mat_<uchar>& img);
 
     ~VarianceClassifier() {}
 
 private:
     double actVariance;
     const double lowCoeff, hightCoeff;
+    mutable Mat_<double> integral, integralSq;
 
-public:
-//private:
-    bool isObject(const Rect &bb, const Mat_<double> &sum, const Mat_<double> &sumSq) const;
-    bool isObject(const Mat_<uchar> &candidate) const;
-
-    static double variance(const Mat_<uchar>& img);
+private:
+    bool isObject(const Rect &bb) const;
     static double variance(const Mat_<double>& sum, const Mat_<double>& sumSq, const Rect &bb);
 
 };
 
-//#define FERN_DEBUG
-//#define USE_BLUR
-//#define FERN_PROFILE
-class CV_EXPORTS_W FernClassifier : public tldIClassifier
+class CV_EXPORTS_W FernClassifier
 {
 public:
     FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize, double actThreshold = 0.5);
 
-    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const;
+    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<Answers> &answers) const;
 
     void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
     void integrateNegativeExamples(const std::vector< Mat_<uchar> > &examples);
 
-    std::vector<Mat> outputFerns(const Size &displaySize) const;
 
     ~FernClassifier() {}
 
-/*private:*/
+private:
+
     const Size patchSize;
-    /*const int numberOfFerns, numberOfMeasurements;*/
     const double threshold;
     const int minSqDist;
 
-    typedef std::vector<std::vector<std::pair<Point, Point> > > Ferns;
+    typedef std::vector< std::vector<std::pair<Point, Point> > > Ferns;
     Ferns ferns;
-    //Ferns::value_type measurements;
 
-    typedef std::vector<std::vector<Point_</*unsigned long*/int> > > Precedents;
+    typedef std::vector< std::vector<Point> > Precedents;
     Precedents precedents;
 
     RNG rng;
 
-/*private:*/
-public:
+private:
     bool isObject(const Mat_<uchar> &image) const;
     double getProbability(const Mat_<uchar> &image) const;
     int code(const Mat_<uchar> &image, const Ferns::value_type &fern) const;
     void integrateExample(const Mat_<uchar> &image, bool isPositive);
-    static uchar getPixelVale(const Mat_<uchar> &image, const Point2f point);
 
 
     void saveFern(const std::string &path) const;
     static void compareFerns(const std::string &pathToFern1, const std::string &pathToFern2);
-
-    //Ptr<xfeatures2d::SIFT> sift;
-    //Ptr<ORB> orb;
-
-#ifdef FERN_DEBUG
-public:
-    mutable cv::Mat debugOutput;
-    mutable std::pair<uchar, uchar> vals;
-#endif
-
-#ifdef FERN_PROFILE
-    mutable double codeTime;
-    mutable double acsessTime;
-    mutable double calcTime;
-#endif
-
+    std::vector<Mat> outputFerns(const Size &displaySize) const;
 };
-//#define NNDEBUG
-class CV_EXPORTS_W NNClassifier : public tldIClassifier
+
+
+class CV_EXPORTS_W NNClassifier
 {
 public:
     NNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize, double actTheta = 0.5);
 
-    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const;
+    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<Answers> &answers) const;
 
     void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
     void integrateNegativeExamples(const std::vector< Mat_<uchar> > &examples);
 
-    std::pair<cv::Mat, cv::Mat> outputModel(int positiveMark = -1, int negativeMark = -1) const;
+    double calcConfidenceTracker(const Mat_<uchar> &image) const;
 
     ~NNClassifier() {}
 
-//private:
+private:
     const double theta;
     const size_t maxNumberOfExamples;
     const Size normilizedPatchSize;
@@ -188,44 +156,18 @@ public:
     ExampleStorage positiveExamples, negativeExamples;
     RNG rng;
 
-public:
-/*private:*/
+private:
     bool isObject(const Mat_<uchar> &image) const;
-    double calcConfidence(const Mat_<uchar> &image) const;
-    double calcConfidenceTracker(const Mat_<uchar> &image) const;
 
-    double Sr(const Mat_<uchar>& patch, bool isForTracker = false) const;
+    double Sr(const Mat_<uchar>& patch) const;
     double Sc(const Mat_<uchar>& patch, bool isForTracker = false) const;
     void addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage);
-public:
     static float NCC(const Mat_<uchar>& patch1, const Mat_<uchar>& patch2);
 
 
+    std::pair<cv::Mat, cv::Mat> outputModel(int positiveMark = -1, int negativeMark = -1) const;
     std::pair<Mat, Mat> getModelWDecisionMarks(const Mat_<uchar> &image, double previousConf);
     double debugSr(const Mat_<uchar> &patch, int &positiveDecisitionExample, int &negativeDecisionExample);
-
-
-#ifdef NNDEBUG
-public:
-    mutable ExampleStorage::const_iterator positive, negative;
-    Mat_<uchar> outputPrecedents(const Mat_<uchar> &object)
-    {
-        Mat_<uchar> resizeObject;
-
-        if(!object.empty())
-            resize(object, resizeObject, normilizedPatchSize);
-        Mat_<uchar> precedents(cv::Size(3*normilizedPatchSize.width, normilizedPatchSize.height), 0u);
-
-        positive->copyTo(precedents(Rect(Point(), normilizedPatchSize)));
-        negative->copyTo(precedents(Rect(Point(normilizedPatchSize.width,0), normilizedPatchSize)));
-        if(!object.empty())
-            resizeObject.copyTo(precedents(Rect(Point(2*normilizedPatchSize.width,0), normilizedPatchSize)));
-
-        return precedents;
-    }
-
-#endif
-
 
 };
 

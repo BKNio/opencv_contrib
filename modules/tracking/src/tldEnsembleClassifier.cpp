@@ -55,20 +55,15 @@ namespace tld
 
 VarianceClassifier::VarianceClassifier(double actLowCoeff, double actHighCoeff) : actVariance(-1.), lowCoeff(actLowCoeff), hightCoeff(actHighCoeff) {}
 
-void VarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
+void VarianceClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<Answers> &answers) const
 {
-    CV_Assert(answers.empty());
-
     CV_Assert(actVariance > 0.);
+    CV_Assert(answers.size() == hypothesis.size());
 
-    answers.reserve(hypothesis.size());
+    cv::integral(image, integral, integralSq, CV_64F, CV_64F);
 
-    std::pair< Mat_<double>, Mat_<double> > integralScaledImages;
-
-    cv::integral(image, integralScaledImages.first, integralScaledImages.second, CV_64F, CV_64F);
-
-    for(std::vector<Hypothesis>::const_iterator it = hypothesis.begin(); it != hypothesis.end(); ++it)
-        answers.push_back(isObject(it->bb, integralScaledImages.first, integralScaledImages.second));
+    for(size_t index = 0; index < hypothesis.size(); ++index)
+        answers[index] = isObject(hypothesis[index].bb);
 }
 
 void VarianceClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &examples)
@@ -76,23 +71,17 @@ void VarianceClassifier::integratePositiveExamples(const std::vector<Mat_<uchar>
     if(examples.empty())
         return;
 
-    std::vector<double> variances; variances.reserve(examples.size());
+    actVariance = 0.;
 
-    for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
-        variances.push_back(variance(*example));
+    for(std::vector< Mat_<uchar> >::const_iterator positiveExample = examples.begin(); positiveExample != examples.end(); ++positiveExample)
+        actVariance += variance(*positiveExample);
 
-    actVariance = std::accumulate(variances.begin(), variances.end(), 0.) / double(examples.size());
+    actVariance /= double(examples.size());
 }
 
-bool VarianceClassifier::isObject(const Rect &bb, const Mat_<double> &sum, const Mat_<double> &sumSq) const
+bool VarianceClassifier::isObject(const Rect &bb) const
 {
-    const double curVariance = variance(sum, sumSq, bb);
-    return curVariance >= lowCoeff * actVariance && curVariance <= hightCoeff * actVariance;
-}
-
-bool VarianceClassifier::isObject(const Mat_<uchar> &candidate) const
-{
-    const double curVariance = variance(candidate);
+    const double curVariance = variance(integral, integralSq, bb);
     return curVariance >= lowCoeff * actVariance && curVariance <= hightCoeff * actVariance;
 }
 
@@ -153,7 +142,6 @@ FernClassifier::FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfF
         {
             Point firstPoint(i,j);
 
-#if 1
             for(int kk = shift; kk < patchSize.width - shift; ++kk)
             {
                 const Point diff = Point(kk, j) - firstPoint;
@@ -171,22 +159,6 @@ FernClassifier::FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfF
 
                 measurements.push_back(std::make_pair(firstPoint, Point(i, kk)));
             }
-#else
-            for(int ii = /*i + 1*/ shift; ii < normilizedPatchSize.width - shift; ++ii)
-            {
-                for(int jj = /*j + 1*/ shift; jj < normilizedPatchSize.height - shift; ++jj)
-                {
-                    Point secondPoint(ii,jj);
-
-                    const Point diff = firstPoint - secondPoint;
-                    if(diff.dot(diff) < 4)
-                        continue;
-
-                    measurements.push_back(std::make_pair(firstPoint, secondPoint));
-                }
-            }
-#endif
-
 
         }
     }
@@ -197,7 +169,6 @@ FernClassifier::FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfF
         CV_Error(cv::Error::StsBadArg, "Not enough measurements");
 
     std::srand(0);
-
     std::random_shuffle(measurements.begin(), measurements.end());
 
     Precedents::value_type emptyPrecedents(1 << numberOfMeasurementsPerFern, Point());
@@ -214,51 +185,22 @@ FernClassifier::FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfF
         precedents[i] = emptyPrecedents;
     }
 
-    //sift = xfeatures2d::SIFT::create();
-    //orb = ORB::create();
-
 }
 
-void FernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<bool> &answers) const
+void FernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<Answers> &answers) const
 {
-
-    //saveFern("/tmp/1000.xml");
-
     CV_Assert(hypothesis.size() == answers.size());
-
-#ifdef FERN_PROFILE
-    timeval start, stop;
-    gettimeofday(&start, NULL);
-    codeTime = 0.;
-    calcTime = 0.;
-    acsessTime = 0.;
-#endif
 
     Mat_<uchar> blurred;
     GaussianBlur(image, blurred, Size(3,3), 0.);
 
     for(size_t i = 0; i < hypothesis.size(); ++i)
         if(answers[i])
-            answers[i] = isObject(blurred(hypothesis[i].bb));
-
-
-#ifdef FERN_PROFILE
-    gettimeofday(&stop, NULL);
-    std::cout << "------------------" << std::endl;
-    std::cout << "fern isObject total " << stop.tv_sec - start.tv_sec + double(stop.tv_usec - start.tv_usec) / 1e6 << std::endl;
-    std::cout << "fern code time " << codeTime << std::endl;
-    std::cout << "fern calcTime " << calcTime << std::endl;
-    std::cout << "fern acsessTime " << acsessTime << std::endl;
-    std::cout << "------------------" << std::endl;
-#endif
+            answers[i]= isObject(blurred(hypothesis[i].bb));
 }
 
 void FernClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &examples)
 {
-
-    //int randomPrecedents = rng.uniform(0, precedents.size());
-    //precedents[randomPrecedents] = Precedents::value_type(precedents[randomPrecedents].size());
-
     for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
         integrateExample(*example, true);
 }
@@ -285,42 +227,23 @@ double FernClassifier::getProbability(const Mat_<uchar> &image) const
 
     for(int i = 0; i < fernsSize; ++i)
     {
-#ifdef FERN_DEBUG
-    debugOutput = Mat();
-#endif
+        int position = code(image, ferns[i]);
+        int posNum = precedents[i][position].x, negNum = precedents[i][position].y;
 
-#ifdef FERN_PROFILE
-    timeval start, stop;
-    gettimeofday(&start, NULL);
-#endif
-    int position = code(image, ferns[i]);
+        if (posNum != 0 || negNum != 0)
+            accumProbability += float(posNum) / (posNum + negNum);
+        else
+            fernsSize--;
 
-#ifdef FERN_PROFILE
-    gettimeofday(&stop, NULL);
-    codeTime += stop.tv_sec - start.tv_sec + double(stop.tv_usec - start.tv_usec) / 1e6;
-#endif
+        if(accumProbability / fernsSize > threshold)
+            return 1.;
 
-    int posNum = precedents[i][position].x, negNum = precedents[i][position].y;
-
-    if (posNum != 0 || negNum != 0)
-        accumProbability += float(posNum) / (posNum + negNum);
-    else
-        fernsSize--;
-
-#ifdef FERN_DEBUG
-    imshow("debugOutput", debugOutput);
-    waitKey();
-#endif
-
-    if(accumProbability / fernsSize > threshold)
-        return 1.;
-
-    if((accumProbability + (fernsSize - i)) / fernsSize <= threshold)
-        return 0.;
-
+        if((accumProbability + (fernsSize - i)) / fernsSize <= threshold)
+            return 0.;
     }
 
     CV_Assert(fernsSize);
+
     return accumProbability / fernsSize;
 }
 
@@ -331,96 +254,28 @@ int FernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern
     const float coeffX = float(image.cols - 1) / patchSize.width;
     const float coeffY = float(image.rows - 1) / patchSize.height;
 
-//    sift->compute();
-
     for(Ferns::value_type::const_iterator measureIt = fern.begin(); measureIt != fern.end(); ++measureIt)
     {
         position <<= 1;
 
-#ifdef FERN_PROFILE
-    timeval startCalc, stopCalc, stopAcsess;
-    gettimeofday(&startCalc, NULL);
-#endif
-    const Point p1(cvRound(measureIt->first.x * coeffX), cvRound(measureIt->first.y * coeffY));
+        const Point p1(cvRound(measureIt->first.x * coeffX), cvRound(measureIt->first.y * coeffY));
+        const Point p2(cvRound(measureIt->second.x * coeffX), cvRound(measureIt->second.y * coeffY));
 
-//    Vec<int, 9> vec1(image.at<uchar>(p1.x - 1, p1.y - 1),
-//                     image.at<uchar>(p1.x, p1.y - 1),
-//                     image.at<uchar>(p1.x + 1, p1.y - 1),
-
-//                     image.at<uchar>(p1.x - 1, p1.y),
-//                     image.at<uchar>(p1.x, p1.y),
-//                     image.at<uchar>(p1.x + 1, p1.y),
-
-//                     image.at<uchar>(p1.x - 1, p1.y + 1),
-//                     image.at<uchar>(p1.x, p1.y + 1),
-//                     image.at<uchar>(p1.x + 1, p1.y + 1)
-//                );
-
-    int val1 = 0;
-
-    for(int i = -1; i <= 1; ++i)
-        for(int j = -1; j <= 1; ++j)
-                val1 += image.at<uchar>(p1.x + i, p1.y + j);
-
-
-
-    const Point p2(cvRound(measureIt->second.x * coeffX), cvRound(measureIt->second.y * coeffY));
-
-
-//    Vec<int, 9> vec2(image.at<uchar>(p2.x - 1, p2.y - 1),
-//                     image.at<uchar>(p2.x, p2.y - 1),
-//                     image.at<uchar>(p2.x + 1, p2.y - 1),
-
-//                     image.at<uchar>(p2.x - 1, p2.y),
-//                     image.at<uchar>(p2.x, p2.y),
-//                     image.at<uchar>(p2.x + 1, p2.y),
-
-//                     image.at<uchar>(p2.x - 1, p2.y + 1),
-//                     image.at<uchar>(p2.x, p2.y + 1),
-//                     image.at<uchar>(p2.x + 1, p2.y + 1)
-//                );
-
-    int val2 = 0;
-
-    for(int i = -1; i <= 1; ++i)
-        for(int j = -1; j <= 1; ++j)
-                val2 += image.at<uchar>(p2.x + i, p2.y + j);
-
-
-
-//    if(vec1.dot(vec2) == 0)
-//    {
-//        std::cout << vec1 << " "  << vec2 << std::endl;
-//        imshow("qqq",image);
-//        waitKey();
-//    }
-
-
-#ifdef FERN_PROFILE
-    gettimeofday(&stopCalc, NULL);
-    calcTime += stopCalc.tv_sec - startCalc.tv_sec + double(stopCalc.tv_usec - startCalc.tv_usec) / 1e6;
-#endif
-
-#ifdef FERN_DEBUG
-        if(debugOutput.empty())
-            cvtColor(image, debugOutput, CV_GRAY2BGR);
-
-        static RNG rng;
-        Scalar color(rng.uniform(0,255), rng.uniform(0,255), rng.uniform(0,255));
-        line(debugOutput, p1, p2, color);
-
-        vals.first = getPixelVale(image, p1);
-        vals.second = getPixelVale(image, p2);
-#endif
-
-        if(val1 < val2)
-        //if(image.at<uchar>(p1) < image.at<uchar>(p2))
+        if(image.at<uchar>(p1) < image.at<uchar>(p2))
             position++;
 
-#ifdef FERN_PROFILE
-    gettimeofday(&stopAcsess, NULL);
-    acsessTime += stopAcsess.tv_sec - stopCalc.tv_sec + double(stopAcsess.tv_usec - stopCalc.tv_usec) / 1e6;
-#endif
+        /*int val1 = 0, val2 = 0;
+        for(int i = -1; i <= 1; ++i)
+        {
+            for(int j = -1; j <= 1; ++j)
+            {
+                val1 += image.at<uchar>(p1.x + i, p1.y + j);
+                val2 += image.at<uchar>(p2.x + i, p2.y + j);
+            }
+        }
+
+        if(val1 < val2)
+            position++;*/
 
     }
     return position;
@@ -428,10 +283,8 @@ int FernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern
 
 void FernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
 {
-#ifndef USE_BLUR
     Mat_<uchar> blurred;
     GaussianBlur(image, blurred, Size(3,3), 0.);
-#endif
 
     float accumProbability = 0.;
 
@@ -450,10 +303,10 @@ void FernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
     }
 
     if(accumProbability / fernsSize <= threshold && isPositive)
-    {
-        std::cout << "WARNING FERN IS IN BAD STATE" << accumProbability / fernsSize << std::endl;
-        /*CV_Assert(0);*/
-    }
+        std::cout << "Warning ferns are in bad state (positive)" << accumProbability / fernsSize << std::endl;
+
+    if(accumProbability / fernsSize > threshold && !isPositive)
+        std::cout << "Warning ferns are in bad state (negative)" << accumProbability / fernsSize << std::endl;
 }
 
 void FernClassifier::saveFern(const std::string &path) const
@@ -531,7 +384,7 @@ void FernClassifier::compareFerns(const std::string &refFern, const std::string 
 
 std::vector<Mat> FernClassifier::outputFerns(const Size &displaySize) const
 {
-    RNG rng;
+    RNG rang;
 
     float scaleW = float(displaySize.width) / patchSize.width;
     float scaleH = float(displaySize.height) / patchSize.height;
@@ -546,7 +399,7 @@ std::vector<Mat> FernClassifier::outputFerns(const Size &displaySize) const
         Mat copyBlack; black.copyTo(copyBlack);
         for(Ferns::value_type::const_iterator measureIt = fernIt->begin(); measureIt != fernIt->end(); ++measureIt)
         {
-            Scalar color(rng.uniform(20,255), rng.uniform(20,255), rng.uniform(20,255));
+            Scalar color(rang.uniform(20,255), rang.uniform(20,255), rang.uniform(20,255));
 
             Point p1(cvRound(measureIt->first.x * scaleW), cvRound(measureIt->first.y * scaleH));
             Point p2(cvRound(measureIt->second.x * scaleW), cvRound(measureIt->second.y * scaleH));
@@ -569,18 +422,17 @@ NNClassifier::NNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatc
     normilizedPatchSize(actNormilizedPatchSize), normilizedPatch(normilizedPatchSize)
 {}
 
-void NNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<bool> &answers) const
+void NNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<Answers> &answers) const
 {
     CV_Assert(hypothesis.size() == answers.size());
 
-#if 0
-    nearestPrecedents.clear();
-    distances.clear();
-#endif
-
     for(size_t i = 0; i < hypothesis.size(); ++i)
         if(answers[i])
+        {
             answers[i] = isObject(images(hypothesis[i].bb));
+            if(answers[i])
+                answers[i].confidence = calcConfidenceTracker(images(hypothesis[i].bb));
+        }
 }
 
 void NNClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &examples)
@@ -595,70 +447,6 @@ void NNClassifier::integrateNegativeExamples(const std::vector<Mat_<uchar> > &ex
         addExample(*example, negativeExamples);
 }
 
-std::pair<Mat, Mat> NNClassifier::outputModel(int positiveMark, int negativeMark) const
-{
-    const int sqrtSize = cvRound(std::sqrt(std::max(positiveExamples.size(), negativeExamples.size())) + 0.5f);
-    const int outputWidth = sqrtSize * normilizedPatchSize.width, outputHeight = sqrtSize * normilizedPatchSize.height;
-
-    Mat positivePrecedents(outputHeight, outputWidth, CV_8U, Scalar::all(255)), negativePrecedents(outputHeight, outputWidth, CV_8U, Scalar::all(255));
-    Mat positivePrecedent, negativePrecedent;
-
-    cv::Rect actPositionPositive(cv::Point(), normilizedPatchSize);
-
-    int currentPositiveExample = 0;
-    for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it, ++currentPositiveExample)
-    {
-        if(actPositionPositive.x + it->cols > positivePrecedents.cols)
-        {
-            actPositionPositive.x = 0;
-            actPositionPositive.y += it->rows;
-        }
-
-        CV_Assert(actPositionPositive.y + it->rows <= positivePrecedents.rows);
-
-        it->copyTo(positivePrecedents(actPositionPositive));
-
-        if(currentPositiveExample == positiveMark)
-        {
-//            imwrite("/tmp/pos.png", *it);
-            rectangle(positivePrecedents, actPositionPositive, Scalar::all(255));
-            it->copyTo(positivePrecedent);
-        }
-
-        actPositionPositive.x += it->cols;
-
-    }
-
-    cv::Rect actPositionNegative(cv::Point(), normilizedPatchSize);
-
-    int currentNegativeExample = 0;
-    for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it, ++currentNegativeExample)
-    {
-        if(actPositionNegative.x + it->cols > negativePrecedents.cols)
-        {
-            actPositionNegative.x = 0;
-            actPositionNegative.y += it->rows;
-        }
-
-        CV_Assert(actPositionNegative.y + it->rows <= negativePrecedents.rows);
-
-        it->copyTo(negativePrecedents(actPositionNegative));
-
-        if(currentNegativeExample == negativeMark)
-        {
-//            imwrite("/tmp/neg.png", *it);
-            rectangle(negativePrecedents, actPositionNegative, Scalar::all(255));
-            it->copyTo(negativePrecedent);
-        }
-
-        actPositionNegative.x += it->cols;
-
-    }
-
-//    return std::make_pair(positivePrecedents, negativePrecedents);
-    return std::make_pair(positivePrecedent, negativePrecedent);
-}
-
 bool NNClassifier::isObject(const Mat_<uchar> &image) const
 {
     if(image.size() != normilizedPatchSize)
@@ -669,7 +457,7 @@ bool NNClassifier::isObject(const Mat_<uchar> &image) const
     return Sr(normilizedPatch) > theta;
 }
 
-double NNClassifier::calcConfidence(const Mat_<uchar> &image) const
+/*double NNClassifier::calcConfidence(const Mat_<uchar> &image) const
 {
     if(image.size() != normilizedPatchSize)
         resize(image, normilizedPatch, normilizedPatchSize);
@@ -677,7 +465,7 @@ double NNClassifier::calcConfidence(const Mat_<uchar> &image) const
         image.copyTo(normilizedPatch);
 
     return Sc(normilizedPatch);
-}
+}*/
 
 double NNClassifier::calcConfidenceTracker(const Mat_<uchar> &image) const
 {
@@ -689,43 +477,18 @@ double NNClassifier::calcConfidenceTracker(const Mat_<uchar> &image) const
     return Sc(normilizedPatch, true);
 }
 
-double NNClassifier::Sr(const Mat_<uchar> &patch, bool isForTracker) const
+double NNClassifier::Sr(const Mat_<uchar> &patch) const
 {
     double splus = 0., sminus = 0.;
 
-#ifdef NNDEBUG
-    double prevSplus = splus, prevSminus = sminus;
-    positive = positiveExamples.begin();
-    negative = negativeExamples.begin();
-#endif
-
     for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
-    {
         splus = std::max(splus, 0.5 * (NCC(*it, patch) + 1.0));
-#ifdef NNDEBUG
-        if(prevSplus != splus)
-        {
-            positive = it;
-            prevSplus = splus;
-        }
-#endif
-    }
 
     for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
-    {
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
-#ifdef NNDEBUG
-        if(prevSminus != sminus)
-        {
-            negative = it;
-            prevSminus = sminus;
-        }
-#endif
-    }
 
-    if(!isForTracker)
-        if(2 * splus - 1 < 0.85 && 2 * sminus - 1 < 0.85)
-            return 0.;
+    if(2 * splus - 1 < 0.85 && 2 * sminus - 1 < 0.85)
+        return 0.;
 
     if (splus + sminus == 0.0)
         return 0.0;
@@ -748,8 +511,6 @@ double NNClassifier::Sc(const Mat_<uchar> &patch, bool isForTracker) const
     for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
 
-    //std::cout << "calc conf " << splus << " " << sminus << " " << splus / (sminus + splus) << std::endl;
-
     if(!isForTracker)
         if(2 * splus - 1 < 0.75 && 2 * sminus - 1 < 0.75)
             return 0.;
@@ -768,12 +529,6 @@ void NNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> 
         resize(example, normilizedPatch, normilizedPatchSize);
     else
         normilizedPatch = example;
-
-#ifdef USE_BLUR_NN
-    Mat_<uchar> blurred;
-    GaussianBlur(normilizedPatch, blurred, Size(3,3), 0.);
-    blurred.copyTo(normilizedPatch);
-#endif
 
     if(storage.size() == maxNumberOfExamples)
     {
@@ -824,6 +579,68 @@ float NNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
     CV_Assert(p2Dev > 0.);
 
     return (p1p2Sum / N - p1Mean * p2Mean) / std::sqrt(p1Dev * p2Dev);
+}
+
+std::pair<Mat, Mat> NNClassifier::outputModel(int positiveMark, int negativeMark) const
+{
+    const int sqrtSize = cvRound(std::sqrt(std::max(positiveExamples.size(), negativeExamples.size())) + 0.5f);
+    const int outputWidth = sqrtSize * normilizedPatchSize.width, outputHeight = sqrtSize * normilizedPatchSize.height;
+
+    Mat positivePrecedents(outputHeight, outputWidth, CV_8U, Scalar::all(255)), negativePrecedents(outputHeight, outputWidth, CV_8U, Scalar::all(255));
+    Mat positivePrecedent, negativePrecedent;
+
+    cv::Rect actPositionPositive(cv::Point(), normilizedPatchSize);
+
+    int currentPositiveExample = 0;
+    for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it, ++currentPositiveExample)
+    {
+        if(actPositionPositive.x + it->cols > positivePrecedents.cols)
+        {
+            actPositionPositive.x = 0;
+            actPositionPositive.y += it->rows;
+        }
+
+        CV_Assert(actPositionPositive.y + it->rows <= positivePrecedents.rows);
+
+        it->copyTo(positivePrecedents(actPositionPositive));
+
+        if(currentPositiveExample == positiveMark)
+        {
+            rectangle(positivePrecedents, actPositionPositive, Scalar::all(255));
+            it->copyTo(positivePrecedent);
+        }
+
+        actPositionPositive.x += it->cols;
+
+    }
+
+    cv::Rect actPositionNegative(cv::Point(), normilizedPatchSize);
+
+    int currentNegativeExample = 0;
+    for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it, ++currentNegativeExample)
+    {
+        if(actPositionNegative.x + it->cols > negativePrecedents.cols)
+        {
+            actPositionNegative.x = 0;
+            actPositionNegative.y += it->rows;
+        }
+
+        CV_Assert(actPositionNegative.y + it->rows <= negativePrecedents.rows);
+
+        it->copyTo(negativePrecedents(actPositionNegative));
+
+        if(currentNegativeExample == negativeMark)
+        {
+            rectangle(negativePrecedents, actPositionNegative, Scalar::all(255));
+            it->copyTo(negativePrecedent);
+        }
+
+        actPositionNegative.x += it->cols;
+
+    }
+
+//    return std::make_pair(positivePrecedents, negativePrecedents);
+    return std::make_pair(positivePrecedent, negativePrecedent);
 }
 
 std::pair<Mat, Mat> NNClassifier::getModelWDecisionMarks(const Mat_<uchar> &image, double previousConf)
@@ -881,17 +698,8 @@ double NNClassifier::debugSr(const Mat_<uchar> &patch, int &positiveDecisitionEx
         }
     }
 
-
-    //std::cout << 2 * splus - 1. << " " << 2 * sminus  - 1. << " ";
-
     if(2 * splus - 1 < 0.75 && 2 * sminus - 1 < 0.75)
         return 0.;
-
-//    if(splus + sminus == 0.)
-//        std::cout << 0. << std::endl;
-//    else
-//        std::cout << splus / (sminus + splus) << std::endl;
-
 
     if (splus + sminus == 0.0)
         return 0.0;

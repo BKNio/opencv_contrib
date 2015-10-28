@@ -53,18 +53,11 @@ namespace tld
 
 class CV_EXPORTS_W CascadeClassifier
 {
-public:
-    struct Response
-    {
-        Rect bb;
-        float confidence;
-    };
 
 public:
-    CascadeClassifier(int preFernMeasurements, int preFerns, Size preFernPatchSize,
-                         int numberOfMeasurements, int numberOfFerns, Size fernPatchSize,
+    CascadeClassifier(int numberOfMeasurements, int numberOfFerns, Size fernPatchSize,
                          int numberOfExamples, Size examplePatchSize,
-                         int actPositiveExampleNumbers, int actWrappedExamplesNumber, double actGroupTheta);
+                         int actPositiveExampleNumbers, int actWrappedExamplesNumber);
 
     void init(const Mat_<uchar> &zeroFrame, const Rect &bb);
 
@@ -76,16 +69,13 @@ public:
     void addPositiveExamples(const std::vector< Mat_<uchar> > &examples);
     void addNegativeExamples(const std::vector<Mat_<uchar> > &examples);
 
-    static inline bool greater(const std::pair<Rect, double> &item1, const std::pair<Rect, double> &item2) { return item1.second > item2.second; }
-    static inline Rect strip(const std::pair<Rect, double> &item) { return item.first; }
-
 private:
 
     class PExpert
     {
     public:
         PExpert(Size actFrameSize) : frameSize(actFrameSize) {}
-        std::vector<Mat_<uchar> > generatePositiveExamples(const Mat_<uchar> &image, const Rect &bb, int numberOfsurroundBbs, int numberOfSyntheticWarped);
+        std::vector<Mat_<uchar> > generatePositiveExamples(const Mat_<uchar> &image, const Rect &bb, int, int numberOfSyntheticWarped);
         bool isRectOK(const cv::Rect &rect) const;
 
     private:
@@ -108,7 +98,6 @@ private:
 public:
 /*private:*/
     Ptr<VarianceClassifier> varianceClassifier;
-    Ptr<FernClassifier> preFernClassifier;
     Ptr<FernClassifier> fernClassifier;
     Ptr<NNClassifier> nnClassifier;
 
@@ -122,24 +111,20 @@ private:
     const Size minimalBBSize;
     const Size standardPatchSize;
     const double scaleStep;
-    const double groupRectanglesTheta;
     const int positiveExampleNumbers, wrappedExamplesNumber;
 
     bool isInited;
     Size originalBBSize;
     Size frameSize;
     std::vector<Hypothesis> hypothesis;
+    mutable std::vector<Answers> answers;
 
-    mutable std::vector<bool> answers;
-
-    std::vector<std::pair<Rect, double> > prepareFinalResult(const Mat_<uchar> &image) const;
-    void myGroupRectangles(std::vector<Rect>& rectList, double eps) const;
+    std::vector<std::pair<Rect, double> > prepareFinalResult(const Mat_<uchar> &) const;
     static std::vector<Hypothesis> generateHypothesis(const Size frameSize, const Size bbSize, const Size minimalBBSize, double scaleStep);
     static void addScanGrid(const Size frameSize, const Size bbSize, const Size minimalBBSize, std::vector<Hypothesis> &hypothesis, double scale);
 
-    bool isObject(const Mat_<uchar> &candidate) const;
-
-    static bool isObjectPredicate(const CascadeClassifier *pCascadeClassifier, const Mat_<uchar> candidate);
+    //bool isObject(const Mat_<uchar> &candidate) const;
+    //static bool isObjectPredicate(const CascadeClassifier *pCascadeClassifier, const Mat_<uchar> candidate);
     mutable std::vector<Rect> fernsPositive, nnPositive;
 
     static Mat_<uchar> debugOutput;
