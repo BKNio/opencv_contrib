@@ -591,7 +591,7 @@ void TrackerMedianFlowImpl::checkDisplacement(const std::vector<Point2f> &oldPoi
 
     float medianDisplacement = getMedian(displacement);
 
-    if(medianDisplacement > 20.f)
+    if(medianDisplacement > 25.f)
     {
         std::cout << "too big displacement" << std::endl;
         status = std::vector<bool>(status.size(), false);

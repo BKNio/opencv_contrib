@@ -46,6 +46,7 @@
 
 #include <list>
 #include <vector>
+#include <map>
 
 namespace cv
 {
@@ -73,7 +74,7 @@ struct Answers
 class CV_EXPORTS_W VarianceClassifier
 {
 public:
-    VarianceClassifier(double actLowCoeff = 0.5, double actHighCoeff = 2.);
+    VarianceClassifier(double actLowCoeff = 0.3, double actHighCoeff = 2.2);
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<Answers> &answers) const;
     void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
 
@@ -97,7 +98,7 @@ class CV_EXPORTS_W FernClassifier
 public:
     FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize, double actThreshold = 0.5);
 
-    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<Answers> &answers) const;
+    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::map<double, Mat_<uchar> > &scaledStorage, std::vector<Answers> &answers) const;
 
     void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
     void integrateNegativeExamples(const std::vector< Mat_<uchar> > &examples);
@@ -137,12 +138,13 @@ class CV_EXPORTS_W NNClassifier
 public:
     NNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatchSize, double actTheta = 0.5);
 
-    void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<Answers> &answers) const;
+    void isObjects(const std::vector<Hypothesis> &hypothesis, std::map<double, Mat_<uchar> > &scaledStorage, std::vector<Answers> &answers) const;
 
     void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
     void integrateNegativeExamples(const std::vector< Mat_<uchar> > &examples);
 
     double calcConfidenceTracker(const Mat_<uchar> &image) const;
+    double calcConfidenceDetector(const Mat_<uchar> &image) const;
 
     ~NNClassifier() {}
 
@@ -150,13 +152,14 @@ private:
     const double theta;
     const size_t maxNumberOfExamples;
     const Size normilizedPatchSize;
-    Mat_<uchar> normilizedPatch;
+    mutable Mat_<uchar> normilizedPatch;
 
     typedef std::list<Mat_<uchar> > ExampleStorage;
     ExampleStorage positiveExamples, negativeExamples;
     RNG rng;
 
-private:
+//private:
+public:
     bool isObject(const Mat_<uchar> &image) const;
 
     double Sr(const Mat_<uchar>& patch) const;

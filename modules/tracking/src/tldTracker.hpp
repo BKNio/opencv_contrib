@@ -62,18 +62,18 @@ TrackerTLD::Params::Params()
     preFerns = 50;
     preFernPatchSize = Size(15, 15);
 
-    numberOfMeasurements = 11;
-    numberOfFerns = 100;
+    numberOfMeasurements = 13;
+    numberOfFerns = 350;
     fernPatchSize = Size(15, 15);
 
-    numberOfExamples = 2000;
+    numberOfExamples = 1000;
     examplePatchSize = Size(15, 15);
 
     numberOfInitPositiveExamples = 1;
     numberOfInitWarpedPositiveExamples = 200;
 
     numberOfPositiveExamples = 1;
-    numberOfWarpedPositiveExamples = 100;
+    numberOfWarpedPositiveExamples = 70;
 
     groupRectanglesTheta = 0.15;
 }
@@ -173,6 +173,8 @@ public:
     const IntegratorResult getObjectToTrainFrom(const Mat_<uchar> &/*frame*/,
                                                const std::pair<Rect2d, double> &objectFromTracker,
                                                const std::vector<std::pair<Rect, double> > &objectsFromDetector);
+
+    Ptr<CascadeClassifier> cascadeClassifier;
 
 private:
     int preparing;

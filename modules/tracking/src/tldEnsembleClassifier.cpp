@@ -132,10 +132,10 @@ double VarianceClassifier::variance(const Mat_<double> &sum, const Mat_<double> 
 /*                   tldFernClassifier                   */
 
 FernClassifier::FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfFerns, Size actNormilizedPatchSize, double actThreshold):
-    patchSize(actNormilizedPatchSize), threshold(actThreshold), minSqDist(9)
+    patchSize(actNormilizedPatchSize), threshold(actThreshold), minSqDist(4)
 {
     Ferns::value_type measurements;
-    const int shift = 1;
+    const int shift = 0;
     for(int i = shift; i < patchSize.width - shift; ++i)
     {
         for(int j = shift; j < patchSize.height - shift; ++j)
@@ -145,7 +145,7 @@ FernClassifier::FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfF
             for(int kk = shift; kk < patchSize.width - shift; ++kk)
             {
                 const Point diff = Point(kk, j) - firstPoint;
-                if(diff.dot(diff) < minSqDist)
+                if(diff.dot(diff) <= minSqDist)
                     continue;
 
                 measurements.push_back(std::make_pair(firstPoint, Point(kk, j)));
@@ -154,7 +154,7 @@ FernClassifier::FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfF
             for(int kk = shift; kk < patchSize.height -shift; ++kk)
             {
                 const Point diff = Point(i, kk) - firstPoint;
-                if(diff.dot(diff) < minSqDist)
+                if(diff.dot(diff) <= minSqDist)
                     continue;
 
                 measurements.push_back(std::make_pair(firstPoint, Point(i, kk)));
@@ -187,16 +187,35 @@ FernClassifier::FernClassifier(int numberOfMeasurementsPerFern, int reqNumberOfF
 
 }
 
-void FernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<Answers> &answers) const
+void FernClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::map <double, Mat_<uchar> > &scaledStorage, std::vector<Answers> &answers) const
 {
     CV_Assert(hypothesis.size() == answers.size());
 
-    Mat_<uchar> blurred;
-    GaussianBlur(image, blurred, Size(3,3), 0.);
+    /*Mat_<uchar> blurred;
+    GaussianBlur(image, blurred, Size(3,3), 0.);*/
 
     for(size_t i = 0; i < hypothesis.size(); ++i)
+    {
         if(answers[i])
-            answers[i]= isObject(blurred(hypothesis[i].bb));
+        {
+
+            const double scaleFactorX = double(patchSize.width) / hypothesis[i].bb.width;
+            const double scaleFactorY = double(patchSize.height) / hypothesis[i].bb.height;
+
+            if(scaledStorage.find(hypothesis[i].scale) == scaledStorage.end())
+            {
+                Mat_<uchar> resized;
+                resize(image, resized, Size(), scaleFactorX, scaleFactorY);
+
+                scaledStorage[hypothesis[i].scale] = resized;
+            }
+
+            const Point newPoint(cvRound(hypothesis[i].bb.x * scaleFactorX), cvRound(hypothesis[i].bb.y * scaleFactorY));
+            const Rect newRect(newPoint, patchSize);
+
+            answers[i]= isObject(scaledStorage[hypothesis[i].scale](newRect));
+        }
+    }
 }
 
 void FernClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &examples)
@@ -208,10 +227,8 @@ void FernClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &
 void FernClassifier::integrateNegativeExamples(const std::vector<Mat_<uchar> > &examples)
 {
     for(std::vector< Mat_<uchar> >::const_iterator example = examples.begin(); example != examples.end(); ++example)
-    {
-        if(isObject(*example))
-            integrateExample(*example, false);
-    }
+        integrateExample(*example, false);
+
 }
 
 bool FernClassifier::isObject(const Mat_<uchar> &image) const
@@ -251,17 +268,14 @@ int FernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern
 {
     int position = 0;
 
-    const float coeffX = float(image.cols - 1) / patchSize.width;
-    const float coeffY = float(image.rows - 1) / patchSize.height;
+    CV_Assert(image.size() == patchSize);
+
 
     for(Ferns::value_type::const_iterator measureIt = fern.begin(); measureIt != fern.end(); ++measureIt)
     {
         position <<= 1;
 
-        const Point p1(cvRound(measureIt->first.x * coeffX), cvRound(measureIt->first.y * coeffY));
-        const Point p2(cvRound(measureIt->second.x * coeffX), cvRound(measureIt->second.y * coeffY));
-
-        if(image.at<uchar>(p1) < image.at<uchar>(p2))
+        if(image.at<uchar>(measureIt->first) < image.at<uchar>(measureIt->second))
             position++;
 
         /*int val1 = 0, val2 = 0;
@@ -283,30 +297,27 @@ int FernClassifier::code(const Mat_<uchar> &image, const Ferns::value_type &fern
 
 void FernClassifier::integrateExample(const Mat_<uchar> &image, bool isPositive)
 {
-    Mat_<uchar> blurred;
-    GaussianBlur(image, blurred, Size(3,3), 0.);
 
-    float accumProbability = 0.;
-
-    const int fernsSize = int(ferns.size());
+    //float accumProbability = 0.;
+    //const int fernsSize = int(ferns.size());
 
     for(size_t i = 0; i < ferns.size(); ++i)
     {
-        int position = code(blurred, ferns[i]);
+        int position = code(/*blurred*/image, ferns[i]);
 
         if(isPositive)
             precedents[i][position].x++;
         else
             precedents[i][position].y++;
 
-        accumProbability += float(precedents[i][position].x) / (precedents[i][position].x + precedents[i][position].y);
+        //accumProbability += float(precedents[i][position].x) / (precedents[i][position].x + precedents[i][position].y);
     }
 
-    if(accumProbability / fernsSize <= threshold && isPositive)
+    /*if(accumProbability / fernsSize <= threshold && isPositive)
         std::cout << "Warning ferns are in bad state (positive)" << accumProbability / fernsSize << std::endl;
 
     if(accumProbability / fernsSize > threshold && !isPositive)
-        std::cout << "Warning ferns are in bad state (negative)" << accumProbability / fernsSize << std::endl;
+        std::cout << "Warning ferns are in bad state (negative)" << accumProbability / fernsSize << std::endl;*/
 }
 
 void FernClassifier::saveFern(const std::string &path) const
@@ -422,17 +433,28 @@ NNClassifier::NNClassifier(size_t actMaxNumberOfExamples, Size actNormilizedPatc
     normilizedPatchSize(actNormilizedPatchSize), normilizedPatch(normilizedPatchSize)
 {}
 
-void NNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &images, std::vector<Answers> &answers) const
+void NNClassifier::isObjects(const std::vector<Hypothesis> &hypothesis, std::map<double, Mat_<uchar> > &scaledStorage, std::vector<Answers> &answers) const
 {
     CV_Assert(hypothesis.size() == answers.size());
 
     for(size_t i = 0; i < hypothesis.size(); ++i)
+    {
         if(answers[i])
         {
-            answers[i] = isObject(images(hypothesis[i].bb));
+
+            const double scaleFactorX = double(normilizedPatchSize.width) / hypothesis[i].bb.width;
+            const double scaleFactorY = double(normilizedPatchSize.height) / hypothesis[i].bb.height;
+
+            CV_Assert(scaledStorage.find(hypothesis[i].scale) != scaledStorage.end());
+
+            const Point newPoint(cvRound(hypothesis[i].bb.x * scaleFactorX), cvRound(hypothesis[i].bb.y * scaleFactorY));
+            const Rect newRect(newPoint, normilizedPatchSize);
+
+            answers[i] = isObject(scaledStorage[hypothesis[i].scale](newRect));
             if(answers[i])
-                answers[i].confidence = calcConfidenceTracker(images(hypothesis[i].bb));
+                answers[i].confidence = calcConfidenceDetector(scaledStorage[hypothesis[i].scale](newRect));
         }
+    }
 }
 
 void NNClassifier::integratePositiveExamples(const std::vector<Mat_<uchar> > &examples)
@@ -449,36 +471,29 @@ void NNClassifier::integrateNegativeExamples(const std::vector<Mat_<uchar> > &ex
 
 bool NNClassifier::isObject(const Mat_<uchar> &image) const
 {
-    if(image.size() != normilizedPatchSize)
-        resize(image, normilizedPatch, normilizedPatchSize);
-    else
-        image.copyTo(normilizedPatch);
-
-    return Sr(normilizedPatch) > theta;
+    return Sr(image) > theta;
 }
-
-/*double NNClassifier::calcConfidence(const Mat_<uchar> &image) const
-{
-    if(image.size() != normilizedPatchSize)
-        resize(image, normilizedPatch, normilizedPatchSize);
-    else
-        image.copyTo(normilizedPatch);
-
-    return Sc(normilizedPatch);
-}*/
 
 double NNClassifier::calcConfidenceTracker(const Mat_<uchar> &image) const
 {
     if(image.size() != normilizedPatchSize)
         resize(image, normilizedPatch, normilizedPatchSize);
     else
-        image.copyTo(normilizedPatch);
+        normilizedPatch = image;
 
     return Sc(normilizedPatch, true);
 }
 
+double NNClassifier::calcConfidenceDetector(const Mat_<uchar> &image) const
+{
+    return Sc(image);
+}
+
+
 double NNClassifier::Sr(const Mat_<uchar> &patch) const
 {
+    CV_Assert(patch.size() == normilizedPatchSize);
+
     double splus = 0., sminus = 0.;
 
     for(ExampleStorage::const_iterator it = positiveExamples.begin(); it != positiveExamples.end(); ++it)
@@ -487,8 +502,8 @@ double NNClassifier::Sr(const Mat_<uchar> &patch) const
     for(ExampleStorage::const_iterator it = negativeExamples.begin(); it != negativeExamples.end(); ++it)
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
 
-    if(2 * splus - 1 < 0.85 && 2 * sminus - 1 < 0.85)
-        return 0.;
+//    if(2 * splus - 1 < 0.7 && 2 * sminus - 1 < 0.7)
+//        return 0.;
 
     if (splus + sminus == 0.0)
         return 0.0;
@@ -498,6 +513,8 @@ double NNClassifier::Sr(const Mat_<uchar> &patch) const
 
 double NNClassifier::Sc(const Mat_<uchar> &patch, bool isForTracker) const
 {
+    CV_Assert(patch.size() == normilizedPatchSize);
+
     double splus = 0., sminus = 0.;
 
     size_t mediana = positiveExamples.size() / 2 + positiveExamples.size() % 2;
@@ -512,11 +529,13 @@ double NNClassifier::Sc(const Mat_<uchar> &patch, bool isForTracker) const
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
 
     if(!isForTracker)
-        if(2 * splus - 1 < 0.75 && 2 * sminus - 1 < 0.75)
+        if(2 * splus - 1 < 0.8 && 2 * sminus - 1 < 0.8)
             return 0.;
 
     if (splus + sminus == 0.0)
         return 0.0;
+
+    std::cout << "Sc " << 2 * splus - 1 << " " << 2 * sminus - 1 << " " << splus / (sminus + splus) << std::endl;
 
     return splus / (sminus + splus);
 }
@@ -524,11 +543,7 @@ double NNClassifier::Sc(const Mat_<uchar> &patch, bool isForTracker) const
 void NNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> > &storage)
 {
     CV_Assert(storage.size() <= maxNumberOfExamples);
-
-    if(example.size() != normilizedPatchSize)
-        resize(example, normilizedPatch, normilizedPatchSize);
-    else
-        normilizedPatch = example;
+    CV_Assert(example.size() == normilizedPatchSize);
 
     if(storage.size() == maxNumberOfExamples)
     {
@@ -540,7 +555,7 @@ void NNClassifier::addExample(const Mat_<uchar> &example, std::list<Mat_<uchar> 
         storage.erase(it);
     }
 
-    storage.push_back(normilizedPatch.clone());
+    storage.push_back(example.clone());
 }
 
 float NNClassifier::NCC(const Mat_<uchar> &patch1, const Mat_<uchar> &patch2)
@@ -698,7 +713,9 @@ double NNClassifier::debugSr(const Mat_<uchar> &patch, int &positiveDecisitionEx
         }
     }
 
-    if(2 * splus - 1 < 0.75 && 2 * sminus - 1 < 0.75)
+    std::cout << "debug Sc " << 2 * splus - 1 << " " << 2 * sminus - 1 << " " << std::endl;
+
+    if(2 * splus - 1 < 0.8 && 2 * sminus - 1 < 0.8)
         return 0.;
 
     if (splus + sminus == 0.0)

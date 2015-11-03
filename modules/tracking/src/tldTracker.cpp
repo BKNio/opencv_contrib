@@ -41,6 +41,7 @@
 
 #include "tldTracker.hpp"
 #include <algorithm>
+#include <sys/time.h>
 
 namespace cv
 {
@@ -94,6 +95,7 @@ bool TrackerTLDImpl::initImpl(const Mat& image, const Rect2d& boundingBox)
     cascadeClassifier->init(actImage, boundingBox);
 
     integrator = makePtr<Integrator>();
+    integrator->cascadeClassifier = cascadeClassifier;
 
     return true;
 
@@ -114,6 +116,9 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
 
     const std::vector< std::pair<Rect, double> > &detections = cascadeClassifier->detect(actImage);
 
+    //timeval start, stop;
+    //gettimeofday(&start, NULL);
+
     Rect2d objectFromTracker;
     double trackerConfidence = -1.;
     if(isTrackerOK)
@@ -122,7 +127,7 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
     if(isTrackerOK && roi.contains(objectFromTracker.tl()) && roi.contains(objectFromTracker.br()))
     {
         trackerConfidence = cascadeClassifier->nnClassifier->calcConfidenceTracker(actImage(objectFromTracker));
-        //std::cout << "main tracker conf " << trackerConfidence << " tracker object " << objectFromTracker << std::endl;
+        std::cout << "main tracker conf " << trackerConfidence << " tracker object " << objectFromTracker << std::endl;
     }
 
 #ifdef DEBUG_OUTPUT
@@ -137,7 +142,7 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
 
     if(integratorResult.objectToResetTracker.area() > 0)
     {
-        //std::cout << "reset main tracker " << integratorResult.objectToResetTracker << std::endl;
+        std::cout << "reset main tracker " << integratorResult.objectToResetTracker << std::endl;
         medianFlow = TrackerMedianFlow::createTracker();
         isTrackerOK = medianFlow->init(actImage, integratorResult.objectToResetTracker);
 
@@ -171,10 +176,14 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
     std::stringstream ss; ss << "/tmp/debug/" << counter++ << ".png";
     imwrite(ss.str(), debugOutput);
 
+    //gettimeofday(&stop, NULL);
+
+    //std::cout << "merge " << std::fixed << stop.tv_sec - start.tv_sec + double(stop.tv_usec - start.tv_usec) / 1e6 << std::endl;
+
     return true;
 }
 
-const Integrator::IntegratorResult Integrator::getObjectToTrainFrom(const Mat_<uchar> &/*frame*/,
+const Integrator::IntegratorResult Integrator::getObjectToTrainFrom(const Mat_<uchar> &frame,
                                                        const std::pair<Rect2d, double> &objectFromTracker,
                                                        const std::vector<std::pair<Rect, double> > &objectsFromDetector)
 {
@@ -189,6 +198,37 @@ const Integrator::IntegratorResult Integrator::getObjectToTrainFrom(const Mat_<u
                          objectsFromDetector.end(), sortDetections);
 
         detectorObject = maxElemnt->first;
+
+        /*-----------------------------------------------------------------*/
+
+       /* int minArea = maxElemnt->first.area();
+        Rect minAreaRect = maxElemnt->first;
+        for(std::vector< std::pair<Rect, double> >::const_iterator it = objectsFromDetector.begin(); it != objectsFromDetector.end(); ++it)
+        {
+            int currOverlap = it->first.area();
+
+            if(currOverlap < minArea)
+            {
+                minArea = currOverlap;
+                minAreaRect = it->first;
+            }
+        }
+
+        if(detectorObject == minAreaRect && objectsFromDetector.size() > 1)
+         {
+            std::cout << "***********************************************" << std::endl;
+
+            for(std::vector< std::pair<Rect, double> >::const_iterator it = objectsFromDetector.begin(); it != objectsFromDetector.end(); ++it)
+            {
+                std::cout << it->first.area() << " ";
+            }
+
+            std::cout << std::endl << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>MIN<<<<<<<<<<<<<<<<<<<<<<<<<" << std::endl;
+            waitKey(300);
+        }*/
+
+
+        /*-----------------------------------------------------------------*/
 
         std::cout << "object from detector conf " << maxElemnt->second << std::endl;
 
@@ -205,14 +245,14 @@ const Integrator::IntegratorResult Integrator::getObjectToTrainFrom(const Mat_<u
             }
             else if(overlap(objectFromTracker.first, detectorObject) > 0.85 && objectFromTracker.second > 0.51 && maxElemnt->second > 0.51)
             {
-                if(preparing >= 0)
+                if(preparing >= 0 && objectFromTracker.first.area() > 900 )
                 {
                     std::cout << "good overlap and conf training and ready to train" << std::endl;
                     objectToTrain = objectFromTracker.first;
                 }
                 else
                 {
-                    std::cout << "not ready to train " << preparing << std::endl;
+                    std::cout << "not ready to train or object is too small" << preparing << std::endl;
                 }
                 ++preparing;
             }
@@ -221,6 +261,21 @@ const Integrator::IntegratorResult Integrator::getObjectToTrainFrom(const Mat_<u
         }
         else if(maxElemnt->second > 0.51)
         {
+            //////
+//            const double scaleFactorX = double(15) / detectorObject.width;
+//            const double scaleFactorY = double(15) / detectorObject.height;
+
+//            Mat_<uchar> resized;
+//            resize(frame, resized, Size(), scaleFactorX, scaleFactorY);
+
+//            const Point newPoint(cvRound(detectorObject.x * scaleFactorX), cvRound(detectorObject.y * scaleFactorY));
+//            const Rect newRect(newPoint, Size(15,15));
+
+//            std::pair<Mat, Mat> model = cascadeClassifier->nnClassifier->getModelWDecisionMarks(resized(newRect), maxElemnt->second);
+//            imshow("positive", model.first);
+//            imshow("negative", model.second);
+            //////
+
             std::cout << "reset main tracker from detector" << std::endl;
             objectToResetMainTracker = maxElemnt->first;
             objectToPresent = maxElemnt->first;

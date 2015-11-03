@@ -42,6 +42,8 @@
 #ifndef OPENCV_TLD_DETECTOR
 #define OPENCV_TLD_DETECTOR
 
+#include <map>
+
 #include "precomp.hpp"
 #include "tldEnsembleClassifier.hpp"
 #include "tldUtils.hpp"
@@ -74,16 +76,16 @@ private:
     class PExpert
     {
     public:
-        PExpert(Size actFrameSize) : frameSize(actFrameSize) {}
+        PExpert(Size _frameSize, Size _dstSize) : frameSize(_frameSize), dstSize(_dstSize) {}
         std::vector<Mat_<uchar> > generatePositiveExamples(const Mat_<uchar> &image, const Rect &bb, int, int numberOfSyntheticWarped);
-        bool isRectOK(const cv::Rect &rect) const;
 
     private:
         RNG rng;
         const Size frameSize;
+        const Size dstSize;
 
     private:
-        std::vector<Rect> generateClosestN(const Rect &bBox, int n);
+        bool isRectOK(const cv::Rect &rect) const;
         std::vector<float> generateRandomValues(float range, int quantity);
         Mat_<uchar> getWarped(const Mat_<uchar> &originalFrame, const Rect &bb, float shiftX, float shiftY, float scale, float rotation);
     };
@@ -91,8 +93,11 @@ private:
     class NExpert
     {
     public:
-        NExpert() {}
+        NExpert(Size _dstSize) : dstSize(_dstSize) {}
         std::vector< Mat_<uchar> > getNegativeExamples(const Mat_<uchar> &image, const Rect &object, const std::vector<Rect> &detectedObjects, std::string capture);
+
+    private:
+        const Size dstSize;
     };
 
 public:
@@ -107,9 +112,10 @@ private:
     Ptr<NExpert> nExpert;
 
     mutable RNG rng;
+    mutable std::map<double, Mat_<uchar> > scaledStorage;
 
     const Size minimalBBSize;
-    const Size standardPatchSize;
+    const Size patchSize;
     const double scaleStep;
     const int positiveExampleNumbers, wrappedExamplesNumber;
 
@@ -119,12 +125,12 @@ private:
     std::vector<Hypothesis> hypothesis;
     mutable std::vector<Answers> answers;
 
-    std::vector<std::pair<Rect, double> > prepareFinalResult(const Mat_<uchar> &) const;
+    std::vector<std::pair<Rect, double> > prepareFinalResult(const Mat_<uchar> &image) const;
     static std::vector<Hypothesis> generateHypothesis(const Size frameSize, const Size bbSize, const Size minimalBBSize, double scaleStep);
     static void addScanGrid(const Size frameSize, const Size bbSize, const Size minimalBBSize, std::vector<Hypothesis> &hypothesis, double scale);
+    static bool removePredicate(const std::pair<Rect, double> item, const std::vector< std::pair<Rect, double> > &storage);
+    static bool containPredicate(const std::pair<Rect, double> item, const std::pair<Rect, double> &refItem);
 
-    //bool isObject(const Mat_<uchar> &candidate) const;
-    //static bool isObjectPredicate(const CascadeClassifier *pCascadeClassifier, const Mat_<uchar> candidate);
     mutable std::vector<Rect> fernsPositive, nnPositive;
 
     static Mat_<uchar> debugOutput;
