@@ -38,7 +38,7 @@ template<typename T> inline T CLIP(T x, T a, T b){ return std::min(std::max(x, a
 
 /** Computes overlap between the two given rectangles. Overlap is computed as ratio of rectangles' intersection to that
         * of their union.*/
-double CV_EXPORTS_W overlap(const Rect &r1, const Rect &r2);
+double CV_EXPORTS_W calcOverlap(const Rect &r1, const Rect &r2);
 
 /** Resamples the area surrounded by r2 in img so it matches the size of samples, where it is written.*/
 void resample(const Mat& img, const RotatedRect& r2, Mat_<uchar>& samples);

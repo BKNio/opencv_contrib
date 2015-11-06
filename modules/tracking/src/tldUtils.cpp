@@ -139,7 +139,7 @@ int getMedian(const std::vector<int>& values, int size)
         return copy[(size - 1) / 2];
 }
 
-double overlap(const Rect& r1, const Rect& r2)
+double calcOverlap(const Rect& r1, const Rect& r2)
 {
     double a1 = r1.area(), a2 = r2.area(), a0 = (r1&r2).area();
     return a0 / (a1 + a2 - a0);
@@ -187,7 +187,7 @@ void resample(const Mat& img, const Rect2d& r2, Mat_<uchar>& samples)
 
 std::pair<double, Rect2d> augmentedOverlap(const Rect2d rect, const Rect2d bb)
 {
-    return std::make_pair(overlap(rect,bb), bb);
+    return std::make_pair(calcOverlap(rect,bb), bb);
 }
 
 class MYSimilarRects
@@ -216,7 +216,7 @@ public:
         if(sqrt((tl1 - tl2).ddot(tl1 - tl2)) < delta && sqrt((br1 - br2).ddot(br1 - br2)) < delta)
             return true;
 
-        if(sqrt((tl1 - br2).ddot(tl1 - br2)) < delta && overlap(r1, r2) > 0)
+        if(sqrt((tl1 - br2).ddot(tl1 - br2)) < delta && calcOverlap(r1, r2) > 0)
             return true;
 
         return false;

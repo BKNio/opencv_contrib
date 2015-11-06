@@ -63,7 +63,7 @@ TrackerTLD::Params::Params()
     preFernPatchSize = Size(15, 15);
 
     numberOfMeasurements = 13;
-    numberOfFerns = 350;
+    numberOfFerns = 200;
     fernPatchSize = Size(15, 15);
 
     numberOfExamples = 1000;
@@ -168,7 +168,7 @@ public:
             objectToTrain(actObjectToTrain), objectToResetTracker(actObjectToResetTracker), objectToOutput(actObjectToOutput), ObjectDetector(actObjectDetector) {}
     };
 
-    Integrator():  preparing(0) {}
+    Integrator():  isReliable(true) {}
 
     const IntegratorResult getObjectToTrainFrom(const Mat_<uchar> &/*frame*/,
                                                const std::pair<Rect2d, double> &objectFromTracker,
@@ -177,7 +177,7 @@ public:
     Ptr<CascadeClassifier> cascadeClassifier;
 
 private:
-    int preparing;
+    bool isReliable;
 
 private:
     static bool sortDetections(const std::pair<Rect, double> &candidate1, const std::pair<Rect, double> &candidate2);

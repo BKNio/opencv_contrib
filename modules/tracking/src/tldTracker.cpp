@@ -173,7 +173,7 @@ bool TrackerTLDImpl::updateImpl(const Mat& image, Rect2d& boundingBox)
     static int counter = 0;
     imshow("debugoutput", debugOutput);
 
-    std::stringstream ss; ss << "/tmp/debug/" << counter++ << ".png";
+    std::stringstream ss; ss << "/tmp/debug/" << counter++ << ".jpg";
     imwrite(ss.str(), debugOutput);
 
     //gettimeofday(&stop, NULL);
@@ -187,115 +187,127 @@ const Integrator::IntegratorResult Integrator::getObjectToTrainFrom(const Mat_<u
                                                        const std::pair<Rect2d, double> &objectFromTracker,
                                                        const std::vector<std::pair<Rect, double> > &objectsFromDetector)
 {
-    std::cout << "_________________________" << std::endl;
+    std::cout << "-------------------------------------" << std::endl;
 
-    Rect objectToTrain, objectToPresent, detectorObject;
+    Rect objectToTrain, objectToPresent;
     Rect2d objectToResetMainTracker;
 
+    if(objectFromTracker.first.area() > 0)
+    {
+        std::cout << "object from tracker " << objectFromTracker.second << std::endl;
+        //CV_Assert(objectFromTracker.second > 0.);
+    }
+    else
+    {
+        isReliable = false;
+        std::cout << "no object from tracker" << std::endl;
+        CV_Assert(objectFromTracker.second == -1.);
+    }
+
+    std::pair<Rect, double> objectFromDetector = std::make_pair(Rect(), -1.);
     if(!objectsFromDetector.empty())
     {
         std::vector< std::pair<Rect, double> >::const_iterator maxElemnt = std::max_element(objectsFromDetector.begin(),
                          objectsFromDetector.end(), sortDetections);
 
-        detectorObject = maxElemnt->first;
+        objectFromDetector.first = maxElemnt->first;
+        objectFromDetector.second = maxElemnt->second;
 
-        /*-----------------------------------------------------------------*/
+        std::cout << "object from detector " << objectFromDetector.second << std::endl;
+        CV_Assert(objectFromDetector.second > 0.);
+    }
+    else
+    {
+        std::cout << "no object from detector" << std::endl;
+    }
 
-       /* int minArea = maxElemnt->first.area();
-        Rect minAreaRect = maxElemnt->first;
-        for(std::vector< std::pair<Rect, double> >::const_iterator it = objectsFromDetector.begin(); it != objectsFromDetector.end(); ++it)
+    if(isReliable)
+    {
+        std::cout << "trajectory is reliable" << std::endl;
+
+        if(objectFromDetector.second > 0. && objectFromTracker.second > 0.)
         {
-            int currOverlap = it->first.area();
+            const double overlap = calcOverlap(objectFromDetector.first, objectFromTracker.first);
 
-            if(currOverlap < minArea)
+            if(overlap <= 0.1)
             {
-                minArea = currOverlap;
-                minAreaRect = it->first;
-            }
-        }
 
-        if(detectorObject == minAreaRect && objectsFromDetector.size() > 1)
-         {
-            std::cout << "***********************************************" << std::endl;
-
-            for(std::vector< std::pair<Rect, double> >::const_iterator it = objectsFromDetector.begin(); it != objectsFromDetector.end(); ++it)
-            {
-                std::cout << it->first.area() << " ";
-            }
-
-            std::cout << std::endl << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>MIN<<<<<<<<<<<<<<<<<<<<<<<<<" << std::endl;
-            waitKey(300);
-        }*/
-
-
-        /*-----------------------------------------------------------------*/
-
-        std::cout << "object from detector conf " << maxElemnt->second << std::endl;
-
-        if(objectFromTracker.first.area() > 0)
-        {
-
-            std::cout << "object from tracker conf " << objectFromTracker.second << std::endl;
-
-            if(maxElemnt->second > objectFromTracker.second && maxElemnt->second > 0.51)
-            {
-                std::cout << "reseting main tracker, no train " << std::endl;
-                objectToResetMainTracker = maxElemnt->first;
-                preparing = 0;
-            }
-            else if(overlap(objectFromTracker.first, detectorObject) > 0.85 && objectFromTracker.second > 0.51 && maxElemnt->second > 0.51)
-            {
-                if(preparing >= 0 && objectFromTracker.first.area() > 900 )
+                if(objectFromDetector.second <= 0.51)
                 {
-                    std::cout << "good overlap and conf training and ready to train" << std::endl;
                     objectToTrain = objectFromTracker.first;
+                    std::cout << "another object with hight conf detected perform trainning" << std::endl;
                 }
                 else
                 {
-                    std::cout << "not ready to train or object is too small" << preparing << std::endl;
+                    std::cout << "similar object detected, no training" << std::endl;
                 }
-                ++preparing;
+
+                objectToPresent = objectFromTracker.first;
+            }
+            else if(objectFromDetector.second > objectFromTracker.second)
+            {
+                std::cout << "preform tracker correction trajectory is not reliable now" << std::endl;
+
+                isReliable = false;
+                objectToResetMainTracker = objectFromDetector.first;
+                objectToPresent = objectFromDetector.first;
+            }
+            else
+            {
+                objectToPresent = objectFromTracker.first;
+                objectToTrain = objectFromTracker.first;
             }
 
-            objectToPresent = objectFromTracker.second > maxElemnt->second ? Rect(objectFromTracker.first) : maxElemnt->first;
         }
-        else if(maxElemnt->second > 0.51)
+        else if(objectFromTracker.second > 0.51)
         {
-            //////
-//            const double scaleFactorX = double(15) / detectorObject.width;
-//            const double scaleFactorY = double(15) / detectorObject.height;
-
-//            Mat_<uchar> resized;
-//            resize(frame, resized, Size(), scaleFactorX, scaleFactorY);
-
-//            const Point newPoint(cvRound(detectorObject.x * scaleFactorX), cvRound(detectorObject.y * scaleFactorY));
-//            const Rect newRect(newPoint, Size(15,15));
-
-//            std::pair<Mat, Mat> model = cascadeClassifier->nnClassifier->getModelWDecisionMarks(resized(newRect), maxElemnt->second);
-//            imshow("positive", model.first);
-//            imshow("negative", model.second);
-            //////
-
-            std::cout << "reset main tracker from detector" << std::endl;
-            objectToResetMainTracker = maxElemnt->first;
-            objectToPresent = maxElemnt->first;
-            preparing = 0;
-        }
-    }
-    else if(objectFromTracker.first.area() > 0 && objectFromTracker.second > 0.51)
-    {
-        std::cout << "object from tracker conf " << objectFromTracker.second << std::endl;
-        objectToPresent = objectFromTracker.first;
-
-        if(objectFromTracker.second > 0.52)
-        {
+            std::cout << "no object from detector performing training" << std::endl;
             objectToTrain = objectFromTracker.first;
-            std::cout << " >>> train from tracker <<<" << std::endl;
+            objectToPresent = objectFromTracker.first;
+        }
+
+    }
+    else
+    {
+        std::cout << "trajectory is NOT reliable" << std::endl;
+
+        if(objectFromDetector.second > 0. && objectFromTracker.second > 0.)
+        {
+            const double overlap = calcOverlap(objectFromDetector.first, objectFromTracker.first);
+
+            if(overlap >= 0.8 && objectFromDetector.second > 0.515 && objectFromTracker.second > 0.515)
+            {
+                std::cout << "good overlap and conf trajectory is now reliable" << std::endl;
+                isReliable = true;
+                objectToTrain = objectFromTracker.first;
+            }
+            else if(objectFromDetector.second > objectFromTracker.second && objectFromDetector.second > 0.51)
+            {
+                std::cout << "reseting main tracker" << std::endl;
+                objectToResetMainTracker = objectFromDetector.first;
+            }
+
+            objectToPresent = objectFromDetector.second > objectFromTracker.second ? objectFromDetector.first : Rect(objectFromTracker.first);
+        }
+        else if(objectFromDetector.second > 0.51 || objectFromTracker.second > 0.51)
+        {
+            objectToPresent = objectFromDetector.second > objectFromTracker.second ? objectFromDetector.first : Rect(objectFromTracker.first);
+            if(objectFromDetector.second > 0.51)
+            {
+                objectToResetMainTracker = objectFromDetector.first;
+                std::cout << "restart main tracker" << std::endl;
+            }
         }
     }
 
+    if(objectToTrain.area() < 900)
+    {
+        isReliable = false;
+        objectToTrain = Rect();
+    }
 
-    return IntegratorResult(objectToTrain, objectToResetMainTracker,objectToPresent, detectorObject);
+
+    return IntegratorResult(objectToTrain, objectToResetMainTracker,objectToPresent, objectFromDetector.first);
 }
 
 bool Integrator::sortDetections(const std::pair<Rect, double> &candidate1, const std::pair<Rect, double> &candidate2)

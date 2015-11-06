@@ -74,7 +74,7 @@ struct Answers
 class CV_EXPORTS_W VarianceClassifier
 {
 public:
-    VarianceClassifier(double actLowCoeff = 0.3, double actHighCoeff = 2.2);
+    VarianceClassifier(double actLowCoeff = 0.1, double actHighCoeff = 5);
     void isObjects(const std::vector<Hypothesis> &hypothesis, const Mat_<uchar> &image, std::vector<Answers> &answers) const;
     void integratePositiveExamples(const std::vector< Mat_<uchar> > &examples);
 
@@ -148,7 +148,8 @@ public:
 
     ~NNClassifier() {}
 
-private:
+//private:
+public:
     const double theta;
     const size_t maxNumberOfExamples;
     const Size normilizedPatchSize;
@@ -171,6 +172,9 @@ public:
     std::pair<cv::Mat, cv::Mat> outputModel(int positiveMark = -1, int negativeMark = -1) const;
     std::pair<Mat, Mat> getModelWDecisionMarks(const Mat_<uchar> &image, double previousConf);
     double debugSr(const Mat_<uchar> &patch, int &positiveDecisitionExample, int &negativeDecisionExample);
+
+
+    static double dSplus, dSminus;
 
 };
 

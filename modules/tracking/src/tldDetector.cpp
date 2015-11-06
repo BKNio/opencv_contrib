@@ -85,9 +85,9 @@ void CascadeClassifier::init(const Mat_<uchar> &zeroFrame, const Rect &bb)
     std::vector<Rect> negativeExamples;
     for(std::vector<Hypothesis>::const_iterator it = hypothesis.begin(); it != hypothesis.end(); ++it)
     {
-        const double actOverlap = overlap(bb, it->bb);
+        const double actOverlap = calcOverlap(bb, it->bb);
 
-        if(actOverlap < 0.5 && actOverlap > 0)
+        if(actOverlap < 0.45 && actOverlap > 0)
             negativeExamples.push_back(it->bb);
     }
 
@@ -190,6 +190,30 @@ void CascadeClassifier::startNExpert(const Mat_<uchar> &image, const Rect &bb)
 
     const std::vector< Mat_<uchar> > &negExamplesForFern = nExpert->getNegativeExamples(image, bb, fernsPositive, "ferns negative");
     fernClassifier->integrateNegativeExamples(negExamplesForFern);
+
+    /*---------------------------------------------------*/
+
+
+    /*const Point shift(cvRound(float(bb.width)) / 6, cvRound(float(bb.height / 6)));
+    Point fTl = bb.tl() + shift;
+    Point cBr = bb.br() - shift;
+
+    const Rect innerNegative(fTl, cBr);
+
+
+    Mat_<uchar> resizedInner;
+    resize(image(innerNegative), resizedInner, Size(15, 15));
+
+    if(nnClassifier->isObject(resizedInner))
+    {
+        nnClassifier->addExample(resizedInner, nnClassifier->negativeExamples);
+        //imshow("inner negative", copy);
+        //waitKey();
+    }*/
+
+
+    /*---------------------------------------------------*/
+
 }
 
 void CascadeClassifier::addPositiveExamples(const std::vector<Mat_<uchar> > &examples)
@@ -240,11 +264,11 @@ std::vector< std::pair<Rect, double> > CascadeClassifier::prepareFinalResult(con
         if(answers[index])
             finalResult.push_back(std::make_pair(hypothesis[index].bb, answers[index].confidence));
 
-    const std::vector< std::pair<Rect, double> > copyOfFinalResult(finalResult);
-
-    std::vector< std::pair<Rect, double> >::iterator posToRemove = std::remove_if(finalResult.begin(), finalResult.end(), std::bind2nd(std::ptr_fun(removePredicate) , copyOfFinalResult));
 
     /*-----------------------------------------------------------------*/
+    /*const std::vector< std::pair<Rect, double> > copyOfFinalResult(finalResult);
+    std::vector< std::pair<Rect, double> >::iterator posToRemove = std::remove_if(finalResult.begin(), finalResult.end(), std::bind2nd(std::ptr_fun(removePredicate) , copyOfFinalResult));
+
     Mat copy; cvtColor(image, copy, CV_GRAY2BGR);
 
     for(std::vector< std::pair<Rect, double> >::iterator it = finalResult.begin(); it != posToRemove; ++it)
@@ -254,11 +278,10 @@ std::vector< std::pair<Rect, double> > CascadeClassifier::prepareFinalResult(con
         rectangle(copy, it->first, Scalar(0, 169, 255));
 
     imshow("filter result", copy);
-    //waitKey();
 
+    finalResult.erase(posToRemove, finalResult.end());*/
     /*-----------------------------------------------------------------*/
 
-    finalResult.erase(posToRemove, finalResult.end());
 
     return finalResult;
 }
@@ -307,7 +330,7 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
 //    Mat shift = Mat::eye(3, 3, CV_32F);
 //    shift.at<float>(0,2) = bb.width / 2;
 //    shift.at<float>(1,2) = bb.height / 2;
-//    Mat result = shift * mirror * shift.inv();
+//    Mat result = /*shift * */mirror/* * shift.inv()*/;
     /////////////////////////////experimental////////////////////////////
 
 
@@ -322,18 +345,21 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
     //GaussianBlur(image, noised, Size(3,3), 0.);
     image.copyTo(noised);
 
-    for(int j = 0; j < noised.size().area(); ++j)
-        noised.at<uchar>(j) = saturate_cast<uchar>(noised.at<uchar>(j) + rng.gaussian(5.));
+//    for(int j = 0; j < noised.size().area(); ++j)
+//        noised.at<uchar>(j) = saturate_cast<uchar>(noised.at<uchar>(j) + rng.gaussian(5.));
 
     for(int index = 0; index < numberOfSyntheticWarped; ++index)
     {
         Mat_<uchar> warpedOOI = getWarped(noised, bb, shiftXRandomValues[index], shiftYRandomValues[index], scaleRandomValues[index], rotationRandomValues[index]);
 
+        for(int j = 0; j < warpedOOI.size().area(); ++j)
+            warpedOOI.at<uchar>(j) = saturate_cast<uchar>(warpedOOI.at<uchar>(j) + rng.gaussian(5.));
+
 //        Mat_<uchar> mirrored;
 //        warpAffine(warpedOOI, mirrored, result(Rect(0,0,3,2)), warpedOOI.size());
 
         positiveExamples.push_back(warpedOOI);
-//        positiveExamples.push_back(mirrored);
+        //positiveExamples.push_back(mirrored);
 
 
 //        Mat_<uchar> mirroredBrighter = mirrored * 1.1;
@@ -437,7 +463,7 @@ std::vector< Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const
     {
         const Rect &actDetectedObject = detectedObjects[i];
 
-        if(overlap(actDetectedObject, object) < .5 && VarianceClassifier::variance(image(actDetectedObject)) > 0)
+        if(calcOverlap(actDetectedObject, object) < .5 && VarianceClassifier::variance(image(actDetectedObject)) > 0)
         {
             Mat_<uchar> negativeResized;
 
@@ -445,19 +471,19 @@ std::vector< Mat_<uchar> > CascadeClassifier::NExpert::getNegativeExamples(const
 
             negativeExamples.push_back(negativeResized);
 #ifdef DEBUG_OUTPUT2
-            rectangle(copy, actDetectedObject, cv::Scalar(0, 165, 255));
+            rectangle(copy, actDetectedObject, cv::Scalar(0, 0, 255));
 #endif
         }
 #ifdef DEBUG_OUTPUT2
         else
         {
-            rectangle(copy, actDetectedObject, cv::Scalar(255, 165, 0));
+            //rectangle(copy, actDetectedObject, cv::Scalar(0, 255, 0));
         }
 #endif
     }
 
 #ifdef DEBUG_OUTPUT2
-    rectangle(copy, object, cv::Scalar(165, 0, 255));
+    rectangle(copy, object, cv::Scalar(255, 0, 0));
     imshow(capture, copy);
 
 //    if(capture == "NN negative" && !negativeExamples.empty())
