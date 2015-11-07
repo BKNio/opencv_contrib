@@ -341,9 +341,14 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
     const std::vector<float> &shiftXRandomValues = generateRandomValues(shiftXRange, numberOfSyntheticWarped);
     const std::vector<float> &shiftYRandomValues = generateRandomValues(shiftYRange, numberOfSyntheticWarped);
 
-    Mat_<uchar> noised;
+    Mat_<uchar> noised(image.size(), 0);
+
+
     //GaussianBlur(image, noised, Size(3,3), 0.);
-    image.copyTo(noised);
+    //image.copyTo(noised);
+    rng.fill(noised, RNG::UNIFORM, 0, 255);
+    image(bb).copyTo(noised(bb));
+    //imshow("noised", noised);
 
 //    for(int j = 0; j < noised.size().area(); ++j)
 //        noised.at<uchar>(j) = saturate_cast<uchar>(noised.at<uchar>(j) + rng.gaussian(5.));
@@ -441,7 +446,7 @@ Mat_<uchar> CascadeClassifier::PExpert::getWarped(const Mat_<uchar> &originalFra
    Mat_<uchar> resized;
    resize(dst(bb), resized, dstSize);
 
-//   imshow("dst", dst);
+//   imshow("dst", dst(bb));
 //   waitKey();
 
    return /*dst*/resized;
