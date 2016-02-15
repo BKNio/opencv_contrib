@@ -541,7 +541,7 @@ double NNClassifier::Sc(const Mat_<uchar> &patch, bool isForTracker) const
         sminus = std::max(sminus, 0.5 * (NCC(*it, patch) + 1.0));
 
     if(!isForTracker)
-        if(2 * splus - 1 < 0.79 && 2 * sminus - 1 < 0.79)
+        if(2 * splus - 1 < 0.75 && 2 * sminus - 1 < 0.75)
             return 0.;
 
     //std::cout << 2 * splus - 1 << " " <<  2 * sminus - 1  << std::endl;

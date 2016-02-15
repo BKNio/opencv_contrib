@@ -193,13 +193,14 @@ void CascadeClassifier::startNExpert(const Mat_<uchar> &image, const Rect &bb)
 
     /*---------------------------------------------------*/
 
+    const Rect roi(Point(), image.size());
 
-    /*const Point shift(cvRound(float(bb.width)) / 6, cvRound(float(bb.height / 6)));
-    Point fTl = bb.tl() + shift;
-    Point cBr = bb.br() - shift;
+    const Point shift(cvRound(float(bb.width)) / 6, cvRound(float(bb.height / 6)));
+    const Point fTl = bb.tl() + shift;
+    const Point cBr = bb.br() - shift;
 
     const Rect innerNegative(fTl, cBr);
-
+    Mat copy; cvtColor(image, copy, CV_GRAY2BGR);
 
     Mat_<uchar> resizedInner;
     resize(image(innerNegative), resizedInner, Size(15, 15));
@@ -207,9 +208,88 @@ void CascadeClassifier::startNExpert(const Mat_<uchar> &image, const Rect &bb)
     if(nnClassifier->isObject(resizedInner))
     {
         nnClassifier->addExample(resizedInner, nnClassifier->negativeExamples);
-        //imshow("inner negative", copy);
+        rectangle(copy, innerNegative, Scalar(10,169,255));
+        imshow("additional negative", copy);
         //waitKey();
-    }*/
+    }
+
+//    const Point cTl = bb.tl() - 2 * shift;
+//    const Point fBr = bb.br() + 2 * shift;
+
+//    if(roi.contains(cTl) && roi.contains(fBr))
+//    {
+//        const Rect outterNegative(cTl, fBr);
+//        Mat_<uchar> resizedOutter;
+
+//        resize(image(outterNegative), resizedOutter, Size(15,15));
+
+//        if(nnClassifier->isObject(resizedOutter))
+//        {
+//            nnClassifier->addExample(resizedOutter, nnClassifier->negativeExamples);
+//            rectangle(copy, outterNegative, Scalar(10,169,255));
+//            imshow("additional negative", copy);
+//        }
+
+//    }
+
+    const Point shiftX (1.5 * shift.x, 0);
+    const Point shiftY (1.5 * shift.y, 0);
+
+    const Rect tTlRect = Rect(bb.tl() - shiftY, bb.size());
+    const Rect dTlRect = Rect(bb.tl() + shiftY, bb.size());
+    const Rect lTlRect = Rect(bb.tl() - shiftX, bb.size());
+    const Rect rTlRect = Rect(bb.tl() + shiftX, bb.size());
+
+    if(roi.contains(tTlRect.tl()) && roi.contains(tTlRect.br()))
+    {
+        Mat_<uchar> resized;
+        resize(image(tTlRect), resized, Size(15, 15));
+
+        if(nnClassifier->isObject(resized))
+        {
+            nnClassifier->addExample(resized, nnClassifier->negativeExamples);
+            rectangle(copy, tTlRect, Scalar(100,169,255));
+            imshow("additional negative", copy);
+        }
+    }
+
+    if(roi.contains(dTlRect.tl()) && roi.contains(dTlRect.br()))
+    {
+        Mat_<uchar> resized;
+        resize(image(dTlRect), resized, Size(15, 15));
+
+        if(nnClassifier->isObject(resized))
+        {
+            nnClassifier->addExample(resized, nnClassifier->negativeExamples);
+            rectangle(copy, dTlRect, Scalar(100,169,255));
+            imshow("additional negative", copy);
+        }
+    }
+    if(roi.contains(lTlRect.tl()) && roi.contains(lTlRect.br()))
+    {
+        Mat_<uchar> resized;
+        resize(image(lTlRect), resized, Size(15, 15));
+
+        if(nnClassifier->isObject(resized))
+        {
+            nnClassifier->addExample(resized, nnClassifier->negativeExamples);
+            rectangle(copy, lTlRect, Scalar(100,169,255));
+            imshow("additional negative", copy);
+        }
+    }
+    if(roi.contains(rTlRect.tl()) && roi.contains(rTlRect.br()))
+    {
+        Mat_<uchar> resized;
+        resize(image(rTlRect), resized, Size(15, 15));
+
+        if(nnClassifier->isObject(resized))
+        {
+            nnClassifier->addExample(resized, nnClassifier->negativeExamples);
+            rectangle(copy, rTlRect, Scalar(100,169,255));
+            imshow("additional negative", copy);
+        }
+    }
+
 
 
     /*---------------------------------------------------*/
@@ -341,12 +421,15 @@ std::vector< Mat_<uchar> > CascadeClassifier::PExpert::generatePositiveExamples(
     const std::vector<float> &shiftXRandomValues = generateRandomValues(shiftXRange, numberOfSyntheticWarped);
     const std::vector<float> &shiftYRandomValues = generateRandomValues(shiftYRange, numberOfSyntheticWarped);
 
-    Mat_<uchar> noised(image.size(), 0);
+    Mat_<uchar> noised; image.copyTo(noised);
 
+    uchar mean = saturate_cast<uchar>(double(sum(image(bb))[0]) / bb.area());
+
+    noised = noised - mean;
 
     //GaussianBlur(image, noised, Size(3,3), 0.);
     //image.copyTo(noised);
-    rng.fill(noised, RNG::UNIFORM, 0, 255);
+    //rng.fill(noised, RNG::UNIFORM, 0, 255);
     image(bb).copyTo(noised(bb));
     //imshow("noised", noised);
 

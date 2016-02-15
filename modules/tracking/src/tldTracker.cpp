@@ -246,9 +246,9 @@ const Integrator::IntegratorResult Integrator::getObjectToTrainFrom(const Mat_<u
             }
             else if(objectFromDetector.second > objectFromTracker.second)
             {
-                std::cout << "preform tracker correction trajectory is not reliable now" << std::endl;
+                std::cout << "preform tracker correction trajectory is still reliable" << std::endl;
 
-                isReliable = false;
+                //isReliable = false;
                 objectToResetMainTracker = objectFromDetector.first;
                 objectToPresent = objectFromDetector.first;
             }
@@ -300,11 +300,13 @@ const Integrator::IntegratorResult Integrator::getObjectToTrainFrom(const Mat_<u
         }
     }
 
-    if(objectToTrain.area() < 900)
-    {
-        isReliable = false;
-        objectToTrain = Rect();
-    }
+    if(objectToTrain.area() > 0)
+        if(/*objectToTrain.width < 30 && objectToTrain.height < 30*/ objectToTrain.area() < 900)
+        {
+            std::cout << "too small to tarin from" << std::endl;
+            //isReliable = false;
+            objectToTrain = Rect();
+        }
 
 
     return IntegratorResult(objectToTrain, objectToResetMainTracker,objectToPresent, objectFromDetector.first);
